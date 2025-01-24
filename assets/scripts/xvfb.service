@@ -1,0 +1,11 @@
+[Unit]
+Description=X Virtual Framebuffer Service
+After=network.target
+
+[Service]
+Environment=DISPLAY=:1
+Restart=always
+ExecStart=/usr/bin/Xvfb :1 -screen 0 1920x1080x24
+
+[Install]
+WantedBy=multi-user.target

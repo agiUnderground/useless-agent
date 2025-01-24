@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Screenshot App</title>
+  <style>
+    @font-face {
+      font-family: 'JetBrains Mono';
+      src: local('./fonts/webfonts/JetBrainsMono-Regular.woff2') format('woff2'),
+           url('https://cdn.jsdelivr.net/gh/JetBrains/JetBrainsMono/web/woff2/JetBrainsMono-Regular.woff2') format('woff2'),
+           url('https://cdn.jsdelivr.net/gh/JetBrains/JetBrainsMono/web/woff/JetBrainsMono-Regular.woff') format('woff');
+      font-display: swap;
+      font-weight: 400;
+      font-style: normal;
+    }
+
+    :root {
+      --dot-bg: #000000de;
+      --dot-color: #403f3f;
+      --dot-size: 1px;
+      --dot-space: 22px;
+      --primary-bg: #212121;
+      --border-color: #333333;
+    }
+
+    html, body {
+      height: 100vh;
+      width: 100vw;
+      margin: 0;
+      overflow: hidden;
+      font-family: 'JetBrains Mono', monospace;
+      color: white;
+      background: linear-gradient(90deg, var(--dot-bg) calc(var(--dot-space) - var(--dot-size)), transparent 1%) center / var(--dot-space) var(--dot-space),
+                  linear-gradient(var(--dot-bg) calc(var(--dot-space) - var(--dot-size)), transparent 1%) center / var(--dot-space) var(--dot-space),
+                  var(--dot-color);
+    }
+
+    .main-wrapper {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+      gap: 20px;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-direction: column;
+      width: 320px;
+      min-width: 320px;
+      gap: 10px;
+      height: calc(100vh - 40px);
+      /* overflow-y: auto; */
+    }
+
+    .main-content {
+      flex: 1;
+      min-width: 0;
+      height: calc(100vh - 40px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .button-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .control-button {
+      background-color: rgb(1, 1, 1);
+      border: 1px solid var(--border-color);
+      color: #6f6f6f;
+      padding: 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      width: 100%;
+      text-align: left;
+    }
+
+    .control-button:hover {
+      background-color: #010b13;
+    }
+
+    .screenshot-img {
+      /*max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      image-rendering: crisp-edges; */
+
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      /* object-fit: none; */
+      object-fit: scale-down;
+      flex-shrink: 0;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .coord-inputs {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .coord-input {
+      width: 60px;
+      padding: 6px;
+      background: var(--primary-bg);
+      border: 1px solid var(--border-color);
+      color: white;
+      border-radius: 4px;
+    }
+
+    .dark-textarea {
+      background-color: var(--primary-bg);
+      color: white;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 10px;
+      resize: none;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    #llmChatInput {
+      height: 100%;
+      margin-top: 0px;
+    }
+
+    fieldset {
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 10px;
+      margin: 0;
+    }
+
+    #colorsList ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    #colorsList li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .color-square {
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+    }
+
+    .scrollable {
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="main-wrapper">
+    <div class="toolbar">
+      <h6 style="margin: 0px;">The year of the Linux desktop... for AI &#128517;</h6>
+      
+      <div class="button-group">
+        <button class="control-button" id="screenshotBtn">Take Screenshot</button>
+        <button class="control-button" id="videoBtn">Video</button>
+        <button class="control-button" id="video2">Video 2</button>
+      </div>
+
+      <fieldset>
+        <legend>Connection</legend>
+        <div class="input-group">
+          <input type="text" id="ipv4" class="dark-textarea" 
+                 placeholder="IP Address" 
+                 pattern="^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^[\da-fA-F:]+$"
+                 oninput="this.value=this.value.replace(/[^0-9a-fA-F.:]/g,'')" required>
+          <button class="control-button" id="setTargetIP">Connect</button>
+        </div>
+        <button class="control-button" id="popOutWSButton" style="margin-top: 10px;">Pop Out WS</button>
+      </fieldset>
+
+      <fieldset>
+        <legend>Mouse Control</legend>
+        <div class="coord-inputs">
+          <input type="text" id="x-coord" class="coord-input"
+                 placeholder="X"
+                 pattern="-?[0-9]+"
+                 title="Please enter a valid coordinate value."
+                 oninput="this.value = this.value.replace(/[^-0-9]/g, '')" required>
+          <input type="text" id="y-coord" class="coord-input"
+                 placeholder="Y"
+                 pattern="-?[0-9]+"
+                 title="Please enter a valid coordinate value."
+                 oninput="this.value = this.value.replace(/[^-0-9]/g, '')" required>
+          <button class="control-button" id="sendMouseInput">Move</button>
+          <button class="control-button" id="sendMouseClick">Click</button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>LLM Status</legend>
+        <textarea id="llmStatus" class="dark-textarea" spellcheck="false" rows="3"></textarea>
+      </fieldset>
+
+      <fieldset style="flex: 3; display: flex; flex-direction: column; min-height: 200px;">
+        <legend>LLM Chat</legend>
+        <textarea id="llmChatInput" class="dark-textarea" placeholder="Type message..."></textarea>
+        <button class="control-button" id="llmSendButton" style="margin-top: 10px;">Send</button>
+      </fieldset>
+    </div>
+
+    <div class="main-content">
+      <img id="screenshotImg" class="screenshot-img" src="" alt="Video stream will appear here">
+    </div>
+  </div>
+
+  <script>
+    let ip = "127.0.0.1";
+    let ws = null;
+    let videoLoopInterval = null;
+    let popOutWSWindow = null;
+    const screenshotImg = document.getElementById('screenshotImg');
+    // Image Fetch Functions
+    let currentVideoSession = 0;
+    
+
+    // WebSocket Management
+    function setupWebSocket() {
+      if (ws) ws.close();
+      ws = new WebSocket(`ws://${ip}:8080/ws`);
+
+      ws.onopen = () => console.log("Connected to server");
+      ws.onclose = () => console.log("Disconnected from server");
+    }
+
+    // Generic Functions
+    function prettifyJSON(input) {
+      try {
+        return JSON.stringify(JSON.parse(input), null, 4);
+      } catch {
+        return input;
+      }
+    }
+
+    function toggleVideoLoop(fetchFunction, button, buttonText) {
+      if (videoLoopInterval) {
+        clearInterval(videoLoopInterval);
+        videoLoopInterval = null;
+        button.textContent = buttonText;
+        currentVideoSession = 0
+      } else {
+        currentVideoSession = button.id === 'videoBtn' ? 1 : button.id === 'video2' ? 2 : 0;
+        videoLoopInterval = setInterval(fetchFunction, 1000 / 30); // 30 FPS
+        button.textContent = `Stop ${buttonText}`;
+      }
+    }
+
+    async function fetchImage(endpoint) {
+      // Store session ID when request starts
+      const thisSession = currentVideoSession;
+      
+      try {
+        const response = await fetch(`http://${ip}:8080/${endpoint}`);
+        if (!response.ok) throw new Error(`Failed to fetch ${endpoint}`);
+
+        // Check if video was stopped while request was in flight
+        if (thisSession !== currentVideoSession) {
+          return; // Discard this image
+        }
+
+        const blob = await response.blob();
+        const imageUrl = URL.createObjectURL(blob);
+        if (screenshotImg.src) URL.revokeObjectURL(screenshotImg.src);
+        screenshotImg.src = imageUrl;
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    }
+
+    // Mouse Functions
+    async function sendMouseClick() {
+      try {
+        const response = await fetch(`http://${ip}:8080/mouse-click`);
+        if (!response.ok) throw new Error('Failed to send mouse click');
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    }
+
+    async function sendMouseInput() {
+      const x = document.getElementById('x-coord').value;
+      const y = document.getElementById('y-coord').value;
+      try {
+        const response = await fetch(`http://${ip}:8080/mouse-input?x=${x}&y=${y}`);
+        if (!response.ok) throw new Error('Failed to send mouse input');
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    }
+
+    function formatIp(ip) {
+      if (ip.includes(':')) {
+        return `[${ip}]`;
+      } else {
+        return `${ip}`;
+      }
+    }
+
+    // Event Listeners
+    document.getElementById("setTargetIP").addEventListener("click", () => {
+      ip = formatIp(document.getElementById('ipv4').value);
+      console.log("Target IP changed to", ip);
+      currentVideoSession += 1;
+      setupWebSocket();
+    });
+
+    document.getElementById("screenshotBtn").addEventListener("click", () => fetchImage('screenshot'));
+    document.getElementById("sendMouseClick").addEventListener("click", sendMouseClick);
+    document.getElementById("sendMouseInput").addEventListener("click", sendMouseInput);
+
+    // Video Controls
+    const videoControls = {
+      videoBtn: 'screenshot',
+      video2: 'video2'
+    };
+
+    Object.entries(videoControls).forEach(([id, endpoint]) => {
+      document.getElementById(id).addEventListener('click', function() {
+        toggleVideoLoop(() => fetchImage(endpoint), this, this.textContent.replace('Stop ', ''));
+      });
+    });
+
+    // LLM Chat
+    document.getElementById("llmSendButton").addEventListener("click", () => {
+      const inputText = document.getElementById('llmChatInput').value;
+      if (!inputText) return;
+
+      fetch(`http://${ip}:8080/llm-input`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: inputText })
+      }).catch(error => {
+        console.error('Error:', error);
+      });
+
+      document.getElementById('llmChatInput').value = "";
+    });
+
+    // Pop Out WS
+    document.getElementById("popOutWSButton").addEventListener("click", function() {
+      // Open window with specific features for better visibility
+      popOutWSWindow = window.open('', '_blank', 'width=800,height=600,resizable=yes,scrollbars=yes');
+
+      if (popOutWSWindow) {
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>WebSocket Output</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background-color: #1e1e1e;
+      color: #fff;
+      font-family: monospace;
+    }
+    #poppedTextarea {
+      width: 100%;
+      height: calc(100vh - 40px);
+      background-color: #000;
+      color: #fff;
+      border: 1px solid #333;
+      padding: 10px;
+      font-size: 14px;
+      line-height: 1.4;
+      resize: none;
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+  <textarea id="poppedTextarea" readonly></textarea>
+  <script>
+    // Debug logging
+    console.log('Pop-out window loaded');
+    
+    const ip = '${ip}';
+    let ws = null;
+    const textarea = document.getElementById('poppedTextarea');
+    
+    function log(msg) {
+      console.log(msg);
+      textarea.value += msg + '\\n';
+      textarea.scrollTop = textarea.scrollHeight;
+    }
+
+    function setupWebSocket() {
+      try {
+        log('Attempting WebSocket connection...');
+        
+        ws = new WebSocket('ws://' + ip + ':8080/ws');
+        
+        ws.onopen = () => {
+          log('Connected to WebSocket server');
+        };
+        
+        ws.onmessage = (event) => {
+          if (!event.data) return;
+          
+          try {
+            const parsed = JSON.parse(event.data);
+            const formatted = JSON.stringify(parsed, null, 2);
+            log('Received: ' + formatted);
+          } catch (e) {
+            log('Received: ' + event.data);
+          }
+        };
+
+        ws.onclose = () => {
+          log('WebSocket connection closed');
+          ws = null;
+          // Try to reconnect after 3 seconds
+          setTimeout(setupWebSocket, 3000);
+        };
+
+        ws.onerror = (error) => {
+          log('WebSocket error: ' + error.message);
+        };
+
+      } catch (error) {
+        log('Setup error: ' + error.message);
+      }
+    }
+
+    // Start connection when window loads
+    window.addEventListener('load', setupWebSocket);
+  <\/script>
+</body>
+</html>`;
+
+        // Write the HTML and explicitly close the document
+        popOutWSWindow.document.open();
+        popOutWSWindow.document.write(html);
+        popOutWSWindow.document.close();
+
+        // Log success in main window
+        console.log('Pop-out window created successfully');
+      } else {
+        console.error('Failed to create pop-out window');
+      }
+    });
+    
+    // Initial WebSocket setup for main window
+    setupWebSocket();
+  </script>
+</body>
+</html>

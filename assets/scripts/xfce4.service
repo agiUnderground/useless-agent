@@ -1,0 +1,11 @@
+[Unit]
+Description=XFCE4 Session
+After=xvfb.service
+
+[Service]
+Environment=DISPLAY=:1
+Restart=always
+ExecStart=/usr/bin/startxfce4
+
+[Install]
+WantedBy=multi-user.target
