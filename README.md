@@ -69,6 +69,12 @@ API_KEY=your-api-token-value DISPLAY=:1 API_BASE_URL='https://api.deepseek.com/v
 > [!TIP]  
 > Like to burn money? Try more capable LLMs; using DeepSeek R1 instead of v3 would probably make the program more capable of doing nothing.
 
+# Demos
+
+`Prompt`: Open a web browser and go to deepseek.com
+
+![](/assets/demos/demo-1.mov)
+
 How the project started: I just wanted to take a screenshot over the network.
 
 ### Todo list:  
