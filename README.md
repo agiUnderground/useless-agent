@@ -73,7 +73,7 @@ API_KEY=your-api-token-value DISPLAY=:1 API_BASE_URL='https://api.deepseek.com/v
 
 `Prompt`: Open a web browser and go to deepseek.com
 
-![](/assets/demos/demo-1.mov)
+https://github.com/user-attachments/assets/f2c3e49d-f843-4907-8c47-cf94d38d8870
 
 How the project started: I just wanted to take a screenshot over the network.
 
