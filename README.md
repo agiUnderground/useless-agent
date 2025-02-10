@@ -39,6 +39,12 @@ If it were a web service with an SLA, its SLA would guarantee an availability of
 
 https://github.com/user-attachments/assets/6299f1b5-3c2e-493e-b67a-145487e14ffa
 
+`Prompt`: Very detailed prompt to create a ping pong tcp client and server(neovim)
+
+https://github.com/user-attachments/assets/370bdd7e-0955-4b1e-8e81-8ee3eb913e90
+
+
+
 ### How to build:
 * `git clone`
 * `cd useless-agent`
