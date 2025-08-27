@@ -1040,6 +1040,7 @@ You not allowed to produce useless actions.
 Every iteration analizy ocrDelta data to understand if task is completed, if and only if it's completed issue stop iteration action.
 json with actions need to be clean, WITHOUT ANY COMMENTS.
 make sure json objects is separated with comma where it is needed, make sure that json is valid.
+always return actions in JSON array, even if you want to execute only one action.
 make sure you do not produce ANY actions AFTER the "stateUpdate" action. It's very important.
 
 json for the actions need to be in one file. Json must be valid for golang parser.
@@ -1061,7 +1062,7 @@ Again, you current task is:
 			MaxTokens:       8192,
 			Messages:        messages,
 			Stream:          true,
-			// JSONMode: true,
+			JSONMode:        true,
 		},
 	)
 	if err != nil {
@@ -1087,21 +1088,23 @@ Again, you current task is:
 
 	// Extract JSON
 	fmt.Println("\nFULL RESPONSE MESSAGE:", fullResponseMessage)
-	var jsonStrings []string
-
-	if modelID != "deepseek-reasoner" {
-		jsonStrings = extractJSONFromMarkdown(fullResponseMessage)
-	} else {
-		jsonStrings = []string{fullResponseMessage}
-	}
+	// var jsonStrings []string
+	//
+	//if modelID != "deepseek-reasoner" {
+	//	jsonStrings = extractJSONFromMarkdown(fullResponseMessage)
+	//} else {
+	// jsonStrings = []string{fullResponseMessage}
+	//	jsonStrings = []string{fullResponseMessage}
+	//}
 
 	// Parse JSON into a slice of Action objects ------------------
 	var actions []Action
 
-	log.Println("\n\njsonStrings:", jsonStrings)
-	actionsJSONStringReturn = strings.Join(jsonStrings[:], ",")
+	// log.Println("\n\njsonStrings:", jsonStrings)
+	// actionsJSONStringReturn = strings.Join(jsonStrings[:], ",")
 
-	err = json.Unmarshal([]byte(jsonStrings[0]), &actions)
+	// err = json.Unmarshal([]byte(jsonStrings[0]), &actions)
+	err = json.Unmarshal([]byte(fullResponseMessage), &actions)
 	if err != nil {
 		fmt.Println("Error parsing JSON:", err)
 		return
@@ -1280,9 +1283,12 @@ func breakGoalIntoSubtasks(goal string) (result []SubTask, err error) {
 		log.Fatal(err)
 	}
 
-	jsonStrings := extractJSONFromMarkdown(resp.Choices[0].Message.Content)
+	log.Println("\n\nresp(must be json):", resp)
+	// jsonStrings := extractJSONFromMarkdown(resp.Choices[0].Message.Content)
+	jsonStrings := resp.Choices[0].Message.Content
 	log.Println("\n\njsonStrings:", jsonStrings)
-	s := strings.Join(jsonStrings[:], ",")
+	// s := strings.Join(jsonStrings[:], ",")
+	s := jsonStrings
 
 	subtasks := make([]SubTask, 0, 10_000)
 	err = json.Unmarshal([]byte(s), &subtasks)
