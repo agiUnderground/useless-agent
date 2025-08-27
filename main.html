@@ -220,6 +220,32 @@
     .toggle-buttons-btn:hover {
       background-color: #444;
     }
+
+    /* FPS Button Styles */
+    .fps-button {
+      background-color: rgb(1, 1, 1);
+      border: 1px solid var(--border-color);
+      color: #6f6f6f;
+      padding: 2px 6px;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      font-size: 11px;
+      height: 20px;
+      min-width: 24px;
+      flex: 1;
+      text-align: center;
+    }
+
+    .fps-button:hover {
+      background-color: #010b13;
+    }
+
+    .fps-button.active {
+      background-color: #2a2a2a;
+      color: #ffffff;
+      border-color: #555555;
+    }
   </style>
 </head>
 <body>
@@ -234,6 +260,19 @@
 
       <fieldset>
         <legend>Connection</legend>
+        
+        <!-- FPS Selection -->
+        <div class="fps-selector" style="margin-bottom: 10px;">
+          <label style="display: block; margin-bottom: 4px; font-size: 12px; color: #6f6f6f;">FPS</label>
+          <div class="fps-buttons" style="display: flex; gap: 4px; height: 20px;">
+            <button class="fps-button" data-fps="1">1</button>
+            <button class="fps-button" data-fps="5">5</button>
+            <button class="fps-button" data-fps="10">10</button>
+            <button class="fps-button" data-fps="15">15</button>
+            <button class="fps-button" data-fps="30">30</button>
+          </div>
+        </div>
+
         <div class="input-group">
           <input type="text" id="ipv4" class="dark-textarea" 
                  placeholder="IP Address" 
@@ -244,6 +283,7 @@
             Connect
           </button>
         </div>
+        
         <button class="control-button" id="popOutWSButton" style="margin-top: 10px;">Pop Out WS</button>
       </fieldset>
 
@@ -292,6 +332,7 @@
     let currentVideoSession = 0;
     let isConnected = false;
     let buttonsVisible = false;
+    let currentFPS = 30; // Default FPS
     
 
     // Toggle buttons functionality
@@ -416,9 +457,42 @@
         currentVideoSession = 0
       } else {
         currentVideoSession = button.id === 'videoBtn' ? 1 : button.id === 'video2' ? 2 : 0;
-        videoLoopInterval = setInterval(fetchFunction, 1000 / 30); // 30 FPS
+        videoLoopInterval = setInterval(fetchFunction, 1000 / currentFPS);
         button.textContent = `Stop ${buttonText}`;
       }
+    }
+
+    // FPS Selection Function
+    function setFPS(fps) {
+      currentFPS = fps;
+      
+      // Update button states
+      document.querySelectorAll('.fps-button').forEach(btn => {
+        if (parseInt(btn.dataset.fps) === fps) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+      
+      // If video is currently streaming, restart it with new FPS
+      if (videoLoopInterval) {
+        // Find which video button is active and restart it
+        const videoControls = {
+          videoBtn: 'screenshot',
+          video2: 'video2'
+        };
+        
+        Object.entries(videoControls).forEach(([id, endpoint]) => {
+          const btn = document.getElementById(id);
+          if (btn && btn.textContent.includes('Stop')) {
+            clearInterval(videoLoopInterval);
+            videoLoopInterval = setInterval(() => fetchImage(endpoint), 1000 / currentFPS);
+          }
+        });
+      }
+      
+      console.log(`FPS set to: ${currentFPS}`);
     }
 
     async function fetchImage(endpoint) {
@@ -622,6 +696,17 @@
         console.error('Failed to create pop-out window');
       }
     });
+    
+    // FPS Button Event Listeners
+    document.querySelectorAll('.fps-button').forEach(button => {
+      button.addEventListener('click', function() {
+        const fps = parseInt(this.dataset.fps);
+        setFPS(fps);
+      });
+    });
+
+    // Initialize default FPS state
+    setFPS(currentFPS);
     
     // Initial WebSocket setup for main window
     setupWebSocket();
