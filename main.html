@@ -294,6 +294,12 @@
       ws.onopen = () => {
         console.log("Connected to server");
         updateConnectionStatus('connected');
+        
+        // Automatically start video when connection is established
+        const videoBtn = document.getElementById('videoBtn');
+        if (videoBtn && !videoLoopInterval) {
+          toggleVideoLoop(() => fetchImage('screenshot'), videoBtn, videoBtn.textContent.replace('Stop ', ''));
+        }
       };
       
       ws.onclose = () => {
