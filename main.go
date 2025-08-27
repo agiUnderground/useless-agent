@@ -1284,11 +1284,11 @@ func breakGoalIntoSubtasks(goal string) (result []SubTask, err error) {
 	}
 
 	log.Println("\n\nresp(must be json):", resp)
-	// jsonStrings := extractJSONFromMarkdown(resp.Choices[0].Message.Content)
-	jsonStrings := resp.Choices[0].Message.Content
+	jsonStrings := extractJSONFromMarkdown(resp.Choices[0].Message.Content)
+	// jsonStrings := resp.Choices[0].Message.Content
 	log.Println("\n\njsonStrings:", jsonStrings)
-	// s := strings.Join(jsonStrings[:], ",")
-	s := jsonStrings
+	s := strings.Join(jsonStrings[:], ",")
+	//s := jsonStrings
 
 	subtasks := make([]SubTask, 0, 10_000)
 	err = json.Unmarshal([]byte(s), &subtasks)
