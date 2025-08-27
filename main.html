@@ -170,6 +170,31 @@
       flex: 1;
       min-height: 0;
     }
+
+    /* Connection Status Indicator */
+    .connection-status {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 8px;
+      background-color: #666; /* Grey - inactive */
+    }
+
+    .connection-status.connected {
+      background-color: #4CAF50; /* Green - connected */
+      box-shadow: 0 0 5px rgba(76, 175, 80, 0.5);
+    }
+
+    .connection-status.connecting {
+      background-color: #FFC107; /* Yellow - connecting/error */
+      box-shadow: 0 0 5px rgba(255, 193, 7, 0.5);
+    }
+
+    .connection-button {
+      display: flex;
+      align-items: center;
+    }
   </style>
 </head>
 <body>
@@ -188,7 +213,10 @@
                  placeholder="IP Address" 
                  pattern="^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^[\da-fA-F:]+$"
                  oninput="this.value=this.value.replace(/[^0-9a-fA-F.:]/g,'')" required>
-          <button class="control-button" id="setTargetIP">Connect</button>
+          <button class="control-button connection-button" id="setTargetIP">
+            <span class="connection-status" id="connectionStatus"></span>
+            Connect
+          </button>
         </div>
         <button class="control-button" id="popOutWSButton" style="margin-top: 10px;">Pop Out WS</button>
       </fieldset>
@@ -238,13 +266,45 @@
     let currentVideoSession = 0;
     
 
+    // Connection Status Management
+    function updateConnectionStatus(status) {
+      const statusElement = document.getElementById('connectionStatus');
+      statusElement.className = 'connection-status';
+      
+      switch(status) {
+        case 'connected':
+          statusElement.classList.add('connected');
+          break;
+        case 'connecting':
+          statusElement.classList.add('connecting');
+          break;
+        case 'disconnected':
+          // Default grey color (inactive)
+          break;
+      }
+    }
+
     // WebSocket Management
     function setupWebSocket() {
       if (ws) ws.close();
+      updateConnectionStatus('connecting');
+      
       ws = new WebSocket(`ws://${ip}:8080/ws`);
 
-      ws.onopen = () => console.log("Connected to server");
-      ws.onclose = () => console.log("Disconnected from server");
+      ws.onopen = () => {
+        console.log("Connected to server");
+        updateConnectionStatus('connected');
+      };
+      
+      ws.onclose = () => {
+        console.log("Disconnected from server");
+        updateConnectionStatus('disconnected');
+      };
+      
+      ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+        updateConnectionStatus('connecting'); // Show yellow for connection problems
+      };
     }
 
     // Generic Functions
