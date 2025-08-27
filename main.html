@@ -195,12 +195,38 @@
       display: flex;
       align-items: center;
     }
+
+    /* Hidden button group */
+    .button-group.hidden {
+      display: none;
+    }
+
+    /* Small toggle button */
+    .toggle-buttons-btn {
+      position: fixed;
+      top: 0px;
+      left: 0px;
+      width: 12px;
+      height: 12px;
+      background-color: #333;
+      border: 1px solid #555;
+      border-radius: 2px;
+      cursor: pointer;
+      z-index: 1000;
+      padding: 0;
+      margin: 0;
+    }
+
+    .toggle-buttons-btn:hover {
+      background-color: #444;
+    }
   </style>
 </head>
 <body>
   <div class="main-wrapper">
+    <button class="toggle-buttons-btn" id="toggleButtonsBtn" title="Toggle buttons"></button>
     <div class="toolbar">
-      <div class="button-group">
+      <div class="button-group hidden" id="mediaButtonsGroup">
         <button class="control-button" id="screenshotBtn">Take Screenshot</button>
         <button class="control-button" id="videoBtn">Video</button>
         <button class="control-button" id="video2">Video 2</button>
@@ -264,7 +290,37 @@
     const screenshotImg = document.getElementById('screenshotImg');
     // Image Fetch Functions
     let currentVideoSession = 0;
+    let isConnected = false;
+    let buttonsVisible = false;
     
+
+    // Toggle buttons functionality
+    function toggleMediaButtons() {
+      const mediaButtonsGroup = document.getElementById('mediaButtonsGroup');
+      buttonsVisible = !buttonsVisible;
+      
+      if (buttonsVisible) {
+        mediaButtonsGroup.classList.remove('hidden');
+      } else {
+        mediaButtonsGroup.classList.add('hidden');
+      }
+    }
+
+    // Update connection button text and functionality
+    function updateConnectionButton() {
+      const connectButton = document.getElementById('setTargetIP');
+      
+      if (isConnected) {
+        // Change to Disconnect
+        connectButton.innerHTML = '<span class="connection-status" id="connectionStatus"></span> Disconnect';
+      } else {
+        // Change to Connect
+        connectButton.innerHTML = '<span class="connection-status" id="connectionStatus"></span> Connect';
+      }
+      
+      // Update the connection status after changing the HTML
+      updateConnectionStatus(isConnected ? 'connected' : 'disconnected');
+    }
 
     // Connection Status Management
     function updateConnectionStatus(status) {
@@ -288,12 +344,16 @@
     function setupWebSocket() {
       if (ws) ws.close();
       updateConnectionStatus('connecting');
+      isConnected = false;
+      updateConnectionButton();
       
       ws = new WebSocket(`ws://${ip}:8080/ws`);
 
       ws.onopen = () => {
         console.log("Connected to server");
         updateConnectionStatus('connected');
+        isConnected = true;
+        updateConnectionButton();
         
         // Automatically start video when connection is established
         const videoBtn = document.getElementById('videoBtn');
@@ -305,12 +365,26 @@
       ws.onclose = () => {
         console.log("Disconnected from server");
         updateConnectionStatus('disconnected');
+        isConnected = false;
+        updateConnectionButton();
       };
       
       ws.onerror = (error) => {
         console.error("WebSocket error:", error);
         updateConnectionStatus('connecting'); // Show yellow for connection problems
+        isConnected = false;
+        updateConnectionButton();
       };
+    }
+
+    // Disconnect WebSocket
+    function disconnectWebSocket() {
+      if (ws) {
+        ws.close();
+        updateConnectionStatus('disconnected');
+        isConnected = false;
+        updateConnectionButton();
+      }
     }
 
     // Generic Functions
@@ -388,11 +462,18 @@
 
     // Event Listeners
     document.getElementById("setTargetIP").addEventListener("click", () => {
-      ip = formatIp(document.getElementById('ipv4').value);
-      console.log("Target IP changed to", ip);
-      currentVideoSession += 1;
-      setupWebSocket();
+      if (isConnected) {
+        disconnectWebSocket();
+      } else {
+        ip = formatIp(document.getElementById('ipv4').value);
+        console.log("Target IP changed to", ip);
+        currentVideoSession += 1;
+        setupWebSocket();
+      }
     });
+
+    // Toggle button event listener
+    document.getElementById("toggleButtonsBtn").addEventListener("click", toggleMediaButtons);
 
     document.getElementById("screenshotBtn").addEventListener("click", () => fetchImage('screenshot'));
     document.getElementById("sendMouseClick").addEventListener("click", sendMouseClick);
