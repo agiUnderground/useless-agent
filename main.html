@@ -385,6 +385,18 @@
         isConnected = false;
         updateConnectionButton();
       }
+      
+      // Stop video stream when disconnecting
+      if (videoLoopInterval) {
+        clearInterval(videoLoopInterval);
+        videoLoopInterval = null;
+        
+        // Reset video button texts
+        const videoBtn = document.getElementById('videoBtn');
+        const video2Btn = document.getElementById('video2');
+        if (videoBtn) videoBtn.textContent = 'Video';
+        if (video2Btn) video2Btn.textContent = 'Video 2';
+      }
     }
 
     // Generic Functions
