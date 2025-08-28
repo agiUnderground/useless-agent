@@ -351,7 +351,7 @@
 
       <fieldset>
         <legend>Status</legend>
-        <p style="margin: auto; font-size: 12px; padding: 5px; width: fit-content;">Total tokens used: 0</p>
+        <p style="margin: auto; font-size: 12px; padding: 5px; width: fit-content;">Total tokens used: <span id="tokenCounter">0</span></p>
       </fieldset>
 
       <fieldset style="flex: 3; display: flex; flex-direction: column; min-height: 200px;">
@@ -450,6 +450,18 @@
         const videoBtn = document.getElementById('videoBtn');
         if (videoBtn && !videoLoopInterval) {
           toggleVideoLoop(() => fetchImage('screenshot'), videoBtn, videoBtn.textContent.replace('Stop ', ''));
+        }
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'tokenUpdate') {
+            document.getElementById('tokenCounter').textContent = data.total;
+          }
+        } catch (error) {
+          // Handle non-JSON messages or other WebSocket messages
+          console.log('WebSocket message:', event.data);
         }
       };
       

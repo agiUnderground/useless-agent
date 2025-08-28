@@ -51,6 +51,69 @@ var (
 	wonb     = flag.Bool("whiteonblack", false, "white text on a black background")
 )
 
+// Token tracking
+var (
+	totalTokensUsed int
+	tokenMutex      sync.Mutex
+)
+
+// Function to add tokens to the total and send update to all websocket clients
+func addTokensAndSendUpdate(tokens int) {
+	tokenMutex.Lock()
+	totalTokensUsed += tokens
+	currentTotal := totalTokensUsed
+	tokenMutex.Unlock()
+
+	// Send update to all websocket clients
+	wsmutex.Lock()
+	defer wsmutex.Unlock()
+
+	for _, conn := range websocketConnections {
+		update := map[string]interface{}{
+			"type":  "tokenUpdate",
+			"total": currentTotal,
+		}
+		updateJSON, err := json.Marshal(update)
+		if err != nil {
+			log.Println("Error marshaling token update:", err)
+			continue
+		}
+
+		err = conn.WriteMessage(websocket.TextMessage, updateJSON)
+		if err != nil {
+			log.Println("Error sending token update:", err)
+		}
+	}
+}
+
+// Function to reset token counter and send update
+func resetTokenCounter() {
+	tokenMutex.Lock()
+	totalTokensUsed = 0
+	tokenMutex.Unlock()
+
+	// Send reset update to all websocket clients
+	wsmutex.Lock()
+	defer wsmutex.Unlock()
+
+	for _, conn := range websocketConnections {
+		update := map[string]interface{}{
+			"type":  "tokenUpdate",
+			"total": 0,
+		}
+		updateJSON, err := json.Marshal(update)
+		if err != nil {
+			log.Println("Error marshaling token reset:", err)
+			continue
+		}
+
+		err = conn.WriteMessage(websocket.TextMessage, updateJSON)
+		if err != nil {
+			log.Println("Error sending token reset:", err)
+		}
+	}
+}
+
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
@@ -1132,6 +1195,7 @@ Again, you current task is:
 
 	estimate := client.EstimateTokensFromMessages(messages)
 	fmt.Printf("Estimated total tokens[main llm input func][input]: %d\n", estimate.EstimatedTokens)
+	addTokensAndSendUpdate(estimate.EstimatedTokens)
 
 	fmt.Println("\nCreating streaming chat completion...")
 	stream, err := client.CreateChatCompletionStream(
@@ -1284,6 +1348,7 @@ func getOCRDeltaAbstractDescription(ocrDelta string) (abstructDescription string
 
 	estimate := client.EstimateTokensFromMessages(messages)
 	fmt.Printf("Estimated total tokens[getOCRDeltaAbstractDescription][input]: %d\n", estimate.EstimatedTokens)
+	addTokensAndSendUpdate(estimate.EstimatedTokens)
 
 	modelID := os.Getenv("MODEL_ID")
 
@@ -1346,6 +1411,7 @@ func breakGoalIntoSubtasks(goal string) (result []SubTask, err error) {
 
 	estimate := client.EstimateTokensFromMessages(messages)
 	fmt.Printf("Estimated total tokens[breakGoalIntoSubtasks][input]: %d\n", estimate.EstimatedTokens)
+	addTokensAndSendUpdate(estimate.EstimatedTokens)
 
 	modelID := os.Getenv("MODEL_ID")
 
@@ -1430,6 +1496,7 @@ func isGoalAchieved(goal string, bboxes string, ocrJSONString string, ocrDelta s
 
 	estimate := client.EstimateTokensFromMessages(messages)
 	fmt.Printf("Estimated total tokens[isGoalAchieved][input]: %d\n", estimate.EstimatedTokens)
+	addTokensAndSendUpdate(estimate.EstimatedTokens)
 
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
