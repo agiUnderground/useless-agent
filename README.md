@@ -1,6 +1,6 @@
 # useless-agent 
 
-![](/assets/img/demo.png)
+![](/assets/img/demo2.png)
 
 **What can this agent do?** Basically nothing, that’s why it is the useless-agent.  
 
@@ -73,8 +73,6 @@ API_KEY=your-api-token-value DISPLAY=:1 API_BASE_URL='https://api.deepseek.com/v
 `Put target machine IP into the field "IP Address".`
 
 `Click "Connect".`
-
-`Click "Video".`
 
 `Give it some task, for example "Open web browser", put that prompt into the LLM Chat and press "Send".`
 
