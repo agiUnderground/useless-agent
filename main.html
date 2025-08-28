@@ -143,6 +143,7 @@
       border-radius: 8px;
       padding: 10px;
       margin: 0;
+      position: relative;
     }
 
     #colorsList ul {
@@ -204,13 +205,13 @@
     /* Small toggle button */
     .toggle-buttons-btn {
       position: fixed;
-      top: 0px;
-      left: 0px;
-      width: 12px;
-      height: 12px;
-      background-color: #333;
+      top: 5px;
+      left: 5px;
+      width: 10px;
+      height: 10px;
+      background-color: black; /* #333; */
       border: 1px solid #555;
-      border-radius: 2px;
+      border-radius: 50%;
       cursor: pointer;
       z-index: 1000;
       padding: 0;
@@ -246,11 +247,30 @@
       color: #ffffff;
       border-color: #555555;
     }
+
+    /* Debug Button Styles */
+    .debug-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 10px;
+      height: 10px;
+      background-color: black;
+      border: 1px solid #555;
+      border-radius: 50%;
+      cursor: pointer;
+      padding: 0;
+      margin: 0;
+      z-index: 1;
+    }
+
+    .debug-button:hover {
+      background-color: #444;
+    }
   </style>
 </head>
 <body>
   <div class="main-wrapper">
-    <button class="toggle-buttons-btn" id="toggleButtonsBtn" title="Debug"></button>
     <div class="toolbar">
       <div class="button-group hidden" id="mediaButtonsGroup">
         <button class="control-button" id="screenshotBtn">Take Screenshot</button>
@@ -261,6 +281,9 @@
 
       <fieldset>
         <legend>Connection</legend>
+        
+        <!-- Debug Button positioned at top right -->
+        <button class="debug-button" id="toggleButtonsBtn" title="Debug"></button>
         
         <!-- FPS Selection -->
         <div class="fps-selector" style="margin-bottom: 10px;">
