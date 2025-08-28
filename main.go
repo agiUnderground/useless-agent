@@ -721,8 +721,13 @@ func mouseClickHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func extractJSONFromMarkdown(response string) []string {
-	// Improved regex pattern to match JSON inside ```json ... ```
-	jsonBlockRegex := regexp.MustCompile("(?s)```json\\s*(\\{.*?\\}|\\[.*?\\])\\s*```")
+	// Try to parse the response as clean JSON first
+	if isValidJSON(response) {
+		return []string{response}
+	}
+
+	// If not valid JSON, try to extract from markdown code blocks
+	jsonBlockRegex := regexp.MustCompile("(?s)```(?:json)?\\s*(\\{.*?\\}|\\[.*?\\])\\s*```")
 
 	// Find all matches
 	matches := jsonBlockRegex.FindAllStringSubmatch(response, -1)
@@ -734,7 +739,83 @@ func extractJSONFromMarkdown(response string) []string {
 			jsonStrings = append(jsonStrings, match[1]) // Extract JSON as text
 		}
 	}
+
+	// If no JSON found in markdown, try to find JSON objects/arrays directly
+	if len(jsonStrings) == 0 {
+		// Look for JSON objects or arrays that might not be in code blocks
+		directJSONRegex := regexp.MustCompile(`(\{.*\}|\[.*\])`)
+		directMatches := directJSONRegex.FindAllStringSubmatch(response, -1)
+		for _, match := range directMatches {
+			if len(match) > 1 && isValidJSON(match[1]) {
+				jsonStrings = append(jsonStrings, match[1])
+			}
+		}
+	}
+
 	return jsonStrings
+}
+
+func isValidJSON(s string) bool {
+	var js interface{}
+	return json.Unmarshal([]byte(s), &js) == nil
+}
+
+func cleanJSONString(s string) string {
+	// Remove any non-JSON content before the first { or [
+	start := strings.IndexAny(s, "{[")
+	if start == -1 {
+		return "" // No JSON found
+	}
+
+	// Find the matching closing bracket
+	cleaned := s[start:]
+
+	// Try to parse to see if it's valid JSON
+	if isValidJSON(cleaned) {
+		return cleaned
+	}
+
+	// If not valid, try to find the end of the JSON object/array
+	// by counting brackets
+	openBrackets := 0
+	inString := false
+	escape := false
+
+	for i, char := range cleaned {
+		if escape {
+			escape = false
+			continue
+		}
+
+		if char == '\\' {
+			escape = true
+			continue
+		}
+
+		if char == '"' && !inString {
+			inString = true
+			continue
+		}
+
+		if char == '"' && inString {
+			inString = false
+			continue
+		}
+
+		if !inString {
+			if char == '{' || char == '[' {
+				openBrackets++
+			} else if char == '}' || char == ']' {
+				openBrackets--
+				if openBrackets == 0 {
+					// Found the end of the JSON
+					return cleaned[:i+1]
+				}
+			}
+		}
+	}
+
+	return cleaned
 }
 
 type Coordinate struct {
@@ -1287,13 +1368,28 @@ func breakGoalIntoSubtasks(goal string) (result []SubTask, err error) {
 	jsonStrings := extractJSONFromMarkdown(resp.Choices[0].Message.Content)
 	// jsonStrings := resp.Choices[0].Message.Content
 	log.Println("\n\njsonStrings:", jsonStrings)
-	s := strings.Join(jsonStrings[:], ",")
-	//s := jsonStrings
+
+	// Use the first valid JSON string found, don't join multiple JSON objects
+	var s string
+	if len(jsonStrings) > 0 {
+		s = jsonStrings[0] // Use the first valid JSON string
+	} else {
+		// If no JSON found in markdown, try the raw response
+		s = resp.Choices[0].Message.Content
+	}
 
 	subtasks := make([]SubTask, 0, 10_000)
 	err = json.Unmarshal([]byte(s), &subtasks)
 	if err != nil {
 		log.Println("failed to unmarshal subtasks from byte string to struct:", err)
+		// Try to clean the JSON string by removing any non-JSON content
+		cleanedJSON := cleanJSONString(s)
+		if cleanedJSON != "" {
+			err = json.Unmarshal([]byte(cleanedJSON), &subtasks)
+			if err != nil {
+				log.Println("failed to unmarshal cleaned subtasks:", err)
+			}
+		}
 	}
 
 	fmt.Println("subtasks string:", subtasks)
