@@ -267,6 +267,27 @@
     .debug-button:hover {
       background-color: #444;
     }
+
+    /* Screenshot placeholder styles */
+    .screenshot-placeholder {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #6f6f6f;
+      font-size: 14px;
+      text-align: center;
+      width: 100%;
+      height: 100%;
+    }
+    
+    .screenshot-img.hidden {
+      display: none;
+    }
+    
+    .screenshot-placeholder.hidden {
+      display: none;
+    }
+
   </style>
 </head>
 <body>
@@ -341,7 +362,8 @@
     </div>
 
     <div class="main-content">
-      <img id="screenshotImg" class="screenshot-img" src="" alt="Video stream will appear here">
+      <div id="screenshotPlaceholder" class="screenshot-placeholder">Video stream will appear here</div>
+      <img id="screenshotImg" class="screenshot-img hidden" src="" alt="Video stream">
     </div>
   </div>
 
@@ -351,11 +373,16 @@
     let videoLoopInterval = null;
     let popOutWSWindow = null;
     const screenshotImg = document.getElementById('screenshotImg');
+    const screenshotPlaceholder = document.getElementById('screenshotPlaceholder');
     // Image Fetch Functions
     let currentVideoSession = 0;
     let isConnected = false;
     let buttonsVisible = false;
     let currentFPS = 5; // Default FPS
+    
+    // Show placeholder initially
+    screenshotPlaceholder.classList.remove('hidden');
+    screenshotImg.classList.add('hidden');
     
 
     // Toggle buttons functionality
@@ -535,8 +562,15 @@
         const imageUrl = URL.createObjectURL(blob);
         if (screenshotImg.src) URL.revokeObjectURL(screenshotImg.src);
         screenshotImg.src = imageUrl;
+        
+        // Show image and hide placeholder
+        screenshotImg.classList.remove('hidden');
+        screenshotPlaceholder.classList.add('hidden');
       } catch (error) {
         console.error('Error:', error);
+        // Show placeholder and hide image on error
+        screenshotImg.classList.add('hidden');
+        screenshotPlaceholder.classList.remove('hidden');
       }
     }
 
