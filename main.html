@@ -292,6 +292,120 @@
       display: none;
     }
 
+    /* Task Management Styles */
+    .tasks-section {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      transition: all 0.3s ease;
+      max-height: 0;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    .tasks-section.visible {
+      max-height: fit-content;
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .task-card {
+      background-color: var(--primary-bg);
+      border: 2px solid;
+      border-radius: 8px;
+      padding: 12px;
+      position: relative;
+      animation: waveOutline 3s ease-in-out infinite;
+      transition: all 0.3s ease;
+    }
+
+    @keyframes waveOutline {
+      0% {
+        box-shadow: 0 0 5px currentColor, 0 0 10px rgba(255, 255, 255, 0.1);
+        border-color: currentColor;
+      }
+      50% {
+        box-shadow: 0 0 20px currentColor, 0 0 30px rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.8);
+      }
+      100% {
+        box-shadow: 0 0 5px currentColor, 0 0 10px rgba(255, 255, 255, 0.1);
+        border-color: currentColor;
+      }
+    }
+
+    .task-card.in-progress {
+      border-color: #FFC107;
+      color: #FFC107;
+    }
+
+    .task-card.completed {
+      border-color: #4CAF50;
+      color: #4CAF50;
+    }
+
+    .task-card.broken {
+      border-color: #F44336;
+      color: #F44336;
+    }
+
+    .task-card.canceled {
+      border-color: #9E9E9E;
+      color: #9E9E9E;
+    }
+
+    .task-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .task-status {
+      font-size: 12px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    .task-cancel-btn {
+      background: none;
+      border: 1px solid currentColor;
+      color: currentColor;
+      border-radius: 4px;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 11px;
+      transition: all 0.2s ease;
+    }
+
+    .task-cancel-btn:hover:not(:disabled) {
+      background-color: currentColor;
+      color: #212121;
+    }
+
+    .task-cancel-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    .task-message {
+      font-size: 12px;
+      line-height: 1.4;
+      word-wrap: break-word;
+      max-height: 60px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .chat-fieldset.shrunk {
+      /* flex: 1.5 !important; */
+      flex: 1 !important;
+      transition: flex 0.3s ease;
+    }
+
   </style>
 </head>
 <body>
@@ -358,7 +472,14 @@
         <p style="margin: auto; font-size: 12px; padding: 5px; width: fit-content;">Total tokens used: <span id="tokenCounter">0</span></p>
       </fieldset>
 
-      <fieldset style="flex: 3; display: flex; flex-direction: column; min-height: 200px;">
+      <div id="tasksSection" class="tasks-section">
+        <fieldset>
+          <legend>Tasks</legend>
+          <div id="tasksContainer"></div>
+        </fieldset>
+      </div>
+
+      <fieldset id="chatFieldset" style="flex: 3; display: flex; flex-direction: column; min-height: 200px;" class="chat-fieldset">
         <legend>Chat</legend>
         <textarea id="llmChatInput" class="dark-textarea" placeholder="Type a message..." spellcheck="false" autocorrect="off" autocapitalize="off" autocomplete="off"></textarea>
         <button class="control-button" id="llmSendButton" style="margin-top: 10px;">Send</button>
@@ -383,6 +504,9 @@
     let isConnected = false;
     let buttonsVisible = false;
     let currentFPS = 5; // Default FPS
+    // Task Management
+    let currentTask = null;
+    let isFirstMessage = true;
     
     // Show placeholder initially
     screenshotPlaceholder.classList.remove('hidden');
@@ -460,12 +584,18 @@
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log('WebSocket message received:', data);
+          
           if (data.type === 'tokenUpdate') {
             document.getElementById('tokenCounter').textContent = data.total;
+          } else if (data.type === 'taskUpdate') {
+            handleTaskUpdate(data);
+          } else {
+            console.log('Unknown message type:', data.type);
           }
         } catch (error) {
           // Handle non-JSON messages or other WebSocket messages
-          console.log('WebSocket message:', event.data);
+          console.log('WebSocket message (non-JSON):', event.data);
         }
       };
       
@@ -650,6 +780,202 @@
       });
     });
 
+    // Task Management Functions
+    function createTaskCard(message, status = 'in-progress') {
+      const taskCard = document.createElement('div');
+      taskCard.className = `task-card ${status}`;
+      
+      const taskHeader = document.createElement('div');
+      taskHeader.className = 'task-header';
+      
+      const taskStatus = document.createElement('span');
+      taskStatus.className = 'task-status';
+      taskStatus.textContent = status === 'in-progress' ? 'In Progress' : 
+                             status === 'completed' ? 'Completed' :
+                             status === 'broken' ? 'Broken' : 'Canceled';
+      
+      const cancelBtn = document.createElement('button');
+      cancelBtn.className = 'task-cancel-btn';
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.addEventListener('click', () => {
+        cancelTask(taskCard);
+      });
+      
+      const taskMessage = document.createElement('div');
+      taskMessage.className = 'task-message';
+      taskMessage.textContent = message.length > 100 ? message.substring(0, 100) + '...' : message;
+      
+      taskHeader.appendChild(taskStatus);
+      taskHeader.appendChild(cancelBtn);
+      taskCard.appendChild(taskHeader);
+      taskCard.appendChild(taskMessage);
+      
+      return taskCard;
+    }
+    
+    function showTasksSection() {
+      const tasksSection = document.getElementById('tasksSection');
+      const chatFieldset = document.getElementById('chatFieldset');
+      
+      // Show tasks section with flexible sizing
+      tasksSection.classList.add('visible');
+      
+      // Calculate dynamic flex value based on tasks content
+      const tasksContainer = document.getElementById('tasksContainer');
+      const taskCount = tasksContainer.children.length;
+      const dynamicFlex = Math.max(1.5, 3 - (taskCount * 0.3)); // Adjust flex based on task count
+      
+      // Apply dynamic flex to chat section
+      chatFieldset.style.flex = `${dynamicFlex}`;
+    }
+    
+    function cancelTask(taskCard) {
+      const taskId = taskCard.dataset.taskId;
+      if (!taskId) return;
+      
+      // Send cancellation request to backend
+      fetch(`http://${ip}:8080/task-cancel?taskId=${taskId}`)
+        .then(response => response.json())
+        .then(data => {
+          console.log('Task cancellation response:', data);
+          
+          // Update UI based on backend response
+          if (data.result === 'Task canceled successfully') {
+            taskCard.classList.remove('in-progress');
+            taskCard.classList.add('canceled');
+            
+            const statusElement = taskCard.querySelector('.task-status');
+            statusElement.textContent = 'Canceled';
+            
+            // Remove cancel button
+            const cancelBtn = taskCard.querySelector('.task-cancel-btn');
+            if (cancelBtn) {
+              cancelBtn.remove();
+            }
+            
+            // Update current task status
+            if (currentTask === taskCard) {
+              currentTask = null;
+            }
+          }
+        })
+        .catch(error => {
+          console.error('Error canceling task:', error);
+        });
+    }
+    
+    function handleTaskUpdate(data) {
+      console.log('Task update received:', data);
+      
+      // Debug: Check if we have the expected data structure
+      if (!data.taskId || !data.status) {
+        console.error('Invalid task update data:', data);
+        return;
+      }
+      
+      const tasksContainer = document.getElementById('tasksContainer');
+      const taskCards = tasksContainer.querySelectorAll('.task-card');
+      
+      // First, check if we have a pending task that needs to be updated with real task ID
+      let taskCard = null;
+      for (const card of taskCards) {
+        if (card.dataset.taskId === 'pending') {
+          // Found a pending task - update it with the real task ID
+          card.dataset.taskId = data.taskId;
+          
+          // Enable cancel button now that we have a real task ID
+          const cancelBtn = card.querySelector('.task-cancel-btn');
+          if (cancelBtn) {
+            cancelBtn.disabled = false;
+            cancelBtn.textContent = 'Cancel';
+          }
+          
+          taskCard = card;
+          break;
+        } else if (card.dataset.taskId === data.taskId) {
+          taskCard = card;
+          break;
+        }
+      }
+      
+      if (!taskCard) {
+        // Create new task card if it doesn't exist
+        taskCard = createTaskCard(data.message, data.status);
+        taskCard.dataset.taskId = data.taskId;
+        tasksContainer.appendChild(taskCard);
+        
+        // Show tasks section if it's the first task
+        if (tasksContainer.children.length === 1) {
+          showTasksSection();
+        }
+      } else {
+        // Update existing task card
+        console.log('Updating task card with status:', data.status);
+        
+        // Remove all status classes first
+        taskCard.classList.remove('in-progress', 'completed', 'broken', 'canceled');
+        // Add the new status class based on the status field
+        taskCard.classList.add(data.status);
+        
+        const statusElement = taskCard.querySelector('.task-status');
+        const messageElement = taskCard.querySelector('.task-message');
+        
+        if (statusElement) {
+          statusElement.textContent = data.status === 'in-progress' ? 'In Progress' : 
+                                    data.status === 'completed' ? 'Completed' :
+                                    data.status === 'broken' ? 'Broken' : 'Canceled';
+        }
+        
+        if (messageElement && data.message) {
+          messageElement.textContent = data.message.length > 100 ? 
+                                     data.message.substring(0, 100) + '...' : data.message;
+        }
+        
+        // Remove cancel button if task is completed, broken, or canceled
+        if (data.status !== 'in-progress') {
+          const cancelBtn = taskCard.querySelector('.task-cancel-btn');
+          if (cancelBtn) {
+            cancelBtn.remove();
+          }
+        }
+      }
+      
+      // Update current task reference
+      if (data.status === 'in-progress') {
+        currentTask = taskCard;
+      } else if (currentTask === taskCard) {
+        currentTask = null;
+      }
+    }
+
+    function handleTaskCreation(message) {
+      if (isFirstMessage) {
+        // Create task card immediately for first message with temporary ID
+        const tasksContainer = document.getElementById('tasksContainer');
+        tasksContainer.innerHTML = ''; // Clear any existing tasks
+        
+        const taskCard = createTaskCard(message);
+        taskCard.dataset.taskId = 'pending'; // Temporary ID until we get real one
+        tasksContainer.appendChild(taskCard);
+        currentTask = taskCard;
+        
+        // Disable cancel button until we get real task ID
+        const cancelBtn = taskCard.querySelector('.task-cancel-btn');
+        if (cancelBtn) {
+          cancelBtn.disabled = true;
+          cancelBtn.textContent = 'Cancel';
+        }
+        
+        // Show tasks section
+        showTasksSection();
+        
+        isFirstMessage = false;
+      } else {
+        // For subsequent messages, just send them as user help (no visual task card)
+        console.log('User help message:', message);
+      }
+    }
+
     // LLM Chat
     document.getElementById("llmSendButton").addEventListener("click", () => {
       const inputText = document.getElementById('llmChatInput').value;
@@ -663,6 +989,9 @@
         console.error('Error:', error);
       });
 
+      // Handle task creation
+      handleTaskCreation(inputText);
+      
       document.getElementById('llmChatInput').value = "";
     });
 
@@ -800,6 +1129,15 @@
     
     // Initial WebSocket setup for main window
     setupWebSocket();
+    
+    // Test function to verify task creation works
+    function testTaskCreation() {
+      console.log('Testing task creation...');
+      handleTaskCreation('Test task message for demonstration purposes');
+    }
+    
+    // Uncomment the line below to test the task creation functionality
+    // testTaskCreation();
   </script>
 </body>
 </html>

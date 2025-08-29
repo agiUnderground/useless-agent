@@ -57,6 +57,30 @@ var (
 	tokenMutex      sync.Mutex
 )
 
+// Task management
+var (
+	tasks         = make(map[string]*Task)
+	taskMutex     sync.Mutex
+	taskIDCounter int
+)
+
+// Task represents a running task
+type Task struct {
+	ID        string
+	Status    string // "in-progress", "completed", "broken", "canceled"
+	Message   string
+	CreatedAt time.Time
+	Cancel    chan bool
+}
+
+// TaskUpdate represents a task status update
+type TaskUpdate struct {
+	Type    string `json:"type"`
+	TaskID  string `json:"taskId"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
 // Function to add tokens to the total and send update to all websocket clients
 func addTokensAndSendUpdate(tokens int) {
 	tokenMutex.Lock()
@@ -112,6 +136,92 @@ func resetTokenCounter() {
 			log.Println("Error sending token reset:", err)
 		}
 	}
+}
+
+// Task management functions
+func createTask(message string) *Task {
+	taskMutex.Lock()
+	defer taskMutex.Unlock()
+
+	taskIDCounter++
+	taskID := fmt.Sprintf("task-%d-%d", taskIDCounter, time.Now().Unix())
+
+	task := &Task{
+		ID:        taskID,
+		Status:    "in-progress",
+		Message:   message,
+		CreatedAt: time.Now(),
+		Cancel:    make(chan bool, 1),
+	}
+
+	tasks[taskID] = task
+	return task
+}
+
+func updateTaskStatus(taskID, status, message string) {
+	taskMutex.Lock()
+	defer taskMutex.Unlock()
+
+	if task, exists := tasks[taskID]; exists {
+		task.Status = status
+		if message != "" {
+			task.Message = message
+		}
+		sendTaskUpdate(task)
+	}
+}
+
+func sendTaskUpdate(task *Task) {
+	wsmutex.Lock()
+	defer wsmutex.Unlock()
+
+	update := TaskUpdate{
+		Type:    "taskUpdate",
+		TaskID:  task.ID,
+		Status:  task.Status,
+		Message: task.Message,
+	}
+
+	updateJSON, err := json.Marshal(update)
+	if err != nil {
+		log.Println("Error marshaling task update:", err)
+		return
+	}
+
+	for _, conn := range websocketConnections {
+		err = conn.WriteMessage(websocket.TextMessage, updateJSON)
+		if err != nil {
+			log.Println("Error sending task update:", err)
+		}
+	}
+}
+
+func cancelTask(taskID string) bool {
+	taskMutex.Lock()
+	defer taskMutex.Unlock()
+
+	if task, exists := tasks[taskID]; exists {
+		if task.Status == "in-progress" {
+			select {
+			case task.Cancel <- true:
+				task.Status = "canceled"
+				sendTaskUpdate(task)
+				return true
+			default:
+				// Cancel channel already has a signal
+				return false
+			}
+		}
+	}
+	return false
+}
+
+func getTask(taskID string) (*Task, bool) {
+	taskMutex.Lock()
+	defer taskMutex.Unlock()
+
+	task, exists := tasks[taskID]
+	return task, exists
 }
 
 var upgrader = websocket.Upgrader{
@@ -1568,6 +1678,13 @@ func llmInputHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Create a new task for this request
+	task := createTask(receivedMessage.Text)
+	log.Printf("Created task %s for message: %s", task.ID, receivedMessage.Text)
+
+	// Send immediate WebSocket update with the task ID and status
+	sendTaskUpdate(task)
+
 	var prevActionsJSONString string
 	log.Println("prevActionsJSONString:", prevActionsJSONString)
 	var iteration int64 = 1
@@ -1642,11 +1759,11 @@ func llmInputHandler(w http.ResponseWriter, r *http.Request) {
 				textChanges, err = getOCRDelta(previousOCRText, ocrResultsJSON)
 				textChangesJSON, err = getOCRDeltaJSONString(textChanges)
 				if err != nil {
-					log.Println("Filed to get OCR Delta[iteration: %s]: %s", iteration, err)
+					log.Printf("Filed to get OCR Delta[iteration: %d]: %s", iteration, err)
 				}
 				textChangesSummary, err = getOCRDeltaAbstractDescription(textChangesJSON)
 				if err != nil {
-					log.Println("Filed to get OCR Delta abstract description [iteration: %s]: %s", iteration, err)
+					log.Printf("Filed to get OCR Delta abstract description [iteration: %d]: %s", iteration, err)
 				}
 			}
 			previousOCRText = ocrResultsJSON
@@ -1675,6 +1792,15 @@ func llmInputHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			for i := range actions {
+				// Check for task cancellation before executing each action
+				select {
+				case <-tasks[task.ID].Cancel:
+					log.Printf("Task %s canceled during execution", task.ID)
+					break SubTaskLoop
+				default:
+					// Continue with normal execution
+				}
+
 				fmt.Printf("Action ID: %d, Action: %s", actions[i].ActionSequenceID, actions[i].Action)
 
 				if actions[i].Coordinates != nil {
@@ -1735,13 +1861,13 @@ func llmInputHandler(w http.ResponseWriter, r *http.Request) {
 			textChangesJSON, err = getOCRDeltaJSONString(textChanges)
 
 			if err != nil {
-				log.Println("Filed to get OCR Delta[iteration: %s]: %s", iteration, err)
+				log.Printf("Filed to get OCR Delta[iteration: %d]: %s", iteration, err)
 			}
 
 			textChangesSummary, err = getOCRDeltaAbstractDescription(textChangesJSON)
 
 			if err != nil {
-				log.Println("Filed to get OCR Delta abstract description [iteration: %s]: %s", iteration, err)
+				log.Printf("Filed to get OCR Delta abstract description [iteration: %d]: %s", iteration, err)
 			}
 
 			previousOCRText = ocrResultsJSON
@@ -1782,6 +1908,9 @@ func llmInputHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	log.Println("GOAL ACHIEVED! breaking AGIloop...")
+
+	// Update task status to completed
+	updateTaskStatus(task.ID, "completed", "Task completed successfully")
 
 	var response []map[string]interface{}
 	response = append(response, map[string]interface{}{
@@ -2232,6 +2361,43 @@ func processDominantColors(rgbaImg *image.RGBA, dominantColors []color.Color, bb
 	return bbArray, bbCounter
 }
 
+// Task cancellation handler
+func taskCancelHandler(w http.ResponseWriter, r *http.Request) {
+	taskID := r.URL.Query().Get("taskId")
+	if taskID == "" {
+		http.Error(w, "taskId parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	success := cancelTask(taskID)
+
+	// Send WebSocket status update for canceled tasks
+	if success {
+		updateTaskStatus(taskID, "canceled", "Task canceled by user")
+	}
+
+	var response []map[string]interface{}
+	if success {
+		response = append(response, map[string]interface{}{
+			"result": "Task canceled successfully",
+			"taskId": taskID,
+		})
+	} else {
+		response = append(response, map[string]interface{}{
+			"result": "Task not found or already completed/canceled",
+			"taskId": taskID,
+		})
+	}
+
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, "Failed to encode JSON", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonBytes)
+}
+
 func main() {
 	flag.Parse()
 
@@ -2246,6 +2412,7 @@ func main() {
 	mux.HandleFunc("/mouse-click", mouseClickHandler)
 	mux.HandleFunc("/llm-input", llmInputHandler)
 	mux.HandleFunc("/video2", video2Handler)
+	mux.HandleFunc("/task-cancel", taskCancelHandler)
 
 	bindAddr := net.JoinHostPort((*bindIP), strconv.Itoa(*bindPORT))
 	log.Println("Server running on http://" + bindAddr)
