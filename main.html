@@ -666,6 +666,23 @@
       document.getElementById('llmChatInput').value = "";
     });
 
+    // Hotkey functionality for chat input
+    document.getElementById("llmChatInput").addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        if (event.shiftKey) {
+          // Shift+Enter - allow default behavior (new line)
+          return;
+        } else {
+          // Enter without Shift - send message if input is not empty
+          event.preventDefault();
+          const inputText = document.getElementById('llmChatInput').value.trim();
+          if (inputText) {
+            document.getElementById("llmSendButton").click();
+          }
+        }
+      }
+    });
+
     // Pop Out WS
     document.getElementById("popOutWSButton").addEventListener("click", function() {
       // Open window with specific features for better visibility
