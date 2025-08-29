@@ -449,6 +449,33 @@
       text-overflow: ellipsis;
     }
 
+    /* Info icon for canceled and broken tasks */
+    .task-info-icon {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background-color: #555;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: default;
+      z-index: 10;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      transition: all 0.2s ease;
+    }
+
+    .task-info-icon:hover {
+      background-color: #777;
+      transform: scale(1.1);
+    }
+
+
     .chat-fieldset.shrunk {
       /* flex: 1.5 !important; */
       flex: 1 !important;
@@ -834,6 +861,9 @@
       const taskCard = document.createElement('div');
       taskCard.className = `task-card ${status}`;
       
+      // Store original message as data attribute for later reference
+      taskCard.dataset.originalMessage = message;
+      
       const taskHeader = document.createElement('div');
       taskHeader.className = 'task-header';
       
@@ -858,6 +888,16 @@
       taskHeader.appendChild(cancelBtn);
       taskCard.appendChild(taskHeader);
       taskCard.appendChild(taskMessage);
+      
+        // Add info icon for all statuses except 'in-progress'
+        if (status !== 'in-progress') {
+          const infoIcon = document.createElement('div');
+          infoIcon.className = 'task-info-icon';
+          infoIcon.textContent = '?';
+          infoIcon.title = taskCard.dataset.originalMessage;
+          
+          taskCard.appendChild(infoIcon);
+        }
       
       return taskCard;
     }
@@ -985,6 +1025,29 @@
           const cancelBtn = taskCard.querySelector('.task-cancel-btn');
           if (cancelBtn) {
             cancelBtn.remove();
+          }
+        }
+        
+        // Add or remove info icon based on new status
+        const existingInfoIcon = taskCard.querySelector('.task-info-icon');
+        
+        if (data.status !== 'in-progress') {
+          // Add info icon if it doesn't exist
+          if (!existingInfoIcon) {
+            const infoIcon = document.createElement('div');
+            infoIcon.className = 'task-info-icon';
+            infoIcon.textContent = '?';
+            infoIcon.title = taskCard.dataset.originalMessage;
+            
+            taskCard.appendChild(infoIcon);
+          } else {
+            // Update title if info icon already exists
+            existingInfoIcon.title = taskCard.dataset.originalMessage;
+          }
+        } else {
+          // Remove info icon if status is 'in-progress'
+          if (existingInfoIcon) {
+            existingInfoIcon.remove();
           }
         }
       }
