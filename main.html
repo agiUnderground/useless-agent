@@ -449,7 +449,7 @@
       text-overflow: ellipsis;
     }
 
-    /* Info icon for canceled and broken tasks */
+    /* Info icon for completed, broken, and canceled tasks */
     .task-info-icon {
       position: absolute;
       top: 8px;
@@ -473,6 +473,35 @@
     .task-info-icon:hover {
       background-color: #777;
       transform: scale(1.1);
+    }
+
+    /* Timer for in-progress tasks */
+    .task-timer {
+      /* position: absolute; */
+      top: 8px;
+      right: 30px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: #FFC107;
+    }
+
+    /* Timer colors for different statuses */
+    .task-card.completed .task-timer {
+      color: #66BB6A; /* Lighter green */
+    }
+
+    .task-card.broken .task-timer {
+      color: #EF5350; /* Lighter red */
+    }
+
+    .task-card.canceled .task-timer {
+      color: #BDBDBD; /* Lighter gray */
+    }
+
+    .sandwatch-icon {
+      font-size: 12px;
     }
 
 
@@ -889,17 +918,73 @@
       taskCard.appendChild(taskHeader);
       taskCard.appendChild(taskMessage);
       
-        // Add info icon for all statuses except 'in-progress'
-        if (status !== 'in-progress') {
-          const infoIcon = document.createElement('div');
-          infoIcon.className = 'task-info-icon';
-          infoIcon.textContent = '?';
-          infoIcon.title = taskCard.dataset.originalMessage;
-          
-          taskCard.appendChild(infoIcon);
-        }
+      // Add timer for in-progress tasks
+      if (status === 'in-progress') {
+        const timerContainer = document.createElement('div');
+        timerContainer.className = 'task-timer';
+        
+        //const sandwatchIcon = document.createElement('span');
+        //sandwatchIcon.className = 'sandwatch-icon';
+        //sandwatchIcon.textContent = '⏳' ;
+        
+        const timerText = document.createElement('span');
+        timerText.className = 'timer-text';
+        timerText.textContent = '00:00:00:00:000';
+        
+        //timerContainer.appendChild(sandwatchIcon);
+        timerContainer.appendChild(timerText);
+        taskCard.appendChild(timerContainer);
+        
+        // Store creation time for timer
+        taskCard.dataset.createdAt = Date.now();
+        
+        // Start timer
+        startTaskTimer(taskCard);
+      }
+      
+      // Add info icon for all statuses except 'in-progress'
+      if (status !== 'in-progress') {
+        const infoIcon = document.createElement('div');
+        infoIcon.className = 'task-info-icon';
+        infoIcon.textContent = '?';
+        infoIcon.title = taskCard.dataset.originalMessage;
+        
+        taskCard.appendChild(infoIcon);
+      }
       
       return taskCard;
+    }
+    
+    function startTaskTimer(taskCard) {
+      const timerElement = taskCard.querySelector('.timer-text');
+      if (!timerElement) return;
+      
+      const createdAt = parseInt(taskCard.dataset.createdAt);
+      const timerInterval = setInterval(() => {
+        const elapsed = Date.now() - createdAt;
+        timerElement.textContent = formatElapsedTime(elapsed);
+      }, 10); // Update every 10ms for milliseconds precision
+      
+      // Store interval ID for cleanup
+      taskCard.dataset.timerInterval = timerInterval;
+    }
+    
+    function stopTaskTimer(taskCard) {
+      const intervalId = taskCard.dataset.timerInterval;
+      if (intervalId) {
+        clearInterval(intervalId);
+        delete taskCard.dataset.timerInterval;
+      }
+    }
+    
+    function formatElapsedTime(milliseconds) {
+      const days = Math.floor(milliseconds / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((milliseconds % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((milliseconds % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((milliseconds % (1000 * 60)) / 1000);
+      const ms = milliseconds % 1000;
+      
+      return `${days.toString().padStart(2, '0')}:${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}:${ms.toString().padStart(3, '0')}`;
     }
     
     function showTasksSection() {
@@ -1049,6 +1134,11 @@
           if (existingInfoIcon) {
             existingInfoIcon.remove();
           }
+        }
+        
+        // Stop timer if task is no longer in progress
+        if (data.status !== 'in-progress') {
+          stopTaskTimer(taskCard);
         }
       }
       
