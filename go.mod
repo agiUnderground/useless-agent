@@ -2,9 +2,10 @@ module useless-agent
 
 go 1.23.0
 
+toolchain go1.24.1
+
 require (
 	github.com/BurntSushi/xgb v0.0.0-20210121224620-deaf085860bc
-	github.com/BurntSushi/xgbutil v0.0.0-20190907113008-ad855c713046
 	github.com/go-vgo/robotgo v0.110.5
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
 	github.com/gorilla/websocket v1.5.3
@@ -14,8 +15,6 @@ require (
 )
 
 require (
-	github.com/BurntSushi/freetype-go v0.0.0-20160129220410-b763ddbfe298 // indirect
-	github.com/BurntSushi/graphics-go v0.0.0-20160129215708-b43f31a4a966 // indirect
 	github.com/dblohm7/wingoes v0.0.0-20240820181039-f2b84150679e // indirect
 	github.com/ebitengine/purego v0.8.0 // indirect
 	github.com/gen2brain/shm v0.1.1 // indirect
