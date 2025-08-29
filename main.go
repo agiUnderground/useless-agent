@@ -1643,52 +1643,11 @@ type PromptLog struct {
 	Message   string `json:"message"`
 }
 
-func llmInputHandler(w http.ResponseWriter, r *http.Request) {
-	type PostMessage struct {
-		Text string
-	}
-	type ConfirmationMessage struct {
-		ReceivedText string `json:"Received llm input text,omitempty"`
-	}
-
-	var receivedMessage PostMessage
-	var acknowledgment ConfirmationMessage
-
-	err := json.NewDecoder(r.Body).Decode(&receivedMessage)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	log.Println(receivedMessage.Text)
-
-	acknowledgment.ReceivedText = receivedMessage.Text
-
-	for _, wsConnection := range websocketConnections {
-		ackJSON, err := json.Marshal(acknowledgment)
-		if err != nil {
-			log.Println("Error marshaling JSON:", err)
-			continue
-		}
-
-		err = wsConnection.WriteMessage(websocket.TextMessage, ackJSON)
-		if err != nil {
-			log.Println("Error writing message:", err)
-			log.Println("Failed to ACK received llm input text:", err)
-			break
-		}
-	}
-
-	// Create a new task for this request
-	task := createTask(receivedMessage.Text)
-	log.Printf("Created task %s for message: %s", task.ID, receivedMessage.Text)
-
-	// Send immediate WebSocket update with the task ID and status
-	sendTaskUpdate(task)
-
+func executeTask(task *Task) {
 	var prevActionsJSONString string
 	log.Println("prevActionsJSONString:", prevActionsJSONString)
 	var iteration int64 = 1
-	prompt := receivedMessage.Text
+	prompt := task.Message
 	goal := prompt
 	previousOCRText := ""
 	var promptLog []PromptLog
@@ -1709,9 +1668,19 @@ func llmInputHandler(w http.ResponseWriter, r *http.Request) {
 		subtasks = append(subtasks, SubTask{Id: 0, Description: goal})
 	}
 
-	for _, task := range subtasks {
+	for _, subtask := range subtasks {
 	SubTaskLoop:
 		for {
+			// Check for task cancellation at the start of each iteration
+			select {
+			case <-task.Cancel:
+				log.Printf("Task %s canceled during execution", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with normal execution
+			}
+
 			if iteration > 40 {
 				break SubTaskLoop
 			}
@@ -1719,7 +1688,8 @@ func llmInputHandler(w http.ResponseWriter, r *http.Request) {
 			screenshot, err := captureX11Screenshot()
 			originalScreenshot := screenshot
 			if err != nil {
-				http.Error(w, "Failed to capture screenshot with BB: "+err.Error(), http.StatusInternalServerError)
+				log.Printf("Failed to capture screenshot for task %s: %s", task.ID, err.Error())
+				updateTaskStatus(task.ID, "broken", "Failed to capture screenshot")
 				return
 			}
 
@@ -1775,7 +1745,7 @@ func llmInputHandler(w http.ResponseWriter, r *http.Request) {
 			var completionStatus string
 
 			log.Printf("iteration %d, original goal is: %s\n", iteration, goal)
-			log.Printf("iteration %d, current task is: %s\n", iteration, task.Description)
+			log.Printf("iteration %d, current task is: %s\n", iteration, subtask.Description)
 
 			promptLogBytes, err = json.Marshal(promptLog)
 			if err != nil {
@@ -1783,10 +1753,12 @@ func llmInputHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			promptLogJSONString = string(promptLogBytes)
 
-			actions, actionsJSONString, err := sendMessageToLLM(task.Description, boundingBoxesJSON, ocrResultsJSON, textChangesSummary, promptLogJSONString, iteration, prevCursorPositionJSONString, detectedWindowsJSON, colorsDistribution)
+			actions, actionsJSONString, err := sendMessageToLLM(subtask.Description, boundingBoxesJSON, ocrResultsJSON, textChangesSummary, promptLogJSONString, iteration, prevCursorPositionJSONString, detectedWindowsJSON, colorsDistribution)
 
 			if err != nil {
 				log.Println("failed to send message to LLM:", err)
+				updateTaskStatus(task.ID, "broken", "Failed to communicate with LLM")
+				return
 			} else {
 				log.Println("successfully sent a message to LLM. Iteration:", iteration)
 			}
@@ -1794,9 +1766,10 @@ func llmInputHandler(w http.ResponseWriter, r *http.Request) {
 			for i := range actions {
 				// Check for task cancellation before executing each action
 				select {
-				case <-tasks[task.ID].Cancel:
+				case <-task.Cancel:
 					log.Printf("Task %s canceled during execution", task.ID)
-					break SubTaskLoop
+					updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+					return
 				default:
 					// Continue with normal execution
 				}
@@ -1829,7 +1802,8 @@ func llmInputHandler(w http.ResponseWriter, r *http.Request) {
 			screenshot, err = captureX11Screenshot()
 			originalScreenshot = screenshot
 			if err != nil {
-				http.Error(w, "Failed to capture screenshot with BB: "+err.Error(), http.StatusInternalServerError)
+				log.Printf("Failed to capture screenshot for task %s: %s", task.ID, err.Error())
+				updateTaskStatus(task.ID, "broken", "Failed to capture screenshot")
 				return
 			}
 			grayscaleScreenshot = ConvertToGrayscale(screenshot)
@@ -1888,10 +1862,10 @@ func llmInputHandler(w http.ResponseWriter, r *http.Request) {
 			colorsDistribution = dominantColorsToJSONString(dominantColors(screenshot, 10))
 			log.Println("colorsDistribution after actions: ", colorsDistribution)
 
-			taskCompleted, completionStatus, nextPrompt = isGoalAchieved(task.Description, boundingBoxesJSON, ocrResultsJSON, textChangesJSON, textChangesSummary, promptLogJSONString, iteration, prevCursorPositionJSONString, detectedWindowsJSON, currentCursorPosition, ocrDataNearTheCursor, colorsDistributionBeforeActions, colorsDistribution)
+			taskCompleted, completionStatus, nextPrompt = isGoalAchieved(subtask.Description, boundingBoxesJSON, ocrResultsJSON, textChangesJSON, textChangesSummary, promptLogJSONString, iteration, prevCursorPositionJSONString, detectedWindowsJSON, currentCursorPosition, ocrDataNearTheCursor, colorsDistributionBeforeActions, colorsDistribution)
 			log.Println("Verdict description:", completionStatus)
 			if taskCompleted {
-				log.Println("Completed task: ", task.Description)
+				log.Println("Completed task: ", subtask.Description)
 				log.Println("TASK COMPLETED! breaking SubTaskLoop...")
 				promptLog = nil
 				break SubTaskLoop
@@ -1911,10 +1885,55 @@ func llmInputHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Update task status to completed
 	updateTaskStatus(task.ID, "completed", "Task completed successfully")
+}
 
+func llmInputHandler(w http.ResponseWriter, r *http.Request) {
+	type PostMessage struct {
+		Text string
+	}
+	type ConfirmationMessage struct {
+		ReceivedText string `json:"Received llm input text,omitempty"`
+	}
+
+	var receivedMessage PostMessage
+	var acknowledgment ConfirmationMessage
+
+	err := json.NewDecoder(r.Body).Decode(&receivedMessage)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	log.Println(receivedMessage.Text)
+
+	acknowledgment.ReceivedText = receivedMessage.Text
+
+	for _, wsConnection := range websocketConnections {
+		ackJSON, err := json.Marshal(acknowledgment)
+		if err != nil {
+			log.Println("Error marshaling JSON:", err)
+			continue
+		}
+
+		err = wsConnection.WriteMessage(websocket.TextMessage, ackJSON)
+		if err != nil {
+			log.Println("Error writing message:", err)
+			log.Println("Failed to ACK received llm input text:", err)
+			break
+		}
+	}
+
+	// Create a new task for this request
+	task := createTask(receivedMessage.Text)
+	log.Printf("Created task %s for message: %s", task.ID, receivedMessage.Text)
+
+	// Send immediate WebSocket update with the task ID and status
+	sendTaskUpdate(task)
+
+	// Return immediate JSON response and run task execution in background
 	var response []map[string]interface{}
 	response = append(response, map[string]interface{}{
-		"result": "ok",
+		"result": "Task started successfully",
+		"taskId": task.ID,
 	})
 
 	jsonBytes, err := json.Marshal(response)
@@ -1924,6 +1943,9 @@ func llmInputHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(jsonBytes)
+
+	// Run task execution in a separate goroutine
+	go executeTask(task)
 }
 
 // Delta represents the changes between old and new data
