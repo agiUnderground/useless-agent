@@ -995,6 +995,16 @@
       } else if (currentTask === taskCard) {
         currentTask = null;
       }
+      
+      // Scroll to bottom to show the updated/created task
+      setTimeout(scrollTasksToBottom, 0);
+    }
+
+    function scrollTasksToBottom() {
+      const tasksContainer = document.getElementById('tasksContainer');
+      if (tasksContainer) {
+        tasksContainer.scrollTop = tasksContainer.scrollHeight;
+      }
     }
 
     function handleTaskCreation(message) {
@@ -1017,6 +1027,9 @@
         
         // Show tasks section
         showTasksSection();
+        
+        // Scroll to bottom to show the new task
+        setTimeout(scrollTasksToBottom, 0);
         
         isFirstMessage = false;
       } else {
