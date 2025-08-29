@@ -299,11 +299,58 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
-      overflow-y: auto;
       transition: all 0.3s ease;
       max-height: 0;
       opacity: 0;
       transform: translateY(20px);
+    }
+    
+    .tasks-section fieldset {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+      padding-right: 0px;
+      padding-bottom: 0px;
+      padding-top: 0px;
+    }
+    
+    /* Ensure tasks container is scrollable */
+    #tasksContainer {
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
+      padding: 15px;
+      
+      /* Custom scrollbar styling */
+      scrollbar-width: thin;
+      scrollbar-color: #555 #212121;
+    }
+    
+    /* Webkit browsers (Chrome, Safari, Edge) */
+    #tasksContainer::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    #tasksContainer::-webkit-scrollbar-track {
+      background: #212121;
+      border-radius: 3px;
+    }
+    
+    #tasksContainer::-webkit-scrollbar-thumb {
+      background: #444;
+      border-radius: 3px;
+    }
+    
+    #tasksContainer::-webkit-scrollbar-thumb:hover {
+      background: #666;
+    }
+    
+    /* Firefox */
+    #tasksContainer {
+      scrollbar-width: thin;
+      scrollbar-color: #444 #212121;
     }
 
     .tasks-section.visible {
@@ -320,6 +367,8 @@
       position: relative;
       animation: waveOutline 3s ease-in-out infinite;
       transition: all 0.3s ease;
+      margin-top: 4px;
+      margin-bottom: 4px;
     }
 
     @keyframes waveOutline {
@@ -382,8 +431,8 @@
     }
 
     .task-cancel-btn:hover:not(:disabled) {
-      background-color: currentColor;
-      color: #212121;
+      /* background-color: currentColor; */
+      color: white;
     }
 
     .task-cancel-btn:disabled {
