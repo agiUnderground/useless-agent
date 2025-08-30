@@ -1931,16 +1931,33 @@
         if (!isChatInputFocused) {
           event.preventDefault(); // Prevent default browser behavior
           
-          // Find the focused session container
-          const focusedSessionContainer = document.activeElement.closest('.screenshot-container');
-          if (focusedSessionContainer) {
-            // Find which session this container belongs to
-            const sessionContainer = focusedSessionContainer.closest('.session-container');
-            if (sessionContainer) {
-              const sessionId = sessionContainer.dataset.sessionId;
-              const session = sessions.get(sessionId);
-              if (session) {
-                toggleSessionFullscreen(session);
+          // Check if we're already in fullscreen mode
+          const isFullscreen = document.fullscreenElement || 
+                              document.webkitFullscreenElement || 
+                              document.mozFullScreenElement || 
+                              document.msFullscreenElement;
+          
+          if (isFullscreen) {
+            // Exit fullscreen mode
+            if (document.exitFullscreen) {
+              document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) { /* Safari */
+              document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) { /* IE11 */
+              document.msExitFullscreen();
+            }
+          } else {
+            // Enter fullscreen mode for focused session
+            const focusedSessionContainer = document.activeElement.closest('.screenshot-container');
+            if (focusedSessionContainer) {
+              // Find which session this container belongs to
+              const sessionContainer = focusedSessionContainer.closest('.session-container');
+              if (sessionContainer) {
+                const sessionId = sessionContainer.dataset.sessionId;
+                const session = sessions.get(sessionId);
+                if (session) {
+                  toggleSessionFullscreen(session);
+                }
               }
             }
           }
@@ -1955,12 +1972,14 @@
     
     function handleFullscreenChange() {
       // Update all sessions when fullscreen changes
+      const isFullscreen = document.fullscreenElement || 
+                          document.webkitFullscreenElement || 
+                          document.mozFullScreenElement || 
+                          document.msFullscreenElement;
+      
       sessions.forEach(session => {
         const imageSizeContainer = session.content.querySelector('.image-size-container');
-        const isFullscreen = document.fullscreenElement || 
-                            document.webkitFullscreenElement || 
-                            document.mozFullScreenElement || 
-                            document.msFullscreenElement;
+        const screenshotOverlay = session.content.querySelector('.screenshot-overlay');
         
         if (isFullscreen) {
           // Remove inline styles when entering fullscreen to allow CSS to take over
@@ -1973,6 +1992,12 @@
           if (imageSizeContainer && session.img.width && session.img.height) {
             imageSizeContainer.style.width = session.img.width + 'px';
             imageSizeContainer.style.height = session.img.height + 'px';
+          }
+          
+          // Hide overlay toolbars for all sessions when exiting fullscreen
+          if (screenshotOverlay) {
+            screenshotOverlay.style.opacity = '0';
+            screenshotOverlay.style.pointerEvents = 'none';
           }
         }
       });
