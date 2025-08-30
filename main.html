@@ -651,7 +651,7 @@
       align-items: center;
       max-width: 100%;
       max-height: 100%;
-      width: 100%;
+      /* width: 100%; */
       height: 100%;
     }
 
@@ -1135,9 +1135,39 @@
             break;
           case 'disconnected':
             session.isConnected = false;
+            // When disconnected, reset the screenshot container and show placeholder
+            resetScreenshotContainer(session);
             break;
         }
       }
+    }
+
+    // Reset screenshot container when connection is lost
+    function resetScreenshotContainer(session) {
+      // Hide image and show placeholder
+      session.img.classList.add('hidden');
+      session.placeholder.classList.remove('hidden');
+      
+      // Reset image source to prevent memory leaks
+      if (session.img.src) {
+        URL.revokeObjectURL(session.img.src);
+        session.img.src = '';
+      }
+      
+      // Reset image size container to ensure placeholder is centered
+      const imageSizeContainer = session.content.querySelector('.image-size-container');
+      if (imageSizeContainer) {
+        imageSizeContainer.style.width = '';
+        imageSizeContainer.style.height = '';
+        imageSizeContainer.style.position = '';
+        imageSizeContainer.style.top = '';
+        imageSizeContainer.style.left = '';
+        imageSizeContainer.style.transform = '';
+      }
+      
+      // Reset screenshot container to ensure proper centering
+      session.screenshotContainer.style.width = '';
+      session.screenshotContainer.style.height = '';
     }
 
     // Setup WebSocket for a session
@@ -1194,6 +1224,9 @@
         clearInterval(session.videoInterval);
         session.videoInterval = null;
       }
+      
+      // Reset screenshot container to ensure proper centering
+      resetScreenshotContainer(session);
     }
 
     // Start/stop video for a session
@@ -1265,9 +1298,8 @@
         session.placeholder.classList.add('hidden');
       } catch (error) {
         console.error(`Error fetching image from ${session.ip}:`, error);
-        // Show placeholder and hide image on error
-        session.img.classList.add('hidden');
-        session.placeholder.classList.remove('hidden');
+        // Reset the screenshot container to ensure proper centering
+        resetScreenshotContainer(session);
       }
     }
 
