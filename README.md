@@ -13,6 +13,8 @@
 * No telemetry, no bullshit.
 * IPv4 & IPv6(*should work, not tested yet)
 
+**:star: Would you like me to work more on this project? Please consider giving this repository a star!**  
+
 > [!CAUTION]  
 > * Only use this on a disposable virtual machine.  
 > * It can, and most likely will, destroy your system.  
@@ -43,6 +45,8 @@ Version - `v0.0.1`.
 
 ![](/assets/img/tasks-management.png)
 
+# Q&A
+* Can I put something like `http://127.0.0.1:11434/v1` into `API_BASE_URL=''` and use a model that I run locally? - Yes.
 
 # Demos
 
