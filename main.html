@@ -605,10 +605,9 @@
     /* Invisible container that matches image size exactly */
     .image-size-container {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
       pointer-events: none; /* Allow clicks to pass through to the image */
     }
 
@@ -1158,6 +1157,7 @@
                               document.msFullscreenElement;
           
           if (!isFullscreen && imageSizeContainer) {
+            // Set the container size to match the actual image dimensions
             imageSizeContainer.style.width = this.width + 'px';
             imageSizeContainer.style.height = this.height + 'px';
           }
