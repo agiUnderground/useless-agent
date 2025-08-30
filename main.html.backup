@@ -59,93 +59,9 @@
       flex: 1;
       min-width: 0;
       height: calc(100vh - 40px);
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-      grid-auto-rows: minmax(300px, 1fr);
-      /* gap: 10px; */
-      padding: 10px;
-      overflow: auto;
-    }
-
-    .session-container {
-      position: relative;
-      background-color: rgba(0, 0, 0, 0.1);
-      border: 1px solid var(--border-color);
-      /* border-radius: 8px; */
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .session-header {
-      background-color: var(--primary-bg);
-      padding: 8px 12px;
-      border-bottom: 1px solid var(--border-color);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 12px;
-      color: #6f6f6f;
-    }
-
-    .session-close {
-      background: none;
-      border: none;
-      color: #ff6b6b;
-      cursor: pointer;
-      font-size: 14px;
-      padding: 2px 6px;
-      border-radius: 3px;
-    }
-
-    .session-close:hover {
-      background-color: rgba(255, 107, 107, 0.1);
-    }
-
-    .session-content {
-      flex: 1;
       display: flex;
       justify-content: center;
       align-items: center;
-      position: relative;
-      min-height: 0;
-    }
-
-    /* Layout adjustments for different session counts */
-    .main-content[data-session-count="1"] {
-      grid-template-columns: 1fr;
-    }
-
-    .main-content[data-session-count="2"] {
-      grid-template-columns: 1fr 1fr;
-    }
-
-    .main-content[data-session-count="3"] {
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: 1fr 1fr;
-    }
-
-    .main-content[data-session-count="3"] .session-container:nth-child(3) {
-      grid-column: span 2;
-    }
-
-    .main-content[data-session-count="4"] {
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: 1fr 1fr;
-    }
-
-    .main-content[data-session-count="5"] {
-      grid-template-columns: repeat(3, 1fr);
-      grid-template-rows: repeat(2, 1fr);
-    }
-
-    .main-content[data-session-count="5"] .session-container:nth-child(5) {
-      grid-column: span 3;
-    }
-
-    .main-content[data-session-count="6"] {
-      grid-template-columns: repeat(3, 1fr);
-      grid-template-rows: repeat(2, 1fr);
     }
 
     .button-group {
@@ -855,25 +771,44 @@
       </fieldset>
     </div>
 
-    <div class="main-content" id="mainContent" data-session-count="0">
-      <!-- Session containers will be dynamically added here -->
+    <div class="main-content">
+      <div id="screenshotPlaceholder" class="screenshot-placeholder">Video stream will appear here</div>
+      <div class="screenshot-container">
+        <img id="screenshotImg" class="screenshot-img hidden" src="" alt="Video stream">
+        <!-- Invisible container that matches image size for proper overlay positioning -->
+        <div class="image-size-container" id="imageSizeContainer">
+          <!-- Overlay positioned at bottom of invisible container -->
+          <div class="screenshot-overlay" id="screenshotOverlay">
+            <button class="fullscreen-button" id="fullscreenBtn" title="Toggle fullscreen">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
   <script>
-    // Global variables
+    let ip = "127.0.0.1";
+    let ws = null;
+    let videoLoopInterval = null;
     let popOutWSWindow = null;
+    const screenshotImg = document.getElementById('screenshotImg');
+    const screenshotPlaceholder = document.getElementById('screenshotPlaceholder');
+    // Image Fetch Functions
+    let currentVideoSession = 0;
+    let isConnected = false;
+    let buttonsVisible = false;
+    let currentFPS = 5; // Default FPS
     // Task Management
     let currentTask = null;
     let isFirstMessage = true;
     
-    // Remove old screenshot elements since we're using dynamic sessions
-    const oldScreenshotImg = document.getElementById('screenshotImg');
-    const oldScreenshotPlaceholder = document.getElementById('screenshotPlaceholder');
-    if (oldScreenshotImg && oldScreenshotPlaceholder) {
-      oldScreenshotImg.remove();
-      oldScreenshotPlaceholder.remove();
-    }
+    // Show placeholder initially
+    screenshotPlaceholder.classList.remove('hidden');
+    screenshotImg.classList.add('hidden');
     
 
     // Toggle buttons functionality
@@ -888,284 +823,136 @@
       }
     }
 
-    function formatIp(ip) {
-      if (ip.includes(':')) {
-        return `[${ip}]`;
+    // Update connection button text and functionality
+    function updateConnectionButton() {
+      const connectButton = document.getElementById('setTargetIP');
+      
+      if (isConnected) {
+        // Change to Disconnect
+        connectButton.innerHTML = '<span class="connection-status" id="connectionStatus"></span> Disconnect';
       } else {
-        return `${ip}`;
+        // Change to Connect
+        connectButton.innerHTML = '<span class="connection-status" id="connectionStatus"></span> Connect';
       }
+      
+      // Update the connection status after changing the HTML
+      updateConnectionStatus(isConnected ? 'connected' : 'disconnected');
     }
 
-    // Multi-session management
-    const sessions = new Map();
-    const mainContent = document.getElementById('mainContent');
-    let currentFPS = 5; // Default FPS
-
-    // Create a new session
-    function createSession(ipAddress) {
-      const sessionId = ipAddress;
-      
-      if (sessions.has(sessionId)) {
-        console.log(`Session ${sessionId} already exists`);
-        return sessions.get(sessionId);
-      }
-
-      // Create session container
-      const sessionContainer = document.createElement('div');
-      sessionContainer.className = 'session-container';
-      sessionContainer.dataset.sessionId = sessionId;
-
-      // Create session header
-      const sessionHeader = document.createElement('div');
-      sessionHeader.className = 'session-header';
-      
-      const sessionTitle = document.createElement('span');
-      sessionTitle.textContent = `Session: ${sessionId}`;
-      
-      const closeButton = document.createElement('button');
-      closeButton.className = 'session-close';
-      closeButton.innerHTML = '×';
-      closeButton.title = 'Close session';
-      closeButton.addEventListener('click', () => {
-        closeSession(sessionId);
-      });
-
-      sessionHeader.appendChild(sessionTitle);
-      sessionHeader.appendChild(closeButton);
-
-      // Create session content
-      const sessionContent = document.createElement('div');
-      sessionContent.className = 'session-content';
-
-      // Create screenshot placeholder
-      const placeholder = document.createElement('div');
-      placeholder.className = 'screenshot-placeholder';
-      placeholder.textContent = 'Video stream will appear here';
-
-      // Create screenshot image
-      const screenshotImg = document.createElement('img');
-      screenshotImg.className = 'screenshot-img hidden';
-      screenshotImg.alt = `Video stream from ${sessionId}`;
-
-      // Create screenshot container
-      const screenshotContainer = document.createElement('div');
-      screenshotContainer.className = 'screenshot-container';
-
-      // Create image size container and overlay
-      const imageSizeContainer = document.createElement('div');
-      imageSizeContainer.className = 'image-size-container';
-
-      const screenshotOverlay = document.createElement('div');
-      screenshotOverlay.className = 'screenshot-overlay';
-
-      const fullscreenBtn = document.createElement('button');
-      fullscreenBtn.className = 'fullscreen-button';
-      fullscreenBtn.title = 'Toggle fullscreen';
-      fullscreenBtn.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-        </svg>
-      `;
-
-      screenshotOverlay.appendChild(fullscreenBtn);
-      imageSizeContainer.appendChild(screenshotOverlay);
-      screenshotContainer.appendChild(screenshotImg);
-      screenshotContainer.appendChild(imageSizeContainer);
-      
-      sessionContent.appendChild(placeholder);
-      sessionContent.appendChild(screenshotContainer);
-      
-      sessionContainer.appendChild(sessionHeader);
-      sessionContainer.appendChild(sessionContent);
-
-      // Add to main content
-      mainContent.appendChild(sessionContainer);
-
-      // Create session object
-      const session = {
-        id: sessionId,
-        ip: ipAddress,
-        ws: null,
-        container: sessionContainer,
-        content: sessionContent,
-        img: screenshotImg,
-        placeholder: placeholder,
-        videoInterval: null,
-        isConnected: false,
-        connectionStatus: document.createElement('span')
-      };
-
-      session.connectionStatus.className = 'connection-status';
-      
-      sessions.set(sessionId, session);
-      updateSessionLayout();
-
-      return session;
-    }
-
-    // Close a session
-    function closeSession(sessionId) {
-      const session = sessions.get(sessionId);
-      if (!session) return;
-
-      // Disconnect WebSocket if connected
-      if (session.ws) {
-        session.ws.close();
-      }
-
-      // Stop video stream
-      if (session.videoInterval) {
-        clearInterval(session.videoInterval);
-      }
-
-      // Remove from DOM
-      if (session.container && session.container.parentNode) {
-        session.container.parentNode.removeChild(session.container);
-      }
-
-      // Remove from sessions map
-      sessions.delete(sessionId);
-      updateSessionLayout();
-    }
-
-    // Update layout based on session count
-    function updateSessionLayout() {
-      const sessionCount = sessions.size;
-      mainContent.setAttribute('data-session-count', sessionCount);
-    }
-
-    // Update connection button for a session
-    function updateSessionConnectionStatus(session, status) {
-      const statusElement = session.connectionStatus;
+    // Connection Status Management
+    function updateConnectionStatus(status) {
+      const statusElement = document.getElementById('connectionStatus');
       statusElement.className = 'connection-status';
       
       switch(status) {
         case 'connected':
           statusElement.classList.add('connected');
-          session.isConnected = true;
           break;
         case 'connecting':
           statusElement.classList.add('connecting');
-          session.isConnected = false;
           break;
         case 'disconnected':
-          session.isConnected = false;
+          // Default grey color (inactive)
           break;
       }
     }
 
-    // Setup WebSocket for a session
-    function setupSessionWebSocket(session) {
-      if (session.ws) session.ws.close();
+    // WebSocket Management
+    function setupWebSocket() {
+      if (ws) ws.close();
+      updateConnectionStatus('connecting');
+      isConnected = false;
+      updateConnectionButton();
       
-      updateSessionConnectionStatus(session, 'connecting');
-      
-      session.ws = new WebSocket(`ws://${session.ip}:8080/ws`);
+      ws = new WebSocket(`ws://${ip}:8080/ws`);
 
-      session.ws.onopen = () => {
-        console.log(`Connected to server ${session.ip}`);
-        updateSessionConnectionStatus(session, 'connected');
+      ws.onopen = () => {
+        console.log("Connected to server");
+        updateConnectionStatus('connected');
+        isConnected = true;
+        updateConnectionButton();
         
         // Automatically start video when connection is established
-        startSessionVideo(session, 'screenshot');
+        const videoBtn = document.getElementById('videoBtn');
+        if (videoBtn && !videoLoopInterval) {
+          toggleVideoLoop(() => fetchImage('screenshot'), videoBtn, videoBtn.textContent.replace('Stop ', ''));
+        }
       };
       
-      session.ws.onmessage = (event) => {
+      ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log(`WebSocket message from ${session.ip}:`, data);
+          console.log('WebSocket message received:', data);
           
           if (data.type === 'tokenUpdate') {
             document.getElementById('tokenCounter').textContent = data.total;
           } else if (data.type === 'taskUpdate') {
             handleTaskUpdate(data);
+          } else {
+            console.log('Unknown message type:', data.type);
           }
         } catch (error) {
-          console.log(`WebSocket message from ${session.ip} (non-JSON):`, event.data);
+          // Handle non-JSON messages or other WebSocket messages
+          console.log('WebSocket message (non-JSON):', event.data);
         }
       };
       
-      session.ws.onclose = () => {
-        console.log(`Disconnected from server ${session.ip}`);
-        updateSessionConnectionStatus(session, 'disconnected');
+      ws.onclose = () => {
+        console.log("Disconnected from server");
+        updateConnectionStatus('disconnected');
+        isConnected = false;
+        updateConnectionButton();
       };
       
-      session.ws.onerror = (error) => {
-        console.error(`WebSocket error for ${session.ip}:`, error);
-        updateSessionConnectionStatus(session, 'connecting');
+      ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+        updateConnectionStatus('connecting'); // Show yellow for connection problems
+        isConnected = false;
+        updateConnectionButton();
       };
     }
 
-    // Disconnect WebSocket for a session
-    function disconnectSessionWebSocket(session) {
-      if (session.ws) {
-        session.ws.close();
-        updateSessionConnectionStatus(session, 'disconnected');
+    // Disconnect WebSocket
+    function disconnectWebSocket() {
+      if (ws) {
+        ws.close();
+        updateConnectionStatus('disconnected');
+        isConnected = false;
+        updateConnectionButton();
       }
       
-      // Stop video stream
-      if (session.videoInterval) {
-        clearInterval(session.videoInterval);
-        session.videoInterval = null;
+      // Stop video stream when disconnecting
+      if (videoLoopInterval) {
+        clearInterval(videoLoopInterval);
+        videoLoopInterval = null;
+        
+        // Reset video button texts
+        const videoBtn = document.getElementById('videoBtn');
+        const video2Btn = document.getElementById('video2');
+        if (videoBtn) videoBtn.textContent = 'Video';
+        if (video2Btn) video2Btn.textContent = 'Video 2';
       }
     }
 
-    // Start/stop video for a session
-    function toggleSessionVideoLoop(session, endpoint) {
-      if (session.videoInterval) {
-        clearInterval(session.videoInterval);
-        session.videoInterval = null;
-        return false;
-      } else {
-        session.videoInterval = setInterval(() => {
-          fetchSessionImage(session, endpoint);
-        }, 1000 / currentFPS);
-        return true;
-      }
-    }
-
-    function startSessionVideo(session, endpoint) {
-      if (!session.videoInterval) {
-        session.videoInterval = setInterval(() => {
-          fetchSessionImage(session, endpoint);
-        }, 1000 / currentFPS);
-      }
-    }
-
-    // Fetch image for a specific session
-    async function fetchSessionImage(session, endpoint) {
+    // Generic Functions
+    function prettifyJSON(input) {
       try {
-        const response = await fetch(`http://${session.ip}:8080/${endpoint}`);
-        if (!response.ok) throw new Error(`Failed to fetch ${endpoint} from ${session.ip}`);
+        return JSON.stringify(JSON.parse(input), null, 4);
+      } catch {
+        return input;
+      }
+    }
 
-        const blob = await response.blob();
-        const imageUrl = URL.createObjectURL(blob);
-        if (session.img.src) URL.revokeObjectURL(session.img.src);
-        session.img.src = imageUrl;
-        
-        session.img.onload = function() {
-          const imageSizeContainer = session.content.querySelector('.image-size-container');
-          
-          // Check if we're in fullscreen mode
-          const isFullscreen = document.fullscreenElement || 
-                              document.webkitFullscreenElement || 
-                              document.mozFullScreenElement || 
-                              document.msFullscreenElement;
-          
-          if (!isFullscreen && imageSizeContainer) {
-            imageSizeContainer.style.width = this.width + 'px';
-            imageSizeContainer.style.height = this.height + 'px';
-          }
-        };
-        
-        // Show image and hide placeholder
-        session.img.classList.remove('hidden');
-        session.placeholder.classList.add('hidden');
-      } catch (error) {
-        console.error(`Error fetching image from ${session.ip}:`, error);
-        // Show placeholder and hide image on error
-        session.img.classList.add('hidden');
-        session.placeholder.classList.remove('hidden');
+    function toggleVideoLoop(fetchFunction, button, buttonText) {
+      if (videoLoopInterval) {
+        clearInterval(videoLoopInterval);
+        videoLoopInterval = null;
+        button.textContent = buttonText;
+        currentVideoSession = 0
+      } else {
+        currentVideoSession = button.id === 'videoBtn' ? 1 : button.id === 'video2' ? 2 : 0;
+        videoLoopInterval = setInterval(fetchFunction, 1000 / currentFPS);
+        button.textContent = `Stop ${buttonText}`;
       }
     }
 
@@ -1182,35 +969,94 @@
         }
       });
       
-      // Restart all active video streams with new FPS
-      sessions.forEach(session => {
-        if (session.videoInterval) {
-          clearInterval(session.videoInterval);
-          session.videoInterval = setInterval(() => {
-            fetchSessionImage(session, 'screenshot');
-          }, 1000 / currentFPS);
-        }
-      });
+      // If video is currently streaming, restart it with new FPS
+      if (videoLoopInterval) {
+        // Find which video button is active and restart it
+        const videoControls = {
+          videoBtn: 'screenshot',
+          video2: 'video2'
+        };
+        
+        Object.entries(videoControls).forEach(([id, endpoint]) => {
+          const btn = document.getElementById(id);
+          if (btn && btn.textContent.includes('Stop')) {
+            clearInterval(videoLoopInterval);
+            videoLoopInterval = setInterval(() => fetchImage(endpoint), 1000 / currentFPS);
+          }
+        });
+      }
       
       console.log(`FPS set to: ${currentFPS}`);
     }
 
-    // Mouse Functions for specific session
-    async function sendSessionMouseClick(session) {
+    async function fetchImage(endpoint) {
+      // Store session ID when request starts
+      const thisSession = currentVideoSession;
+      
       try {
-        const response = await fetch(`http://${session.ip}:8080/mouse-click`);
-        if (!response.ok) throw new Error(`Failed to send mouse click to ${session.ip}`);
+        const response = await fetch(`http://${ip}:8080/${endpoint}`);
+        if (!response.ok) throw new Error(`Failed to fetch ${endpoint}`);
+
+        // Check if video was stopped while request was in flight
+        if (thisSession !== currentVideoSession) {
+          return; // Discard this image
+        }
+
+        const blob = await response.blob();
+        const imageUrl = URL.createObjectURL(blob);
+        if (screenshotImg.src) URL.revokeObjectURL(screenshotImg.src);
+        screenshotImg.src = imageUrl;
+        
+        // Update invisible container to match image size only once when first image loads
+        let containerSizeSet = false;
+        screenshotImg.onload = function() {
+          const imageSizeContainer = document.getElementById('imageSizeContainer');
+          
+          // Only set container size once, not on every image load
+          if (!containerSizeSet) {
+            // Check if we're in fullscreen mode - if so, don't set fixed sizes
+            const isFullscreen = document.fullscreenElement || 
+                                document.webkitFullscreenElement || 
+                                document.mozFullScreenElement || 
+                                document.msFullscreenElement;
+            
+            if (!isFullscreen) {
+              imageSizeContainer.style.width = this.width + 'px';
+              imageSizeContainer.style.height = this.height + 'px';
+              containerSizeSet = true;
+            }
+          }
+        };
+        
+        // Show image and hide placeholder
+        screenshotImg.classList.remove('hidden');
+        screenshotPlaceholder.classList.add('hidden');
       } catch (error) {
-        console.error(`Error sending mouse click to ${session.ip}:`, error);
+        console.error('Error:', error);
+        // Show placeholder and hide image on error
+        screenshotImg.classList.add('hidden');
+        screenshotPlaceholder.classList.remove('hidden');
       }
     }
 
-    async function sendSessionMouseInput(session, x, y) {
+    // Mouse Functions
+    async function sendMouseClick() {
       try {
-        const response = await fetch(`http://${session.ip}:8080/mouse-input?x=${x}&y=${y}`);
-        if (!response.ok) throw new Error(`Failed to send mouse input to ${session.ip}`);
+        const response = await fetch(`http://${ip}:8080/mouse-click`);
+        if (!response.ok) throw new Error('Failed to send mouse click');
       } catch (error) {
-        console.error(`Error sending mouse input to ${session.ip}:`, error);
+        console.error('Error:', error);
+      }
+    }
+
+    async function sendMouseInput() {
+      const x = document.getElementById('x-coord').value;
+      const y = document.getElementById('y-coord').value;
+      try {
+        const response = await fetch(`http://${ip}:8080/mouse-input?x=${x}&y=${y}`);
+        if (!response.ok) throw new Error('Failed to send mouse input');
+      } catch (error) {
+        console.error('Error:', error);
       }
     }
 
@@ -1224,52 +1070,33 @@
 
     // Event Listeners
     document.getElementById("setTargetIP").addEventListener("click", () => {
-      const ipInput = document.getElementById('ipv4');
-      const ipAddress = formatIp(ipInput.value.trim());
-      
-      if (!ipAddress) {
-        alert('Please enter a valid IP address');
-        return;
+      if (isConnected) {
+        disconnectWebSocket();
+      } else {
+        ip = formatIp(document.getElementById('ipv4').value);
+        console.log("Target IP changed to", ip);
+        currentVideoSession += 1;
+        setupWebSocket();
       }
-
-      // Create new session
-      const session = createSession(ipAddress);
-      
-      // Setup WebSocket connection
-      setupSessionWebSocket(session);
-      
-      // Clear IP input field
-      ipInput.value = '';
-      
-      // Button remains "Connect" for new connections
-      const connectButton = document.getElementById('setTargetIP');
-      connectButton.innerHTML = '<span class="connection-status" id="connectionStatus"></span> Connect';
     });
 
     // Toggle button event listener
     document.getElementById("toggleButtonsBtn").addEventListener("click", toggleMediaButtons);
 
-    // Remove old event listeners that reference single-session functions
-    // These will be replaced with session-specific controls
-    document.getElementById("screenshotBtn").addEventListener("click", () => {
-      console.log("Screenshot button clicked - functionality needs to be implemented per session");
-    });
-    
-    document.getElementById("sendMouseClick").addEventListener("click", () => {
-      console.log("Mouse click button clicked - functionality needs to be implemented per session");
-    });
-    
-    document.getElementById("sendMouseInput").addEventListener("click", () => {
-      console.log("Mouse input button clicked - functionality needs to be implemented per session");
-    });
+    document.getElementById("screenshotBtn").addEventListener("click", () => fetchImage('screenshot'));
+    document.getElementById("sendMouseClick").addEventListener("click", sendMouseClick);
+    document.getElementById("sendMouseInput").addEventListener("click", sendMouseInput);
 
-    // Video Controls - these will need to be session-specific
-    document.getElementById("videoBtn").addEventListener('click', function() {
-      console.log("Video button clicked - functionality needs to be implemented per session");
-    });
-    
-    document.getElementById("video2").addEventListener('click', function() {
-      console.log("Video 2 button clicked - functionality needs to be implemented per session");
+    // Video Controls
+    const videoControls = {
+      videoBtn: 'screenshot',
+      video2: 'video2'
+    };
+
+    Object.entries(videoControls).forEach(([id, endpoint]) => {
+      document.getElementById(id).addEventListener('click', function() {
+        toggleVideoLoop(() => fetchImage(endpoint), this, this.textContent.replace('Stop ', ''));
+      });
     });
 
     // Task Management Functions
@@ -1728,6 +1555,9 @@
 
     // Initialize default FPS state
     setFPS(currentFPS);
+    
+    // Initial WebSocket setup for main window
+    setupWebSocket();
     
     // Fullscreen functionality
     const fullscreenBtn = document.getElementById('fullscreenBtn');
