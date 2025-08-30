@@ -68,12 +68,10 @@ https://github.com/user-attachments/assets/370bdd7e-0955-4b1e-8e81-8ee3eb913e90
 ### How to prepare headless vm:
 Scripts - "assets/scripts"
 ```bash
-sudo apt install xfce4 xvfb tesseract-ocr-eng tesseract-ocr libtesseract5 libleptonica-dev libtesseract-dev
-sudo apt remove xfce4-screensaver
-sudo systemctl enable xvfb.service
-sudo systemctl enable xfce4.service
-sudo systemctl start xvfb.service
-sudo systemctl start xfce4.service
+sudo apt update && sudo apt install -y \
+  xfce4 xvfb tesseract-ocr-eng tesseract-ocr libtesseract5 libleptonica-dev libtesseract-dev
+sudo apt remove -y xfce4-screensaver
+sudo systemctl enable --now xvfb.service xfce4.service
 ```
 
 ### How to use:
