@@ -827,6 +827,112 @@
     }
 
   </style>
+  
+  <!-- Connection line styles -->
+  <style>
+    .connection-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 100;
+    }
+    
+    .connection-path {
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    
+    .connection-path.pulsating {
+      animation: connectionPulse 3s ease-in-out infinite;
+      stroke-dasharray: 5, 5;
+    }
+    
+    .pulse-dot {
+      fill: #4CAF50;
+      animation: pulseTravel 2s linear infinite;
+      opacity: 0;
+    }
+    
+    @keyframes connectionPulse {
+      0%, 100% {
+        stroke: #4CAF50;
+        stroke-width: 2;
+        opacity: 0.7;
+      }
+      50% {
+        stroke: #00ff88;
+        stroke-width: 3;
+        opacity: 1;
+      }
+    }
+    
+    @keyframes pulseTravel {
+      0% {
+        opacity: 0;
+        transform: translateX(-10px);
+      }
+      10% {
+        opacity: 1;
+      }
+      90% {
+        opacity: 1;
+      }
+      100% {
+        opacity: 0;
+        transform: translateX(10px);
+      }
+    }
+    
+    .connection-start {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #4CAF50;
+      animation: startPulse 2s ease-in-out infinite;
+      z-index: 101;
+      pointer-events: none;
+    }
+    
+    .connection-end {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: #4CAF50;
+      border: 2px solid #00ff88;
+      animation: endPulse 1.5s ease-in-out infinite;
+      z-index: 101;
+      pointer-events: none;
+    }
+    
+    @keyframes startPulse {
+      0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
+      }
+      50% {
+        transform: scale(1.2);
+        box-shadow: 0 0 0 8px rgba(76, 175, 80, 0);
+      }
+    }
+    
+    @keyframes endPulse {
+      0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7);
+      }
+      50% {
+        transform: scale(1.1);
+        box-shadow: 0 0 0 6px rgba(0, 255, 136, 0);
+      }
+    }
+  </style>
 </head>
 <body>
   <div class="main-wrapper">
@@ -905,6 +1011,11 @@
 
     <div class="main-content" id="mainContent" data-session-count="0">
       <!-- Session containers will be dynamically added here -->
+    </div>
+    
+    <!-- Connection overlay for drawing lines between chat and sessions -->
+    <div class="connection-overlay" id="connectionOverlay">
+      <svg width="100%" height="100%" id="connectionSvg"></svg>
     </div>
   </div>
 
@@ -2140,6 +2251,174 @@
     
     // Uncomment the line below to test the task creation functionality
     // testTaskCreation();
+
+    // Connection line functionality
+    const connectionSvg = document.getElementById('connectionSvg');
+    let currentConnectionPath = null;
+    let currentPulseDots = [];
+
+    // Function to calculate connection path around session perimeter
+    function calculateConnectionPath(chatElement, sessionElement) {
+      const chatRect = chatElement.getBoundingClientRect();
+      const sessionRect = sessionElement.getBoundingClientRect();
+      const overlayRect = connectionSvg.getBoundingClientRect();
+      
+      // Calculate positions relative to SVG overlay
+      const chatCenterX = chatRect.right - overlayRect.left;
+      const chatCenterY = chatRect.top + chatRect.height / 2 - overlayRect.top;
+      
+      const sessionCenterX = sessionRect.left + sessionRect.width / 2 - overlayRect.left;
+      const sessionCenterY = sessionRect.top + sessionRect.height / 2 - overlayRect.top;
+      
+      // Calculate direction and distance
+      const dx = sessionCenterX - chatCenterX;
+      const dy = sessionCenterY - chatCenterY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      // Calculate control points for rounded corners
+      const controlOffset = Math.min(distance * 0.3, 100);
+      const cornerRadius = 20;
+      
+      // Create path with rounded corners around the perimeter
+      let path = `M ${chatCenterX} ${chatCenterY}`;
+      
+      // First segment: from chat to first corner
+      path += ` L ${chatCenterX + controlOffset} ${chatCenterY}`;
+      
+      // Calculate corner points based on direction
+      if (dy > 0) {
+        // Session is below chat
+        path += ` Q ${chatCenterX + controlOffset + cornerRadius} ${chatCenterY}, ${chatCenterX + controlOffset + cornerRadius} ${chatCenterY + cornerRadius}`;
+        path += ` L ${chatCenterX + controlOffset + cornerRadius} ${sessionCenterY - cornerRadius}`;
+        path += ` Q ${chatCenterX + controlOffset + cornerRadius} ${sessionCenterY}, ${chatCenterX + controlOffset} ${sessionCenterY}`;
+      } else {
+        // Session is above chat
+        path += ` Q ${chatCenterX + controlOffset + cornerRadius} ${chatCenterY}, ${chatCenterX + controlOffset + cornerRadius} ${chatCenterY - cornerRadius}`;
+        path += ` L ${chatCenterX + controlOffset + cornerRadius} ${sessionCenterY + cornerRadius}`;
+        path += ` Q ${chatCenterX + controlOffset + cornerRadius} ${sessionCenterY}, ${chatCenterX + controlOffset} ${sessionCenterY}`;
+      }
+      
+      // Final segment to session
+      path += ` L ${sessionCenterX} ${sessionCenterY}`;
+      
+      return path;
+    }
+
+    // Function to draw connection line
+    function drawConnectionLine(chatElement, sessionElement) {
+      // Clear any existing connection
+      clearConnectionLine();
+      
+      const pathData = calculateConnectionPath(chatElement, sessionElement);
+      
+      // Create SVG path
+      currentConnectionPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      currentConnectionPath.setAttribute('d', pathData);
+      currentConnectionPath.setAttribute('class', 'connection-path pulsating');
+      currentConnectionPath.setAttribute('stroke', '#4CAF50');
+      
+      connectionSvg.appendChild(currentConnectionPath);
+      
+      // Create traveling pulse dots
+      createPulseDots(pathData);
+      
+      console.log('Connection line drawn between chat and session');
+    }
+
+    // Function to create traveling pulse dots
+    function createPulseDots(pathData) {
+      // Create multiple pulse dots with staggered delays
+      for (let i = 0; i < 3; i++) {
+        const pulseDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        pulseDot.setAttribute('class', 'pulse-dot');
+        pulseDot.setAttribute('r', '3');
+        pulseDot.setAttribute('fill', '#4CAF50');
+        pulseDot.style.animationDelay = `${i * 0.3}s`;
+        
+        // Position the dot at the start of the path initially
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', pathData);
+        const totalLength = path.getTotalLength();
+        const point = path.getPointAtLength(0);
+        
+        pulseDot.setAttribute('cx', point.x);
+        pulseDot.setAttribute('cy', point.y);
+        
+        connectionSvg.appendChild(pulseDot);
+        currentPulseDots.push(pulseDot);
+      }
+    }
+
+    // Function to clear connection line
+    function clearConnectionLine() {
+      if (currentConnectionPath) {
+        connectionSvg.removeChild(currentConnectionPath);
+        currentConnectionPath = null;
+      }
+      
+      // Clear pulse dots
+      currentPulseDots.forEach(dot => {
+        if (dot.parentNode === connectionSvg) {
+          connectionSvg.removeChild(dot);
+        }
+      });
+      currentPulseDots = [];
+    }
+
+    // Function to update connection line when layout changes
+    function updateConnectionLine() {
+      if (selectedSessionId) {
+        const session = sessions.get(selectedSessionId);
+        const chatFieldset = document.getElementById('chatFieldset');
+        
+        if (session && chatFieldset) {
+          drawConnectionLine(chatFieldset, session.container);
+        }
+      } else {
+        clearConnectionLine();
+      }
+    }
+
+    // Override selectSession function to handle connection lines
+    const originalSelectSession = selectSession;
+    selectSession = function(sessionId) {
+      originalSelectSession(sessionId);
+      updateConnectionLine();
+    };
+
+    // Override updateSessionLayout to handle connection lines on layout changes
+    const originalUpdateSessionLayout = updateSessionLayout;
+    updateSessionLayout = function() {
+      originalUpdateSessionLayout();
+      updateConnectionLine();
+    };
+
+    // Override closeSession to handle connection lines
+    const originalCloseSession = closeSession;
+    closeSession = function(sessionId) {
+      originalCloseSession(sessionId);
+      if (selectedSessionId === sessionId) {
+        selectedSessionId = null;
+        clearConnectionLine();
+      }
+    };
+
+    // Initial connection line setup
+    setTimeout(() => {
+      if (selectedSessionId) {
+        updateConnectionLine();
+      }
+    }, 100);
+
+    // Handle window resize to update connection lines
+    window.addEventListener('resize', () => {
+      updateConnectionLine();
+    });
+
+    // Handle scroll to update connection lines
+    window.addEventListener('scroll', () => {
+      updateConnectionLine();
+    }, { passive: true });
   </script>
 </body>
 </html>
