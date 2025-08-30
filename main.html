@@ -848,26 +848,26 @@
     }
     
     .connection-path.pulsating {
-      animation: connectionPulse 3s ease-in-out infinite;
+      animation: connectionPulse 4s ease-in-out infinite;
       stroke-dasharray: 5, 5;
     }
     
     .pulse-dot {
       fill: #4CAF50;
-      animation: pulseTravel 2s linear infinite;
+      animation: pulseTravel 2.5s linear infinite;
       opacity: 0;
     }
     
     @keyframes connectionPulse {
       0%, 100% {
         stroke: #4CAF50;
-        stroke-width: 2;
-        opacity: 0.7;
+        stroke-width: 1;
+        opacity: 0.6;
       }
       50% {
-        stroke: #00ff88;
-        stroke-width: 3;
-        opacity: 1;
+        stroke: #66BB6A;
+        stroke-width: 1.5;
+        opacity: 0.8;
       }
     }
     
@@ -2287,14 +2287,14 @@
       let path = `M ${chatRightX} ${chatCenterY}`;
       
       // Move horizontally to the edge of the main content area
-      const buffer = 10; // Small buffer from the edge
+      const buffer = 15; // Buffer from the edge
       
       if (isSessionOnLeft) {
         // Session is on the left side of the main content area
-        // Go to right edge of main content area first
+        // Go to right edge of main content area first (outside)
         path += ` L ${mainContentLeftX - buffer} ${chatCenterY}`;
         
-        // Then go up/down to session level
+        // Then go up/down to session level (outside main content)
         if (sessionCenterY > chatCenterY) {
           // Session is below chat - go down
           path += ` L ${mainContentLeftX - buffer} ${sessionCenterY}`;
@@ -2307,10 +2307,10 @@
         path += ` L ${sessionLeftX} ${sessionCenterY}`;
       } else {
         // Session is on the right side of the main content area
-        // Go to left edge of main content area first
+        // Go to left edge of main content area first (outside)
         path += ` L ${mainContentRightX + buffer} ${chatCenterY}`;
         
-        // Then go up/down to session level
+        // Then go up/down to session level (outside main content)
         if (sessionCenterY > chatCenterY) {
           // Session is below chat - go down
           path += ` L ${mainContentRightX + buffer} ${sessionCenterY}`;
