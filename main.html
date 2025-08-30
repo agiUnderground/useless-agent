@@ -605,9 +605,10 @@
     /* Invisible container that matches image size exactly */
     .image-size-container {
       position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
       pointer-events: none; /* Allow clicks to pass through to the image */
     }
 
@@ -645,15 +646,16 @@
     }
     
     /* Fullscreen mode - make image-size-container span full width */
-    :fullscreen .image-size-container,
-    :-webkit-full-screen .image-size-container,
-    :-moz-full-screen .image-size-container,
-    :-ms-fullscreen .image-size-container {
-      width: 100vw !important; /* Force full screen width */
-      height: 100vh !important; /* Force full screen height */
-      position: fixed !important;
+    .screenshot-container:fullscreen .image-size-container,
+    .screenshot-container:-webkit-full-screen .image-size-container,
+    .screenshot-container:-moz-full-screen .image-size-container,
+    .screenshot-container:-ms-fullscreen .image-size-container {
+      width: 100% !important; /* Use percentage instead of viewport units */
+      height: 100% !important;
+      position: absolute !important;
       top: 0 !important;
       left: 0 !important;
+      transform: none !important; /* Reset transform for fullscreen */
     }
     
     /* Fix positioning to ensure overlay is at the bottom of the image */
@@ -1157,9 +1159,24 @@
                               document.msFullscreenElement;
           
           if (!isFullscreen && imageSizeContainer) {
-            // Set the container size to match the actual image dimensions
+            // Set the container size to match the actual image dimensions for normal mode
             imageSizeContainer.style.width = this.width + 'px';
             imageSizeContainer.style.height = this.height + 'px';
+            
+            // Center the container in the session content
+            imageSizeContainer.style.position = 'absolute';
+            imageSizeContainer.style.top = '50%';
+            imageSizeContainer.style.left = '50%';
+            imageSizeContainer.style.transform = 'translate(-50%, -50%)';
+          } else if (isFullscreen && imageSizeContainer) {
+            // In fullscreen mode, let the CSS handle the positioning completely
+            // Clear all inline styles to allow CSS fullscreen rules to take over
+            imageSizeContainer.style.width = '';
+            imageSizeContainer.style.height = '';
+            imageSizeContainer.style.position = '';
+            imageSizeContainer.style.top = '';
+            imageSizeContainer.style.left = '';
+            imageSizeContainer.style.transform = '';
           }
         };
         
