@@ -989,12 +989,17 @@
         content: sessionContent,
         img: screenshotImg,
         placeholder: placeholder,
+        screenshotContainer: screenshotContainer,
+        fullscreenBtn: fullscreenBtn,
         videoInterval: null,
         isConnected: false
       };
       
       sessions.set(sessionId, session);
       updateSessionLayout();
+
+      // Add fullscreen functionality for this session
+      setupSessionFullscreen(session);
 
       return session;
     }
@@ -1729,129 +1734,170 @@
     // Initialize default FPS state
     setFPS(currentFPS);
     
-    // Fullscreen functionality
-    const fullscreenBtn = document.getElementById('fullscreenBtn');
-    const screenshotContainer = document.querySelector('.screenshot-container');
-    const llmChatInput = document.getElementById('llmChatInput');
-    const screenshotOverlay = document.querySelector('.screenshot-overlay');
-    
-    // Inactivity timer for overlay
-    let overlayTimeout = null;
-    const OVERLAY_TIMEOUT = 3000; // 3 seconds
-    
-    function resetOverlayTimer() {
-      // Clear existing timeout
-      if (overlayTimeout) {
-        clearTimeout(overlayTimeout);
-      }
+    // Session-specific fullscreen functionality
+    function setupSessionFullscreen(session) {
+      const screenshotOverlay = session.content.querySelector('.screenshot-overlay');
+      const screenshotContainer = session.screenshotContainer;
+      const fullscreenBtn = session.fullscreenBtn;
+      const llmChatInput = document.getElementById('llmChatInput');
       
-      // Only set timeout if in fullscreen mode
-      const isFullscreen = document.fullscreenElement || 
-                          document.webkitFullscreenElement || 
-                          document.mozFullScreenElement || 
-                          document.msFullscreenElement;
+      // Inactivity timer for overlay
+      let overlayTimeout = null;
+      const OVERLAY_TIMEOUT = 3000; // 3 seconds
       
-      if (isFullscreen) {
-        // Show overlay immediately when activity is detected
-        screenshotOverlay.style.opacity = '1';
-        screenshotOverlay.style.pointerEvents = 'auto';
+      function resetOverlayTimer() {
+        // Clear existing timeout
+        if (overlayTimeout) {
+          clearTimeout(overlayTimeout);
+        }
         
-        // Set new timeout to hide overlay after inactivity
-        overlayTimeout = setTimeout(() => {
-          screenshotOverlay.style.opacity = '0';
-          screenshotOverlay.style.pointerEvents = 'none';
-        }, OVERLAY_TIMEOUT);
+        // Only set timeout if in fullscreen mode
+        const isFullscreen = document.fullscreenElement || 
+                            document.webkitFullscreenElement || 
+                            document.mozFullScreenElement || 
+                            document.msFullscreenElement;
+        
+        if (isFullscreen) {
+          // Show overlay immediately when activity is detected
+          screenshotOverlay.style.opacity = '1';
+          screenshotOverlay.style.pointerEvents = 'auto';
+          
+          // Set new timeout to hide overlay after inactivity
+          overlayTimeout = setTimeout(() => {
+            screenshotOverlay.style.opacity = '0';
+            screenshotOverlay.style.pointerEvents = 'none';
+          }, OVERLAY_TIMEOUT);
+        }
       }
+      
+      // Mouse event handling for overlay
+      let isMouseOverOverlay = false;
+      let isMouseOverContainer = false;
+      
+      // Handle mouse enter on overlay
+      screenshotOverlay.addEventListener('mouseenter', () => {
+        isMouseOverOverlay = true;
+        if (overlayTimeout) {
+          clearTimeout(overlayTimeout);
+        }
+      });
+      
+      // Handle mouse leave from overlay
+      screenshotOverlay.addEventListener('mouseleave', () => {
+        isMouseOverOverlay = false;
+        // Only hide if mouse is not over container either
+        if (!isMouseOverContainer) {
+          const isFullscreen = document.fullscreenElement || 
+                              document.webkitFullscreenElement || 
+                              document.mozFullScreenElement || 
+                              document.msFullscreenElement;
+          
+          if (!isFullscreen) {
+            // Normal mode - hide overlay immediately when mouse leaves
+            screenshotOverlay.style.opacity = '0';
+            screenshotOverlay.style.pointerEvents = 'none';
+          } else {
+            // Fullscreen mode - start timer
+            resetOverlayTimer();
+          }
+        }
+      });
+      
+      // Handle mouse enter on container
+      screenshotContainer.addEventListener('mouseenter', () => {
+        isMouseOverContainer = true;
+        const isFullscreen = document.fullscreenElement || 
+                            document.webkitFullscreenElement || 
+                            document.mozFullScreenElement || 
+                            document.msFullscreenElement;
+        
+        if (isFullscreen) {
+          // Fullscreen mode - show overlay and start timer
+          screenshotOverlay.style.opacity = '1';
+          screenshotOverlay.style.pointerEvents = 'auto';
+          resetOverlayTimer();
+        } else {
+          // Normal mode - show overlay immediately
+          screenshotOverlay.style.opacity = '1';
+          screenshotOverlay.style.pointerEvents = 'auto';
+        }
+      });
+      
+      // Handle mouse leave from container
+      screenshotContainer.addEventListener('mouseleave', () => {
+        isMouseOverContainer = false;
+        // Only hide if mouse is not over overlay either
+        if (!isMouseOverOverlay) {
+          const isFullscreen = document.fullscreenElement || 
+                              document.webkitFullscreenElement || 
+                              document.mozFullScreenElement || 
+                              document.msFullscreenElement;
+          
+          if (!isFullscreen) {
+            // Normal mode - hide overlay immediately when mouse leaves container
+            screenshotOverlay.style.opacity = '0';
+            screenshotOverlay.style.pointerEvents = 'none';
+          } else {
+            // Fullscreen mode - start timer
+            resetOverlayTimer();
+          }
+        }
+      });
+      
+      // Mouse move detection for both container and overlay
+      screenshotContainer.addEventListener('mousemove', resetOverlayTimer);
+      screenshotOverlay.addEventListener('mousemove', resetOverlayTimer);
+      
+      // Reset timer on key press
+      document.addEventListener('keydown', resetOverlayTimer);
+      
+      // Reset timer on fullscreen button click
+      fullscreenBtn.addEventListener('click', resetOverlayTimer);
+      
+      // Fullscreen button click handler
+      fullscreenBtn.addEventListener('click', () => {
+        toggleSessionFullscreen(session);
+      });
+      
+      // Make screenshot container focusable and handle focus for keyboard navigation
+      screenshotContainer.setAttribute('tabindex', '0');
+      screenshotContainer.addEventListener('focus', () => {
+        screenshotContainer.classList.add('focused');
+      });
+      
+      screenshotContainer.addEventListener('blur', () => {
+        screenshotContainer.classList.remove('focused');
+      });
+      
+      // Also allow fullscreen when container is focused and Enter key is pressed
+      screenshotContainer.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          toggleSessionFullscreen(session);
+        }
+      });
+      
+      // Focus screenshot container when clicked with left mouse button
+      screenshotContainer.addEventListener('mousedown', (event) => {
+        // Only handle left mouse button clicks (button 0)
+        if (event.button === 0) {
+          event.preventDefault();
+          screenshotContainer.focus();
+        }
+      });
+      
+      // Also focus when the image itself is clicked (in case click doesn't bubble properly)
+      session.img.addEventListener('mousedown', (event) => {
+        if (event.button === 0) {
+          event.preventDefault();
+          screenshotContainer.focus();
+        }
+      });
     }
     
-    
-    // Mouse event handling for overlay
-    let isMouseOverOverlay = false;
-    let isMouseOverContainer = false;
-    
-    // Handle mouse enter on overlay
-    screenshotOverlay.addEventListener('mouseenter', () => {
-      isMouseOverOverlay = true;
-      if (overlayTimeout) {
-        clearTimeout(overlayTimeout);
-      }
-    });
-    
-    // Handle mouse leave from overlay
-    screenshotOverlay.addEventListener('mouseleave', () => {
-      isMouseOverOverlay = false;
-      // Only hide if mouse is not over container either
-      if (!isMouseOverContainer) {
-        const isFullscreen = document.fullscreenElement || 
-                            document.webkitFullscreenElement || 
-                            document.mozFullScreenElement || 
-                            document.msFullscreenElement;
-        
-        if (!isFullscreen) {
-          // Normal mode - hide overlay immediately when mouse leaves
-          screenshotOverlay.style.opacity = '0';
-          screenshotOverlay.style.pointerEvents = 'none';
-        } else {
-          // Fullscreen mode - start timer
-          resetOverlayTimer();
-        }
-      }
-    });
-    
-    // Handle mouse enter on container
-    screenshotContainer.addEventListener('mouseenter', () => {
-      isMouseOverContainer = true;
-      const isFullscreen = document.fullscreenElement || 
-                          document.webkitFullscreenElement || 
-                          document.mozFullScreenElement || 
-                          document.msFullscreenElement;
+    function toggleSessionFullscreen(session) {
+      const screenshotContainer = session.screenshotContainer;
       
-      if (isFullscreen) {
-        // Fullscreen mode - show overlay and start timer
-        screenshotOverlay.style.opacity = '1';
-        screenshotOverlay.style.pointerEvents = 'auto';
-        resetOverlayTimer();
-      } else {
-        // Normal mode - show overlay immediately
-        screenshotOverlay.style.opacity = '1';
-        screenshotOverlay.style.pointerEvents = 'auto';
-      }
-    });
-    
-    // Handle mouse leave from container
-    screenshotContainer.addEventListener('mouseleave', () => {
-      isMouseOverContainer = false;
-      // Only hide if mouse is not over overlay either
-      if (!isMouseOverOverlay) {
-        const isFullscreen = document.fullscreenElement || 
-                            document.webkitFullscreenElement || 
-                            document.mozFullScreenElement || 
-                            document.msFullscreenElement;
-        
-        if (!isFullscreen) {
-          // Normal mode - hide overlay immediately when mouse leaves container
-          screenshotOverlay.style.opacity = '0';
-          screenshotOverlay.style.pointerEvents = 'none';
-        } else {
-          // Fullscreen mode - start timer
-          resetOverlayTimer();
-        }
-      }
-    });
-    
-    // Mouse move detection for both container and overlay
-    screenshotContainer.addEventListener('mousemove', resetOverlayTimer);
-    screenshotOverlay.addEventListener('mousemove', resetOverlayTimer);
-    
-    // Reset timer on key press
-    document.addEventListener('keydown', resetOverlayTimer);
-    
-    // Reset timer on fullscreen button click
-    fullscreenBtn.addEventListener('click', resetOverlayTimer);
-    
-    fullscreenBtn.addEventListener('click', toggleFullscreen);
-    
-    function toggleFullscreen() {
       if (!document.fullscreenElement) {
         // Enter fullscreen
         if (screenshotContainer.requestFullscreen) {
@@ -1875,79 +1921,62 @@
       }
     }
     
+    // Global keyboard shortcut for fullscreen (F key) - applies to focused session
+    document.addEventListener('keydown', (event) => {
+      // Only trigger if F key is pressed and chat input is not focused
+      if (event.key === 'f' || event.key === 'F') {
+        // Check if chat input is focused
+        const isChatInputFocused = document.activeElement === document.getElementById('llmChatInput');
+        
+        if (!isChatInputFocused) {
+          event.preventDefault(); // Prevent default browser behavior
+          
+          // Find the focused session container
+          const focusedSessionContainer = document.activeElement.closest('.screenshot-container');
+          if (focusedSessionContainer) {
+            // Find which session this container belongs to
+            const sessionContainer = focusedSessionContainer.closest('.session-container');
+            if (sessionContainer) {
+              const sessionId = sessionContainer.dataset.sessionId;
+              const session = sessions.get(sessionId);
+              if (session) {
+                toggleSessionFullscreen(session);
+              }
+            }
+          }
+        }
+      }
+    });
+    
     // Listen for fullscreen change events to handle container size properly
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
     document.addEventListener('msfullscreenchange', handleFullscreenChange);
     
     function handleFullscreenChange() {
-      const imageSizeContainer = document.getElementById('imageSizeContainer');
-      const isFullscreen = document.fullscreenElement || 
-                          document.webkitFullscreenElement || 
-                          document.mozFullScreenElement || 
-                          document.msFullscreenElement;
-      
-      if (isFullscreen) {
-        // Remove inline styles when entering fullscreen to allow CSS to take over
-        imageSizeContainer.style.width = '';
-        imageSizeContainer.style.height = '';
-      } else {
-        // Restore inline styles when exiting fullscreen
-        if (screenshotImg.width && screenshotImg.height) {
-          imageSizeContainer.style.width = screenshotImg.width + 'px';
-          imageSizeContainer.style.height = screenshotImg.height + 'px';
-        }
-      }
-    }
-    
-    // Keyboard shortcut for fullscreen (F key)
-    document.addEventListener('keydown', (event) => {
-      // Only trigger if F key is pressed and chat input is not focused
-      if (event.key === 'f' || event.key === 'F') {
-        // Check if chat input is focused
-        const isChatInputFocused = document.activeElement === llmChatInput;
+      // Update all sessions when fullscreen changes
+      sessions.forEach(session => {
+        const imageSizeContainer = session.content.querySelector('.image-size-container');
+        const isFullscreen = document.fullscreenElement || 
+                            document.webkitFullscreenElement || 
+                            document.mozFullScreenElement || 
+                            document.msFullscreenElement;
         
-        if (!isChatInputFocused) {
-          event.preventDefault(); // Prevent default browser behavior
-          toggleFullscreen();
+        if (isFullscreen) {
+          // Remove inline styles when entering fullscreen to allow CSS to take over
+          if (imageSizeContainer) {
+            imageSizeContainer.style.width = '';
+            imageSizeContainer.style.height = '';
+          }
+        } else {
+          // Restore inline styles when exiting fullscreen
+          if (imageSizeContainer && session.img.width && session.img.height) {
+            imageSizeContainer.style.width = session.img.width + 'px';
+            imageSizeContainer.style.height = session.img.height + 'px';
+          }
         }
-      }
-    });
-    
-    // Make screenshot container focusable and handle focus for keyboard navigation
-    screenshotContainer.setAttribute('tabindex', '0');
-    screenshotContainer.addEventListener('focus', () => {
-      screenshotContainer.classList.add('focused');
-    });
-    
-    screenshotContainer.addEventListener('blur', () => {
-      screenshotContainer.classList.remove('focused');
-    });
-    
-    // Also allow fullscreen when container is focused and Enter key is pressed
-    screenshotContainer.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        toggleFullscreen();
-      }
-    });
-    
-    // Focus screenshot container when clicked with left mouse button
-    screenshotContainer.addEventListener('mousedown', (event) => {
-      // Only handle left mouse button clicks (button 0)
-      if (event.button === 0) {
-        event.preventDefault();
-        screenshotContainer.focus();
-      }
-    });
-    
-    // Also focus when the image itself is clicked (in case click doesn't bubble properly)
-    screenshotImg.addEventListener('mousedown', (event) => {
-      if (event.button === 0) {
-        event.preventDefault();
-        screenshotContainer.focus();
-      }
-    });
+      });
+    }
     
     // Test function to verify task creation works
     function testTaskCreation() {
