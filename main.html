@@ -807,10 +807,7 @@
                  placeholder="IP Address" 
                  pattern="^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^[\da-fA-F:]+$"
                  oninput="this.value=this.value.replace(/[^0-9a-fA-F.:]/g,'')" required>
-          <button class="control-button connection-button" id="setTargetIP">
-            <span class="connection-status" id="connectionStatus"></span>
-            Connect
-          </button>
+          <button class="control-button" id="setTargetIP">Connect</button>
         </div>
         
       </fieldset>
@@ -916,6 +913,10 @@
       const sessionHeader = document.createElement('div');
       sessionHeader.className = 'session-header';
       
+      // Create status indicator
+      const statusIndicator = document.createElement('span');
+      statusIndicator.className = 'connection-status';
+      
       const sessionTitle = document.createElement('span');
       sessionTitle.textContent = `Session: ${sessionId}`;
       
@@ -927,6 +928,7 @@
         closeSession(sessionId);
       });
 
+      sessionHeader.appendChild(statusIndicator);
       sessionHeader.appendChild(sessionTitle);
       sessionHeader.appendChild(closeButton);
 
@@ -988,11 +990,8 @@
         img: screenshotImg,
         placeholder: placeholder,
         videoInterval: null,
-        isConnected: false,
-        connectionStatus: document.createElement('span')
+        isConnected: false
       };
-
-      session.connectionStatus.className = 'connection-status';
       
       sessions.set(sessionId, session);
       updateSessionLayout();
@@ -1031,23 +1030,27 @@
       mainContent.setAttribute('data-session-count', sessionCount);
     }
 
-    // Update connection button for a session
+    // Update connection status for a session
     function updateSessionConnectionStatus(session, status) {
-      const statusElement = session.connectionStatus;
-      statusElement.className = 'connection-status';
+      // Get the status indicator from the session header
+      const statusIndicator = session.container.querySelector('.session-header .connection-status');
       
-      switch(status) {
-        case 'connected':
-          statusElement.classList.add('connected');
-          session.isConnected = true;
-          break;
-        case 'connecting':
-          statusElement.classList.add('connecting');
-          session.isConnected = false;
-          break;
-        case 'disconnected':
-          session.isConnected = false;
-          break;
+      if (statusIndicator) {
+        statusIndicator.className = 'connection-status';
+        
+        switch(status) {
+          case 'connected':
+            statusIndicator.classList.add('connected');
+            session.isConnected = true;
+            break;
+          case 'connecting':
+            statusIndicator.classList.add('connecting');
+            session.isConnected = false;
+            break;
+          case 'disconnected':
+            session.isConnected = false;
+            break;
+        }
       }
     }
 
@@ -1240,7 +1243,7 @@
       
       // Button remains "Connect" for new connections
       const connectButton = document.getElementById('setTargetIP');
-      connectButton.innerHTML = '<span class="connection-status" id="connectionStatus"></span> Connect';
+      connectButton.textContent = 'Connect';
     });
 
     // Toggle button event listener
