@@ -587,11 +587,6 @@
       display: block; /* Ensure image is treated as a block element */
     }
     
-    /* Show overlay on hover of main content area */
-    .main-content:hover .screenshot-overlay {
-      opacity: 1;
-      pointer-events: auto; /* Enable clicks on the overlay when visible */
-    }
 
     .fullscreen-button {
       background: none;
@@ -1599,72 +1594,90 @@
       }
     }
     
-    function handleMouseEnter() {
+    
+    // Mouse event handling for overlay
+    let isMouseOverOverlay = false;
+    let isMouseOverContainer = false;
+    
+    // Handle mouse enter on overlay
+    screenshotOverlay.addEventListener('mouseenter', () => {
+      isMouseOverOverlay = true;
+      if (overlayTimeout) {
+        clearTimeout(overlayTimeout);
+      }
+    });
+    
+    // Handle mouse leave from overlay
+    screenshotOverlay.addEventListener('mouseleave', () => {
+      isMouseOverOverlay = false;
+      // Only hide if mouse is not over container either
+      if (!isMouseOverContainer) {
+        const isFullscreen = document.fullscreenElement || 
+                            document.webkitFullscreenElement || 
+                            document.mozFullScreenElement || 
+                            document.msFullscreenElement;
+        
+        if (!isFullscreen) {
+          // Normal mode - hide overlay immediately when mouse leaves
+          screenshotOverlay.style.opacity = '0';
+          screenshotOverlay.style.pointerEvents = 'none';
+        } else {
+          // Fullscreen mode - start timer
+          resetOverlayTimer();
+        }
+      }
+    });
+    
+    // Handle mouse enter on container
+    screenshotContainer.addEventListener('mouseenter', () => {
+      isMouseOverContainer = true;
       const isFullscreen = document.fullscreenElement || 
                           document.webkitFullscreenElement || 
                           document.mozFullScreenElement || 
                           document.msFullscreenElement;
       
       if (isFullscreen) {
-        // Show overlay and start timer for fullscreen mode
+        // Fullscreen mode - show overlay and start timer
         screenshotOverlay.style.opacity = '1';
         screenshotOverlay.style.pointerEvents = 'auto';
         resetOverlayTimer();
       } else {
-        // Normal mode - just show overlay without timeout
+        // Normal mode - show overlay immediately
         screenshotOverlay.style.opacity = '1';
         screenshotOverlay.style.pointerEvents = 'auto';
       }
-    }
+    });
     
-    function handleMouseLeave() {
-      const isFullscreen = document.fullscreenElement || 
-                          document.webkitFullscreenElement || 
-                          document.mozFullScreenElement || 
-                          document.msFullscreenElement;
-      
-      if (!isFullscreen) {
-        // Normal mode - hide overlay when mouse leaves container
-        screenshotOverlay.style.opacity = '0';
-        screenshotOverlay.style.pointerEvents = 'none';
-      }
-    }
-    
-    // Also handle mouse leave for the overlay itself in normal mode
-    screenshotOverlay.addEventListener('mouseleave', () => {
-      const isFullscreen = document.fullscreenElement || 
-                          document.webkitFullscreenElement || 
-                          document.mozFullScreenElement || 
-                          document.msFullscreenElement;
-      
-      if (!isFullscreen) {
-        // Normal mode - hide overlay when mouse leaves overlay
-        screenshotOverlay.style.opacity = '0';
-        screenshotOverlay.style.pointerEvents = 'none';
+    // Handle mouse leave from container
+    screenshotContainer.addEventListener('mouseleave', () => {
+      isMouseOverContainer = false;
+      // Only hide if mouse is not over overlay either
+      if (!isMouseOverOverlay) {
+        const isFullscreen = document.fullscreenElement || 
+                            document.webkitFullscreenElement || 
+                            document.mozFullScreenElement || 
+                            document.msFullscreenElement;
+        
+        if (!isFullscreen) {
+          // Normal mode - hide overlay immediately when mouse leaves container
+          screenshotOverlay.style.opacity = '0';
+          screenshotOverlay.style.pointerEvents = 'none';
+        } else {
+          // Fullscreen mode - start timer
+          resetOverlayTimer();
+        }
       }
     });
     
-    // Event listeners for activity detection - use screenshot container since overlay is inside it
+    // Mouse move detection for both container and overlay
     screenshotContainer.addEventListener('mousemove', resetOverlayTimer);
-    screenshotContainer.addEventListener('mouseenter', handleMouseEnter);
-    screenshotContainer.addEventListener('mouseleave', handleMouseLeave);
+    screenshotOverlay.addEventListener('mousemove', resetOverlayTimer);
     
     // Reset timer on key press
     document.addEventListener('keydown', resetOverlayTimer);
     
-    // Reset timer on overlay interaction
-    screenshotOverlay.addEventListener('mousemove', resetOverlayTimer);
+    // Reset timer on fullscreen button click
     fullscreenBtn.addEventListener('click', resetOverlayTimer);
-    
-    // Keep overlay visible while mouse is over it
-    screenshotOverlay.addEventListener('mouseenter', () => {
-      if (overlayTimeout) {
-        clearTimeout(overlayTimeout);
-      }
-    });
-    
-    // Restart timer when mouse leaves overlay but stays in main content
-    screenshotOverlay.addEventListener('mouseleave', resetOverlayTimer);
     
     fullscreenBtn.addEventListener('click', toggleFullscreen);
     
