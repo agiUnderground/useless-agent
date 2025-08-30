@@ -29,9 +29,20 @@ Currently supported models:
 
 **Environment**: Only works on - `Linux + xfce + X11`.  
 
-Version - `v0.0.0.0.0.1`.  
+Version - `v0.0.1`.  
 
-If it were a web service with an SLA, its SLA would guarantee an availability of 0.00001%.
+
+# Changelog
+
+### v0.0.1
+
+* Added basic tasks management and status indication.
+* Hotkeys support.
+* UI update.
+* Video stream FPS selector.
+
+![](/assets/img/tasks-management.png)
+
 
 # Demos
 
@@ -84,7 +95,6 @@ How the project started: I just wanted to take a screenshot over the network.
 ### Todo list:  
 - [ ] Build a single fully static binary.  
 - [ ] Add stats about burned tokens per session/task.
-- [ ] Add dead kitten counter
 - [ ] Allow LLM to spawn local 'thoughts', which would do/monitor something and then allow them to interrupt the main LOOP and to inject its results into the thinking loop.
 - [ ] Build a unified concept space for models that are capable of ingesting more data.
 - [ ] Pause task execution.
