@@ -2261,45 +2261,67 @@
     function calculateConnectionPath(chatElement, sessionElement) {
       const chatRect = chatElement.getBoundingClientRect();
       const sessionRect = sessionElement.getBoundingClientRect();
+      const mainContentRect = mainContent.getBoundingClientRect();
       const overlayRect = connectionSvg.getBoundingClientRect();
       
       // Calculate positions relative to SVG overlay
-      const chatCenterX = chatRect.right - overlayRect.left;
+      const chatRightX = chatRect.right - overlayRect.left;
       const chatCenterY = chatRect.top + chatRect.height / 2 - overlayRect.top;
       
-      const sessionCenterX = sessionRect.left + sessionRect.width / 2 - overlayRect.left;
+      const sessionLeftX = sessionRect.left - overlayRect.left;
+      const sessionRightX = sessionRect.right - overlayRect.left;
+      const sessionTopY = sessionRect.top - overlayRect.top;
+      const sessionBottomY = sessionRect.bottom - overlayRect.top;
       const sessionCenterY = sessionRect.top + sessionRect.height / 2 - overlayRect.top;
       
-      // Calculate direction and distance
-      const dx = sessionCenterX - chatCenterX;
-      const dy = sessionCenterY - chatCenterY;
-      const distance = Math.sqrt(dx * dx + dy * dy);
+      const mainContentLeftX = mainContentRect.left - overlayRect.left;
+      const mainContentRightX = mainContentRect.right - overlayRect.left;
+      const mainContentTopY = mainContentRect.top - overlayRect.top;
+      const mainContentBottomY = mainContentRect.bottom - overlayRect.top;
       
-      // Calculate control points for rounded corners
-      const controlOffset = Math.min(distance * 0.3, 100);
-      const cornerRadius = 20;
+      // Calculate which edge of the session container to connect to
+      const sessionCenterX = sessionRect.left + sessionRect.width / 2 - overlayRect.left;
+      const isSessionOnLeft = sessionCenterX < mainContentLeftX + mainContentRect.width / 2;
       
-      // Create path with rounded corners around the perimeter
-      let path = `M ${chatCenterX} ${chatCenterY}`;
+      // Start from chat right edge
+      let path = `M ${chatRightX} ${chatCenterY}`;
       
-      // First segment: from chat to first corner
-      path += ` L ${chatCenterX + controlOffset} ${chatCenterY}`;
+      // Move horizontally to the edge of the main content area
+      const buffer = 10; // Small buffer from the edge
       
-      // Calculate corner points based on direction
-      if (dy > 0) {
-        // Session is below chat
-        path += ` Q ${chatCenterX + controlOffset + cornerRadius} ${chatCenterY}, ${chatCenterX + controlOffset + cornerRadius} ${chatCenterY + cornerRadius}`;
-        path += ` L ${chatCenterX + controlOffset + cornerRadius} ${sessionCenterY - cornerRadius}`;
-        path += ` Q ${chatCenterX + controlOffset + cornerRadius} ${sessionCenterY}, ${chatCenterX + controlOffset} ${sessionCenterY}`;
+      if (isSessionOnLeft) {
+        // Session is on the left side of the main content area
+        // Go to right edge of main content area first
+        path += ` L ${mainContentLeftX - buffer} ${chatCenterY}`;
+        
+        // Then go up/down to session level
+        if (sessionCenterY > chatCenterY) {
+          // Session is below chat - go down
+          path += ` L ${mainContentLeftX - buffer} ${sessionCenterY}`;
+        } else {
+          // Session is above chat - go up
+          path += ` L ${mainContentLeftX - buffer} ${sessionCenterY}`;
+        }
+        
+        // Then go to session left edge
+        path += ` L ${sessionLeftX} ${sessionCenterY}`;
       } else {
-        // Session is above chat
-        path += ` Q ${chatCenterX + controlOffset + cornerRadius} ${chatCenterY}, ${chatCenterX + controlOffset + cornerRadius} ${chatCenterY - cornerRadius}`;
-        path += ` L ${chatCenterX + controlOffset + cornerRadius} ${sessionCenterY + cornerRadius}`;
-        path += ` Q ${chatCenterX + controlOffset + cornerRadius} ${sessionCenterY}, ${chatCenterX + controlOffset} ${sessionCenterY}`;
+        // Session is on the right side of the main content area
+        // Go to left edge of main content area first
+        path += ` L ${mainContentRightX + buffer} ${chatCenterY}`;
+        
+        // Then go up/down to session level
+        if (sessionCenterY > chatCenterY) {
+          // Session is below chat - go down
+          path += ` L ${mainContentRightX + buffer} ${sessionCenterY}`;
+        } else {
+          // Session is above chat - go up
+          path += ` L ${mainContentRightX + buffer} ${sessionCenterY}`;
+        }
+        
+        // Then go to session right edge
+        path += ` L ${sessionRightX} ${sessionCenterY}`;
       }
-      
-      // Final segment to session
-      path += ` L ${sessionCenterX} ${sessionCenterY}`;
       
       return path;
     }
