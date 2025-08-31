@@ -1144,6 +1144,16 @@
       const screenshotOverlay = document.createElement('div');
       screenshotOverlay.className = 'screenshot-overlay';
 
+      // Create maximize button (different icon from fullscreen)
+      const maximizeBtn = document.createElement('button');
+      maximizeBtn.className = 'fullscreen-button';
+      maximizeBtn.title = 'Maximize session (M)';
+      maximizeBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
+        </svg>
+      `;
+
       const fullscreenBtn = document.createElement('button');
       fullscreenBtn.className = 'fullscreen-button';
       fullscreenBtn.title = 'Toggle fullscreen';
@@ -1153,6 +1163,7 @@
         </svg>
       `;
 
+      screenshotOverlay.appendChild(maximizeBtn);
       screenshotOverlay.appendChild(fullscreenBtn);
       imageSizeContainer.appendChild(screenshotOverlay);
       screenshotContainer.appendChild(screenshotImg);
@@ -1201,6 +1212,9 @@
       const session = sessions.get(sessionId);
       if (!session) return;
 
+      // Check if the session being closed is maximized
+      const isMaximized = session.container.classList.contains('maximized');
+      
       // Disconnect WebSocket if connected
       if (session.ws) {
         session.ws.close();
@@ -1218,6 +1232,14 @@
 
       // Remove from sessions map
       sessions.delete(sessionId);
+      
+      // If the closed session was maximized, restore other sessions
+      if (isMaximized) {
+        sessions.forEach((otherSession, otherSessionId) => {
+          otherSession.container.style.display = 'flex';
+        });
+      }
+      
       updateSessionLayout();
     }
 
@@ -1979,6 +2001,7 @@
       const screenshotOverlay = session.content.querySelector('.screenshot-overlay');
       const screenshotContainer = session.screenshotContainer;
       const fullscreenBtn = session.fullscreenBtn;
+      const maximizeBtn = screenshotOverlay.querySelector('.fullscreen-button:first-child');
       const llmChatInput = document.getElementById('llmChatInput');
       
       // Inactivity timer for overlay
@@ -2099,6 +2122,11 @@
         toggleSessionFullscreen(session);
       });
       
+      // Maximize button click handler
+      maximizeBtn.addEventListener('click', () => {
+        toggleSessionMaximize(session);
+      });
+      
       // Make screenshot container focusable and handle focus for keyboard navigation
       screenshotContainer.setAttribute('tabindex', '0');
       screenshotContainer.addEventListener('focus', () => {
@@ -2160,15 +2188,42 @@
         }
       }
     }
+
+    // Toggle session maximize functionality
+    function toggleSessionMaximize(session) {
+      const sessionContainer = session.container;
+      const mainContent = document.getElementById('mainContent');
+      
+      // Check if session is already maximized
+      const isMaximized = sessionContainer.classList.contains('maximized');
+      
+      if (isMaximized) {
+        // Restore normal layout - show all sessions
+        sessionContainer.classList.remove('maximized');
+        sessions.forEach((otherSession, sessionId) => {
+          otherSession.container.style.display = 'flex';
+        });
+        mainContent.setAttribute('data-session-count', sessions.size);
+      } else {
+        // Maximize the session - hide all other sessions
+        sessionContainer.classList.add('maximized');
+        sessions.forEach((otherSession, sessionId) => {
+          if (sessionId !== session.id) {
+            otherSession.container.style.display = 'none';
+          }
+        });
+        mainContent.setAttribute('data-session-count', '1');
+      }
+    }
     
-    // Global keyboard shortcut for fullscreen (F key) - applies to focused session
+    // Global keyboard shortcut for fullscreen (F key) and maximize (M key) - applies to focused session
     document.addEventListener('keydown', (event) => {
-      // Only trigger if F key is pressed and chat input is not focused
-      if (event.key === 'f' || event.key === 'F') {
-        // Check if chat input is focused
-        const isChatInputFocused = document.activeElement === document.getElementById('llmChatInput');
-        
-        if (!isChatInputFocused) {
+      // Check if chat input is focused
+      const isChatInputFocused = document.activeElement === document.getElementById('llmChatInput');
+      
+      if (!isChatInputFocused) {
+        // Fullscreen shortcut (F key)
+        if (event.key === 'f' || event.key === 'F') {
           event.preventDefault(); // Prevent default browser behavior
           
           // Check if we're already in fullscreen mode
@@ -2198,6 +2253,25 @@
                 if (session) {
                   toggleSessionFullscreen(session);
                 }
+              }
+            }
+          }
+        }
+        
+        // Maximize shortcut (M key)
+        if (event.key === 'm' || event.key === 'M') {
+          event.preventDefault(); // Prevent default browser behavior
+          
+          // Find focused session container
+          const focusedSessionContainer = document.activeElement.closest('.screenshot-container');
+          if (focusedSessionContainer) {
+            // Find which session this container belongs to
+            const sessionContainer = focusedSessionContainer.closest('.session-container');
+            if (sessionContainer) {
+              const sessionId = sessionContainer.dataset.sessionId;
+              const session = sessions.get(sessionId);
+              if (session) {
+                toggleSessionMaximize(session);
               }
             }
           }
