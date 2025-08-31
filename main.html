@@ -1519,24 +1519,59 @@
     // Remove old event listeners that reference single-session functions
     // These will be replaced with session-specific controls
     document.getElementById("screenshotBtn").addEventListener("click", () => {
-      console.log("Screenshot button clicked - functionality needs to be implemented per session");
+      const selectedSession = getSelectedSession();
+      if (selectedSession) {
+        fetchSessionImage(selectedSession, 'screenshot');
+      } else {
+        console.log("Please select a session first");
+        alert("Please select a session first by clicking on it");
+      }
     });
     
     document.getElementById("sendMouseClick").addEventListener("click", () => {
-      console.log("Mouse click button clicked - functionality needs to be implemented per session");
+      const selectedSession = getSelectedSession();
+      if (selectedSession) {
+        sendSessionMouseClick(selectedSession);
+      } else {
+        console.log("Please select a session first");
+        alert("Please select a session first by clicking on it");
+      }
     });
     
     document.getElementById("sendMouseInput").addEventListener("click", () => {
-      console.log("Mouse input button clicked - functionality needs to be implemented per session");
+      const x = parseInt(document.getElementById('x-coord').value) || 0;
+      const y = parseInt(document.getElementById('y-coord').value) || 0;
+      
+      const selectedSession = getSelectedSession();
+      if (selectedSession) {
+        sendSessionMouseInput(selectedSession, x, y);
+      } else {
+        console.log("Please select a session first");
+        alert("Please select a session first by clicking on it");
+      }
     });
 
-    // Video Controls - these will need to be session-specific
+    // Video Controls - session-specific
     document.getElementById("videoBtn").addEventListener('click', function() {
-      console.log("Video button clicked - functionality needs to be implemented per session");
+      const selectedSession = getSelectedSession();
+      if (selectedSession) {
+        const isRunning = toggleSessionVideoLoop(selectedSession, 'screenshot');
+        this.textContent = isRunning ? 'Stop Video' : 'Video';
+      } else {
+        console.log("Please select a session first");
+        alert("Please select a session first by clicking on it");
+      }
     });
     
     document.getElementById("video2").addEventListener('click', function() {
-      console.log("Video 2 button clicked - functionality needs to be implemented per session");
+      const selectedSession = getSelectedSession();
+      if (selectedSession) {
+        const isRunning = toggleSessionVideoLoop(selectedSession, 'video2');
+        this.textContent = isRunning ? 'Stop Video 2' : 'Video 2';
+      } else {
+        console.log("Please select a session first");
+        alert("Please select a session first by clicking on it");
+      }
     });
 
     // Task Management Functions
