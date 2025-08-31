@@ -1540,12 +1540,15 @@
     });
 
     // Task Management Functions
-    function createTaskCard(message, status = 'in-progress') {
+    function createTaskCard(message, status = 'in-progress', sessionId = null) {
       const taskCard = document.createElement('div');
       taskCard.className = `task-card ${status}`;
       
       // Store original message as data attribute for later reference
       taskCard.dataset.originalMessage = message;
+      if (sessionId) {
+        taskCard.dataset.sessionId = sessionId;
+      }
       
       const taskHeader = document.createElement('div');
       taskHeader.className = 'task-header';
@@ -1563,6 +1566,19 @@
         cancelTask(taskCard);
       });
       
+      // Add session info if available
+      const sessionInfo = document.createElement('div');
+      sessionInfo.className = 'task-session-info';
+      sessionInfo.style.fontSize = '10px';
+      sessionInfo.style.color = '#888';
+      sessionInfo.style.marginBottom = '4px';
+      
+      if (sessionId) {
+        sessionInfo.textContent = `Session: ${sessionId}`;
+      } else {
+        sessionInfo.textContent = 'Session: Unknown';
+      }
+      
       const taskMessage = document.createElement('div');
       taskMessage.className = 'task-message';
       taskMessage.textContent = message.length > 100 ? message.substring(0, 100) + '...' : message;
@@ -1570,6 +1586,7 @@
       taskHeader.appendChild(taskStatus);
       taskHeader.appendChild(cancelBtn);
       taskCard.appendChild(taskHeader);
+      taskCard.appendChild(sessionInfo);
       taskCard.appendChild(taskMessage);
       
       // Add timer for in-progress tasks
@@ -1577,15 +1594,10 @@
         const timerContainer = document.createElement('div');
         timerContainer.className = 'task-timer';
         
-        //const sandwatchIcon = document.createElement('span');
-        //sandwatchIcon.className = 'sandwatch-icon';
-        //sandwatchIcon.textContent = '⏳' ;
-        
         const timerText = document.createElement('span');
         timerText.className = 'timer-text';
         timerText.textContent = '00:00:00:00:000';
         
-        //timerContainer.appendChild(sandwatchIcon);
         timerContainer.appendChild(timerText);
         taskCard.appendChild(timerContainer);
         
@@ -1601,7 +1613,11 @@
         const infoIcon = document.createElement('div');
         infoIcon.className = 'task-info-icon';
         infoIcon.textContent = '?';
-        infoIcon.title = taskCard.dataset.originalMessage;
+        let infoTitle = taskCard.dataset.originalMessage;
+        if (sessionId) {
+          infoTitle += `\nSession: ${sessionId}`;
+        }
+        infoIcon.title = infoTitle;
         
         taskCard.appendChild(infoIcon);
       }
@@ -1659,10 +1675,28 @@
     
     function cancelTask(taskCard) {
       const taskId = taskCard.dataset.taskId;
+      const sessionId = taskCard.dataset.sessionId;
       if (!taskId) return;
+
+      // Find the session to send the cancellation request to
+      let targetSession = null;
+      if (sessionId) {
+        targetSession = sessions.get(sessionId);
+      }
       
-      // Send cancellation request to backend
-      fetch(`http://${ip}:8080/task-cancel?taskId=${taskId}`)
+      if (!targetSession && sessions.size > 0) {
+        // If no specific session is associated, use the first available session
+        const firstSessionId = Array.from(sessions.keys())[0];
+        targetSession = sessions.get(firstSessionId);
+      }
+
+      if (!targetSession) {
+        console.error('No active session available to cancel task');
+        return;
+      }
+
+      // Send cancellation request to the appropriate session
+      fetch(`http://${targetSession.ip}:8080/task-cancel?taskId=${taskId}`)
         .then(response => response.json())
         .then(data => {
           console.log('Task cancellation response:', data);
@@ -1814,13 +1848,13 @@
       }
     }
 
-    function handleTaskCreation(message) {
+    function handleTaskCreation(message, sessionId = null) {
       if (isFirstMessage) {
         // Create task card immediately for first message with temporary ID
         const tasksContainer = document.getElementById('tasksContainer');
         tasksContainer.innerHTML = ''; // Clear any existing tasks
         
-        const taskCard = createTaskCard(message);
+        const taskCard = createTaskCard(message, 'in-progress', sessionId);
         taskCard.dataset.taskId = 'pending'; // Temporary ID until we get real one
         tasksContainer.appendChild(taskCard);
         currentTask = taskCard;
@@ -1850,16 +1884,31 @@
       const inputText = document.getElementById('llmChatInput').value;
       if (!inputText) return;
 
-      fetch(`http://${ip}:8080/llm-input`, {
+      // Get the currently selected session or use the first available session
+      let targetSession = getSelectedSession();
+      if (!targetSession && sessions.size > 0) {
+        // If no session is selected, use the first session
+        const firstSessionId = Array.from(sessions.keys())[0];
+        targetSession = sessions.get(firstSessionId);
+      }
+
+      if (!targetSession) {
+        console.error('No active session available to send task to');
+        alert('Please connect to a session first');
+        return;
+      }
+
+      // Send the task to the selected session
+      fetch(`http://${targetSession.ip}:8080/llm-input`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: inputText })
       }).catch(error => {
-        console.error('Error:', error);
+        console.error('Error sending task to session:', error);
       });
 
-      // Handle task creation
-      handleTaskCreation(inputText);
+      // Handle task creation with session ID
+      handleTaskCreation(inputText, targetSession.id);
       
       document.getElementById('llmChatInput').value = "";
     });
@@ -2361,7 +2410,7 @@
       let path = `M ${chatRightX} ${chatCenterY}`;
       
       // Move horizontally to the edge of the main content area
-      const buffer = 15; // Buffer from the edge
+      const buffer = 7; // Buffer from the edge
       
       if (isSessionOnLeft) {
         // Session is on the left side of the main content area
