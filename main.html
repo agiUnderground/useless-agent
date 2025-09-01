@@ -292,6 +292,14 @@
       position: relative;
     }
 
+    fieldset legend {
+      cursor: default;
+      -webkit-user-select: none; /* Safari */
+      -moz-user-select: none; /* Firefox */
+      -ms-user-select: none; /* IE10+/Edge */
+      user-select: none; /* Standard */
+    }
+
     #colorsList ul {
       list-style: none;
       padding: 0;
@@ -436,15 +444,18 @@
 
     /* Task Management Styles */
     .tasks-section {
-      flex: 1;
-      min-height: 0;
-      display: flex;
+      display: none;
       flex-direction: column;
       gap: 10px;
       transition: all 0.3s ease;
-      max-height: 0;
-      opacity: 0;
-      transform: translateY(20px);
+    }
+    
+    .tasks-section.visible {
+      display: flex;
+      flex: 1;
+      max-height: fit-content;
+      opacity: 1;
+      transform: translateY(0);
     }
     
     .tasks-section fieldset {
@@ -456,6 +467,16 @@
       padding-right: 0px;
       padding-bottom: 0px;
       padding-top: 0px;
+      padding-left: 0px;
+    }
+    
+    .tasks-section fieldset legend {
+      margin-left: 10px;
+    }
+    
+    .tasks-section {
+      min-height: 0;
+      max-height: 50vh; /* Limit maximum height to 50% of viewport */
     }
     
     /* Ensure tasks container is scrollable */
@@ -511,6 +532,7 @@
       transition: all 0.3s ease;
       margin-top: 4px;
       margin-bottom: 4px;
+      cursor: default;
     }
 
     @keyframes waveOutline {
@@ -1055,6 +1077,24 @@
         <button class="control-button" id="videoBtn">Video</button>
         <button class="control-button" id="video2">Video 2</button>
         <button class="control-button" id="popOutWSButton">Pop Out WS</button>
+        
+        <fieldset>
+          <legend>Mouse Control</legend>
+          <div class="coord-inputs">
+            <input type="text" id="x-coord" class="coord-input"
+                   placeholder="X"
+                   pattern="-?[0-9]+"
+                   title="Please enter a valid coordinate value."
+                   oninput="this.value = this.value.replace(/[^-0-9]/g, '')" required>
+            <input type="text" id="y-coord" class="coord-input"
+                   placeholder="Y"
+                   pattern="-?[0-9]+"
+                   title="Please enter a valid coordinate value."
+                   oninput="this.value = this.value.replace(/[^-0-9]/g, '')" required>
+            <button class="control-button" id="sendMouseInput">Move</button>
+            <button class="control-button" id="sendMouseClick">Click</button>
+          </div>
+        </fieldset>
       </div>
 
       <fieldset>
@@ -1083,24 +1123,6 @@
           <button class="control-button" id="setTargetIP">Connect</button>
         </div>
         
-      </fieldset>
-
-      <fieldset>
-        <legend>Mouse Control</legend>
-        <div class="coord-inputs">
-          <input type="text" id="x-coord" class="coord-input"
-                 placeholder="X"
-                 pattern="-?[0-9]+"
-                 title="Please enter a valid coordinate value."
-                 oninput="this.value = this.value.replace(/[^-0-9]/g, '')" required>
-          <input type="text" id="y-coord" class="coord-input"
-                 placeholder="Y"
-                 pattern="-?[0-9]+"
-                 title="Please enter a valid coordinate value."
-                 oninput="this.value = this.value.replace(/[^-0-9]/g, '')" required>
-          <button class="control-button" id="sendMouseInput">Move</button>
-          <button class="control-button" id="sendMouseClick">Click</button>
-        </div>
       </fieldset>
 
       <fieldset>
@@ -1199,12 +1221,13 @@
     }
     
 
-    // Toggle buttons functionality
-    function toggleMediaButtons() {
+    // Toggle debug options functionality
+    let debugOptionsVisible = false;
+    function toggleDebugOptions() {
       const mediaButtonsGroup = document.getElementById('mediaButtonsGroup');
-      buttonsVisible = !buttonsVisible;
+      debugOptionsVisible = !debugOptionsVisible;
       
-      if (buttonsVisible) {
+      if (debugOptionsVisible) {
         mediaButtonsGroup.classList.remove('hidden');
       } else {
         mediaButtonsGroup.classList.add('hidden');
@@ -1326,7 +1349,7 @@
 
       const fullscreenBtn = document.createElement('button');
       fullscreenBtn.className = 'fullscreen-button';
-      fullscreenBtn.title = 'Toggle fullscreen';
+      fullscreenBtn.title = 'Toggle fullscreen (F)';
       fullscreenBtn.innerHTML = `
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
@@ -1688,32 +1711,135 @@
       }
     }
 
+    // Function to validate IP address format
+    function isValidIP(ip) {
+      // IPv4 validation: 4 octets, each 0-255
+      const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+      
+      // IPv6 validation (simplified - allows various valid IPv6 formats)
+      const ipv6Regex = /^([\da-fA-F]{1,4}:){7}[\da-fA-F]{1,4}$|^::([\da-fA-F]{1,4}:){0,6}[\da-fA-F]{1,4}$|^[\da-fA-F]{1,4}::([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4}$|^([\da-fA-F]{1,4}:){1}:([\da-fA-F]{1,4}:){0,5}[\da-fA-F]{1,4}$|^([\da-fA-F]{1,4}:){2}:([\da-fA-F]{1,4}:){0,4}[\da-fA-F]{1,4}$|^([\da-fA-F]{1,4}:){3}:([\da-fA-F]{1,4}:){0,3}[\da-fA-F]{1,4}$|^([\da-fA-F]{1,4}:){4}:([\da-fA-F]{1,4}:){0,2}[\da-fA-F]{1,4}$|^([\da-fA-F]{1,4}:){5}:([\da-fA-F]{1,4}:){0,1}[\da-fA-F]{1,4}$|^([\da-fA-F]{1,4}:){6}:[\da-fA-F]{1,4}$/;
+      
+      // Check for IPv4
+      if (ipv4Regex.test(ip)) {
+        const parts = ip.split('.');
+        return parts.every(part => {
+          const num = parseInt(part, 10);
+          return num >= 0 && num <= 255 && part === num.toString();
+        });
+      }
+      
+      // Check for IPv6
+      return ipv6Regex.test(ip);
+    }
+
+    // Global variable for validation error timeout
+    let validationErrorTimeout = null;
+
+    // Function to show validation error message
+    function showValidationError(message) {
+      // Remove any existing error message
+      hideValidationError();
+      
+      // Clear any existing timeout
+      if (validationErrorTimeout) {
+        clearTimeout(validationErrorTimeout);
+        validationErrorTimeout = null;
+      }
+      
+      const inputGroup = document.querySelector('.input-group');
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'validation-error';
+      errorDiv.textContent = message;
+      errorDiv.style.cssText = 'display: flex; color: #ff6b6b; font-size: 11px; margin-top: 5px; padding: 4px 8px; background-color: rgba(255, 107, 107, 0.1); border-radius: 4px;';
+      
+      // Insert after the input group (below both input field and button)
+      inputGroup.parentNode.insertBefore(errorDiv, inputGroup.nextSibling);
+      
+      // Auto-hide after 3 seconds, store timeout ID
+      validationErrorTimeout = setTimeout(hideValidationError, 3000);
+    }
+
+    // Function to hide validation error message
+    function hideValidationError() {
+      const existingError = document.querySelector('.validation-error');
+      if (existingError) {
+        existingError.remove();
+      }
+      
+      // Clear the timeout if it exists
+      if (validationErrorTimeout) {
+        clearTimeout(validationErrorTimeout);
+        validationErrorTimeout = null;
+      }
+    }
+
     // Event Listeners
     document.getElementById("setTargetIP").addEventListener("click", () => {
       const ipInput = document.getElementById('ipv4');
-      const ipAddress = formatIp(ipInput.value.trim());
+      const ipValue = ipInput.value.trim();
       
-      if (!ipAddress) {
-        alert('Please enter a valid IP address');
+      if (!isValidIP(ipValue)) {
+        showValidationError('Please enter a valid IPv4 or IPv6 address');
         return;
       }
 
+      // Hide validation error immediately if valid IP is entered
+      hideValidationError();
+      
+      const ipAddress = formatIp(ipValue);
+      
       // Create new session
       const session = createSession(ipAddress);
       
       // Setup WebSocket connection
       setupSessionWebSocket(session);
       
-      // Clear IP input field
+      // Clear IP input field and keep focus
       ipInput.value = '';
+      ipInput.focus();
       
       // Button remains "Connect" for new connections
       const connectButton = document.getElementById('setTargetIP');
       connectButton.textContent = 'Connect';
     });
 
+    // IP input field Enter key functionality
+    document.getElementById("ipv4").addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        
+        const ipInput = document.getElementById('ipv4');
+        const ipValue = ipInput.value.trim();
+        
+        // Validate IP format
+        if (!isValidIP(ipValue)) {
+          showValidationError('Please enter a valid IPv4 or IPv6 address');
+          return;
+        }
+
+        // Hide validation error immediately if valid IP is entered
+        hideValidationError();
+        
+        const ipAddress = formatIp(ipValue);
+
+        // Create new session
+        const session = createSession(ipAddress);
+        
+        // Setup WebSocket connection
+        setupSessionWebSocket(session);
+        
+        // Clear IP input field and keep focus
+        ipInput.value = '';
+        ipInput.focus();
+        
+        // Button remains "Connect" for new connections
+        const connectButton = document.getElementById('setTargetIP');
+        connectButton.textContent = 'Connect';
+      }
+    });
+
     // Toggle button event listener
-    document.getElementById("toggleButtonsBtn").addEventListener("click", toggleMediaButtons);
+    document.getElementById("toggleButtonsBtn").addEventListener("click", toggleDebugOptions);
 
     // Remove old event listeners that reference single-session functions
     // These will be replaced with session-specific controls
@@ -2569,10 +2695,11 @@
     
     // Global keyboard shortcut for fullscreen (F key) and maximize (M key) - applies to selected session
     document.addEventListener('keydown', (event) => {
-      // Check if chat input is focused
+      // Check if chat input or IP input is focused
       const isChatInputFocused = document.activeElement === document.getElementById('llmChatInput');
+      const isIpInputFocused = document.activeElement === document.getElementById('ipv4');
       
-      if (!isChatInputFocused) {
+      if (!isChatInputFocused && !isIpInputFocused) {
         // Fullscreen shortcut (F key)
         if (event.key === 'f' || event.key === 'F') {
           event.preventDefault(); // Prevent default browser behavior
@@ -2607,9 +2734,9 @@
           
           // Maximize the selected session
           const selectedSession = getSelectedSession();
-          if (selectedSession) {
-            toggleSessionMaximize(selectedSession);
-          }
+            if (selectedSession) {
+              toggleSessionMaximize(selectedSession);
+            }
         }
       }
     });
