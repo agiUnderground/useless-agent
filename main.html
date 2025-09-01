@@ -2347,7 +2347,7 @@
       }
     }
     
-    // Global keyboard shortcut for fullscreen (F key) and maximize (M key) - applies to focused session
+    // Global keyboard shortcut for fullscreen (F key) and maximize (M key) - applies to selected session
     document.addEventListener('keydown', (event) => {
       // Check if chat input is focused
       const isChatInputFocused = document.activeElement === document.getElementById('llmChatInput');
@@ -2373,18 +2373,10 @@
               document.msExitFullscreen();
             }
           } else {
-            // Enter fullscreen mode for focused session
-            const focusedSessionContainer = document.activeElement.closest('.screenshot-container');
-            if (focusedSessionContainer) {
-              // Find which session this container belongs to
-              const sessionContainer = focusedSessionContainer.closest('.session-container');
-              if (sessionContainer) {
-                const sessionId = sessionContainer.dataset.sessionId;
-                const session = sessions.get(sessionId);
-                if (session) {
-                  toggleSessionFullscreen(session);
-                }
-              }
+            // Enter fullscreen mode for selected session
+            const selectedSession = getSelectedSession();
+            if (selectedSession) {
+              toggleSessionFullscreen(selectedSession);
             }
           }
         }
@@ -2393,18 +2385,10 @@
         if (event.key === 'm' || event.key === 'M') {
           event.preventDefault(); // Prevent default browser behavior
           
-          // Find focused session container
-          const focusedSessionContainer = document.activeElement.closest('.screenshot-container');
-          if (focusedSessionContainer) {
-            // Find which session this container belongs to
-            const sessionContainer = focusedSessionContainer.closest('.session-container');
-            if (sessionContainer) {
-              const sessionId = sessionContainer.dataset.sessionId;
-              const session = sessions.get(sessionId);
-              if (session) {
-                toggleSessionMaximize(session);
-              }
-            }
+          // Maximize the selected session
+          const selectedSession = getSelectedSession();
+          if (selectedSession) {
+            toggleSessionMaximize(selectedSession);
           }
         }
       }
