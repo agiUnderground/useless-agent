@@ -80,7 +80,7 @@
 
     .session-container.selected {
       position: relative;
-      border-color: #4CAF50;
+      border-color: transparent;
     }
 
     .session-container.selected::before {
@@ -90,7 +90,7 @@
       left: 0;
       right: 0;
       bottom: 0;
-      /* border: 1px solid #4CAF50; */
+      border: 1px solid #4CAF50;
       border-radius: inherit;
       pointer-events: none;
       animation: waveBorder 2s ease-in-out infinite;
@@ -1063,6 +1063,8 @@
 
     // Function to select a session and apply wave animation
     function selectSession(sessionId) {
+      console.log(`Attempting to select session: ${sessionId}`);
+      
       // Remove selected class from all sessions
       document.querySelectorAll('.session-container').forEach(container => {
         container.classList.remove('selected');
@@ -1070,10 +1072,14 @@
       
       // Add selected class to the chosen session
       const session = sessions.get(sessionId);
-      if (session) {
+      if (session && session.container) {
+        console.log(`Found session, adding selected class to container`);
         session.container.classList.add('selected');
         selectedSessionId = sessionId;
         console.log(`Selected session: ${sessionId}`);
+      } else {
+        console.log(`Session not found or container missing for sessionId: ${sessionId}`);
+        console.log(`Available sessions:`, Array.from(sessions.keys()));
       }
     }
 
@@ -1201,6 +1207,9 @@
       sessions.set(sessionId, session);
       updateSessionLayout();
 
+      // Automatically select the newly created session
+      selectSession(sessionId);
+
       // Add fullscreen functionality for this session
       setupSessionFullscreen(session);
 
@@ -1214,6 +1223,9 @@
 
       // Check if the session being closed is maximized
       const isMaximized = session.container.classList.contains('maximized');
+      
+      // Check if the session being closed is the currently selected one
+      const isSelectedSession = selectedSessionId === sessionId;
       
       // Disconnect WebSocket if connected
       if (session.ws) {
@@ -1238,6 +1250,27 @@
         sessions.forEach((otherSession, otherSessionId) => {
           otherSession.container.style.display = 'flex';
         });
+      }
+      
+      // If the closed session was the selected one, select another session if available
+      if (isSelectedSession && sessions.size > 0) {
+        // Use setTimeout to ensure DOM updates are complete before selecting new session
+        setTimeout(() => {
+          // Get the first available session
+          const firstSessionId = Array.from(sessions.keys())[0];
+          // Ensure the session still exists before selecting it
+          const newSession = sessions.get(firstSessionId);
+          if (newSession && newSession.container) {
+            // Clear selection first to ensure proper visual update
+            selectedSessionId = null;
+            // Then select the new session
+            selectSession(firstSessionId);
+          }
+        }, 0);
+      } else if (sessions.size === 0) {
+        // No sessions left, clear selection
+        selectedSessionId = null;
+        clearConnectionLine();
       }
       
       updateSessionLayout();
