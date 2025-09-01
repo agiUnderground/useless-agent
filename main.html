@@ -554,6 +554,13 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 8px;
+      gap: 8px;
+    }
+    
+    .task-header-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     .task-status {
@@ -592,11 +599,39 @@
       text-overflow: ellipsis;
     }
 
+    /* Session window icon for opening session window */
+    .task-session-window-icon {
+      width: 16px;
+      height: 16px;
+      background-color: #555;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 3px;
+      transition: all 0.2s ease;
+    }
+
+    .task-session-window-icon:hover {
+      background-color: #777;
+      transform: scale(1.1);
+    }
+    
+    /* Timer for in-progress tasks */
+    .task-timer {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: #FFC107;
+    }
+
     /* Info icon for completed, broken, and canceled tasks */
     .task-info-icon {
-      position: absolute;
-      top: 8px;
-      right: 8px;
       width: 16px;
       height: 16px;
       border-radius: 50%;
@@ -608,7 +643,6 @@
       font-size: 12px;
       font-weight: bold;
       cursor: default;
-      z-index: 10;
       border: 1px solid rgba(255, 255, 255, 0.3);
       transition: all 0.2s ease;
     }
@@ -616,18 +650,6 @@
     .task-info-icon:hover {
       background-color: #777;
       transform: scale(1.1);
-    }
-
-    /* Timer for in-progress tasks */
-    .task-timer {
-      /* position: absolute; */
-      top: 8px;
-      right: 30px;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 11px;
-      color: #FFC107;
     }
 
     /* Timer colors for different statuses */
@@ -842,6 +864,84 @@
 
   </style>
   
+  <!-- Toast notification styles -->
+  <style>
+    .toast-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .toast {
+      background-color: #f44336;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 4px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-width: 300px;
+      max-width: 400px;
+      animation: toastSlideIn 0.3s ease-out;
+      transition: opacity 0.3s ease;
+    }
+    
+    .toast.success {
+      background-color: #4CAF50;
+    }
+    
+    .toast.warning {
+      background-color: #FFC107;
+      color: #333;
+    }
+    
+    .toast.info {
+      background-color: #2196F3;
+    }
+    
+    .toast-content {
+      flex: 1;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    
+    .toast-close {
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      margin-left: 10px;
+      font-size: 16px;
+      opacity: 0.7;
+      transition: opacity 0.2s ease;
+    }
+    
+    .toast-close:hover {
+      opacity: 1;
+    }
+    
+    @keyframes toastSlideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+    
+    .toast.fade-out {
+      opacity: 0;
+      transform: translateX(100%);
+    }
+  </style>
+  
   <!-- Connection line styles -->
   <style>
     .connection-overlay {
@@ -1033,12 +1133,63 @@
     </div>
   </div>
 
+  <!-- Toast notification container -->
+  <div class="toast-container" id="toastContainer"></div>
+
   <script>
     // Global variables
     let popOutWSWindow = null;
     // Task Management
     let currentTask = null;
     let isFirstMessage = true;
+    
+    // Toast notification functionality
+    function showToast(message, type = 'error', duration = 4000) {
+      const toastContainer = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      
+      const toastContent = document.createElement('div');
+      toastContent.className = 'toast-content';
+      toastContent.textContent = message;
+      
+      const closeButton = document.createElement('button');
+      closeButton.className = 'toast-close';
+      closeButton.innerHTML = '×';
+      closeButton.addEventListener('click', () => {
+        removeToast(toast);
+      });
+      
+      toast.appendChild(toastContent);
+      toast.appendChild(closeButton);
+      toastContainer.appendChild(toast);
+      
+      // Auto-remove after duration unless hovered
+      let timeoutId = setTimeout(() => {
+        removeToast(toast);
+      }, duration);
+      
+      // Reset timer on hover
+      toast.addEventListener('mouseenter', () => {
+        clearTimeout(timeoutId);
+      });
+      
+      // Restart timer when mouse leaves
+      toast.addEventListener('mouseleave', () => {
+        timeoutId = setTimeout(() => {
+          removeToast(toast);
+        }, duration);
+      });
+    }
+    
+    function removeToast(toast) {
+      toast.classList.add('fade-out');
+      setTimeout(() => {
+        if (toast.parentNode) {
+          toast.parentNode.removeChild(toast);
+        }
+      }, 300);
+    }
     
     // Remove old screenshot elements since we're using dynamic sessions
     const oldScreenshotImg = document.getElementById('screenshotImg');
@@ -1641,12 +1792,49 @@
                              status === 'completed' ? 'Completed' :
                              status === 'broken' ? 'Broken' : 'Canceled';
       
-      const cancelBtn = document.createElement('button');
-      cancelBtn.className = 'task-cancel-btn';
-      cancelBtn.textContent = 'Cancel';
-      cancelBtn.addEventListener('click', () => {
-        cancelTask(taskCard);
-      });
+      const controlsContainer = document.createElement('div');
+      controlsContainer.className = 'task-header-controls';
+      
+      // Add session window icon for all tasks with session ID
+      if (sessionId) {
+        const fullscreenIcon = document.createElement('div');
+        fullscreenIcon.className = 'task-session-window-icon';
+        fullscreenIcon.innerHTML = '⛶'; // Fullscreen-like icon
+        fullscreenIcon.title = 'Open session window';
+        fullscreenIcon.addEventListener('click', (event) => {
+          event.stopPropagation(); // Prevent triggering task selection
+          openTaskSessionWindow(sessionId);
+        });
+        controlsContainer.appendChild(fullscreenIcon);
+      }
+      
+      // Add cancel button for in-progress tasks
+      if (status === 'in-progress') {
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'task-cancel-btn';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.addEventListener('click', () => {
+          cancelTask(taskCard);
+        });
+        controlsContainer.appendChild(cancelBtn);
+      }
+      
+      // Add info icon for non-in-progress tasks
+      if (status !== 'in-progress') {
+        const infoIcon = document.createElement('div');
+        infoIcon.className = 'task-info-icon';
+        infoIcon.textContent = '?';
+        let infoTitle = message;
+        if (sessionId) {
+          infoTitle += `\nSession: ${sessionId}`;
+        }
+        infoIcon.title = infoTitle;
+        controlsContainer.appendChild(infoIcon);
+      }
+      
+      taskHeader.appendChild(taskStatus);
+      taskHeader.appendChild(controlsContainer);
+      taskCard.appendChild(taskHeader);
       
       // Add session info if available
       const sessionInfo = document.createElement('div');
@@ -1665,9 +1853,6 @@
       taskMessage.className = 'task-message';
       taskMessage.textContent = message.length > 100 ? message.substring(0, 100) + '...' : message;
       
-      taskHeader.appendChild(taskStatus);
-      taskHeader.appendChild(cancelBtn);
-      taskCard.appendChild(taskHeader);
       taskCard.appendChild(sessionInfo);
       taskCard.appendChild(taskMessage);
       
@@ -1688,20 +1873,6 @@
         
         // Start timer
         startTaskTimer(taskCard);
-      }
-      
-      // Add info icon for all statuses except 'in-progress'
-      if (status !== 'in-progress') {
-        const infoIcon = document.createElement('div');
-        infoIcon.className = 'task-info-icon';
-        infoIcon.textContent = '?';
-        let infoTitle = taskCard.dataset.originalMessage;
-        if (sessionId) {
-          infoTitle += `\nSession: ${sessionId}`;
-        }
-        infoIcon.title = infoTitle;
-        
-        taskCard.appendChild(infoIcon);
       }
       
       return taskCard;
@@ -1884,18 +2055,19 @@
         }
         
         // Add or remove info icon based on new status
+        const controlsContainer = taskCard.querySelector('.task-header-controls');
         const existingInfoIcon = taskCard.querySelector('.task-info-icon');
         
         if (data.status !== 'in-progress') {
           // Add info icon if it doesn't exist
-          if (!existingInfoIcon) {
+          if (!existingInfoIcon && controlsContainer) {
             const infoIcon = document.createElement('div');
             infoIcon.className = 'task-info-icon';
             infoIcon.textContent = '?';
             infoIcon.title = taskCard.dataset.originalMessage;
             
-            taskCard.appendChild(infoIcon);
-          } else {
+            controlsContainer.appendChild(infoIcon);
+          } else if (existingInfoIcon) {
             // Update title if info icon already exists
             existingInfoIcon.title = taskCard.dataset.originalMessage;
           }
@@ -1927,6 +2099,35 @@
       const tasksContainer = document.getElementById('tasksContainer');
       if (tasksContainer) {
         tasksContainer.scrollTop = tasksContainer.scrollHeight;
+      }
+    }
+
+    // Function to open session window for a task
+    function openTaskSessionWindow(sessionId) {
+      console.log(`Opening session window for: ${sessionId}`);
+      
+      // Check if session already exists
+      let session = sessions.get(sessionId);
+      
+      if (!session) {
+        // Session doesn't exist, create a new one
+        session = createSession(sessionId);
+        setupSessionWebSocket(session);
+        console.log(`Created new session for: ${sessionId}`);
+      } else {
+        // Session exists, select it and ensure it's connected
+        selectSession(sessionId);
+        if (!session.isConnected) {
+          setupSessionWebSocket(session);
+          console.log(`Reconnected to existing session: ${sessionId}`);
+        } else {
+          console.log(`Session already connected: ${sessionId}`);
+        }
+      }
+      
+      // Ensure the session is visible and focused
+      if (session.container) {
+        session.container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     }
 
