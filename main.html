@@ -756,15 +756,18 @@
       height: 16px;
     }
 
-    /* Focus indicator for screenshot container */
-    .screenshot-container.focused {
-      outline: 2px solid rgba(255, 255, 255, 0.5);
-      outline-offset: 2px;
-    }
-    
     .screenshot-container.focused .screenshot-overlay {
       opacity: 1;
       pointer-events: auto;
+    }
+    
+    /* Remove focus outline from screenshot container */
+    .screenshot-container:focus {
+      outline: none !important;
+    }
+    
+    .screenshot-container.focused {
+      outline: none !important;
     }
 
     /* Fullscreen styling - center image and make it fit content */
