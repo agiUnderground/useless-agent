@@ -2420,6 +2420,11 @@ func taskCancelHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonBytes)
 }
 
+// Ping handler to check server availability
+func pingHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
+
 func main() {
 	flag.Parse()
 
@@ -2435,6 +2440,7 @@ func main() {
 	mux.HandleFunc("/llm-input", llmInputHandler)
 	mux.HandleFunc("/video2", video2Handler)
 	mux.HandleFunc("/task-cancel", taskCancelHandler)
+	mux.HandleFunc("/ping", pingHandler)
 
 	bindAddr := net.JoinHostPort((*bindIP), strconv.Itoa(*bindPORT))
 	log.Println("Server running on http://" + bindAddr)

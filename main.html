@@ -1534,11 +1534,13 @@
       session.ws.onclose = () => {
         console.log(`Disconnected from server ${session.ip}`);
         updateSessionConnectionStatus(session, 'disconnected');
+        // showToast(`Connection to server ${session.ip} was closed`, 'error');
       };
       
       session.ws.onerror = (error) => {
         console.error(`WebSocket error for ${session.ip}:`, error);
         updateSessionConnectionStatus(session, 'connecting');
+        showToast(`Cannot establish connection to server ${session.ip}. Server is not responding.`, 'error');
       };
     }
 
@@ -2101,9 +2103,31 @@
       }
     }
 
+    // Function to check server availability
+    async function checkServerAvailability(ip) {
+      try {
+        const response = await fetch(`http://${ip}:8080/ping`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(3000) // 3 second timeout
+        });
+        return response.ok;
+      } catch (error) {
+        console.error(`Server ${ip} is not available:`, error);
+        return false;
+      }
+    }
+
     // Function to open session window for a task
-    function openTaskSessionWindow(sessionId) {
+    async function openTaskSessionWindow(sessionId) {
       console.log(`Opening session window for: ${sessionId}`);
+      
+      // First check if server is available
+      const isServerAvailable = await checkServerAvailability(sessionId);
+      
+      if (!isServerAvailable) {
+        showToast(`Cannot establish connection to server ${sessionId}. Server is not responding.`, 'error');
+        return;
+      }
       
       // Check if session already exists
       let session = sessions.get(sessionId);
