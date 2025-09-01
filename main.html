@@ -1931,34 +1931,30 @@
     }
 
     function handleTaskCreation(message, sessionId = null) {
-      if (isFirstMessage) {
-        // Create task card immediately for first message with temporary ID
-        const tasksContainer = document.getElementById('tasksContainer');
-        tasksContainer.innerHTML = ''; // Clear any existing tasks
-        
-        const taskCard = createTaskCard(message, 'in-progress', sessionId);
-        taskCard.dataset.taskId = 'pending'; // Temporary ID until we get real one
-        tasksContainer.appendChild(taskCard);
-        currentTask = taskCard;
-        
-        // Disable cancel button until we get real task ID
-        const cancelBtn = taskCard.querySelector('.task-cancel-btn');
-        if (cancelBtn) {
-          cancelBtn.disabled = true;
-          cancelBtn.textContent = 'Cancel';
-        }
-        
-        // Show tasks section
-        showTasksSection();
-        
-        // Scroll to bottom to show the new task
-        setTimeout(scrollTasksToBottom, 0);
-        
-        isFirstMessage = false;
-      } else {
-        // For subsequent messages, just send them as user help (no visual task card)
-        console.log('User help message:', message);
+      // Create task card for every message with temporary ID
+      const tasksContainer = document.getElementById('tasksContainer');
+      
+      const taskCard = createTaskCard(message, 'in-progress', sessionId);
+      taskCard.dataset.taskId = 'pending'; // Temporary ID until we get real one
+      tasksContainer.appendChild(taskCard);
+      currentTask = taskCard;
+      
+      // Disable cancel button until we get real task ID
+      const cancelBtn = taskCard.querySelector('.task-cancel-btn');
+      if (cancelBtn) {
+        cancelBtn.disabled = true;
+        cancelBtn.textContent = 'Cancel';
       }
+      
+      // Show tasks section if it's the first task
+      if (tasksContainer.children.length === 1) {
+        showTasksSection();
+      }
+      
+      // Scroll to bottom to show the new task
+      setTimeout(scrollTasksToBottom, 0);
+      
+      isFirstMessage = false;
     }
 
     // LLM Chat
