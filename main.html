@@ -1227,6 +1227,7 @@
       <fieldset>
         <legend>Status</legend>
         <p style="margin: auto; font-size: 12px; padding: 5px; width: fit-content;">Total tokens used: <span id="tokenCounter">0</span></p>
+        <p style="margin: auto; font-size: 12px; padding: 5px; width: fit-content;">Total network data usage: <span id="networkCounter">0</span></p>
       </fieldset>
 
       <div id="tasksSection" class="tasks-section">
@@ -1262,6 +1263,83 @@
     // Task Management
     let currentTask = null;
     let isFirstMessage = true;
+    
+    // Network data tracking - per session tracking
+    let totalNetworkBytes = 0;
+    let networkMutex = false;
+    let sessionNetworkData = new Map(); // Map to track network data per session
+    let lastUpdateTime = Date.now();
+    
+    // Function to format network data usage
+    function formatNetworkBytes(bytes) {
+        if (bytes < 1024) {
+            return `${bytes} B`;
+        } else if (bytes < 1024 * 1024) {
+            return `${(bytes / 1024).toFixed(2)} KB`;
+        } else if (bytes < 1024 * 1024 * 1024) {
+            return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+        } else {
+            return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+        }
+    }
+    
+    // Function to track network data for a specific session
+    function trackSessionNetworkData(sessionId, bytes) {
+        if (networkMutex) return;
+        networkMutex = true;
+        
+        // Initialize session data if it doesn't exist
+        if (!sessionNetworkData.has(sessionId)) {
+            sessionNetworkData.set(sessionId, {
+                totalBytes: 0,
+                lastUpdate: Date.now()
+            });
+        }
+        
+        const sessionData = sessionNetworkData.get(sessionId);
+        sessionData.totalBytes += bytes;
+        sessionNetworkData.set(sessionId, sessionData);
+        
+        // Update total network bytes
+        totalNetworkBytes += bytes;
+        
+        // Update display immediately for real-time feedback
+        updateNetworkCounter();
+        
+        networkMutex = false;
+    }
+    
+    // Function to update network counter display
+    function updateNetworkCounter() {
+        const networkCounter = document.getElementById('networkCounter');
+        if (networkCounter) {
+            networkCounter.textContent = formatNetworkBytes(totalNetworkBytes);
+        }
+    }
+    
+    // Function to reset network counter
+    function resetNetworkCounter() {
+        totalNetworkBytes = 0;
+        sessionNetworkData.clear();
+        lastUpdateTime = Date.now();
+        const networkCounter = document.getElementById('networkCounter');
+        if (networkCounter) {
+            networkCounter.textContent = '0 B';
+        }
+    }
+    
+    // Function to get network usage for a specific session
+    function getSessionNetworkUsage(sessionId) {
+        if (sessionNetworkData.has(sessionId)) {
+            return sessionNetworkData.get(sessionId).totalBytes;
+        }
+        return 0;
+    }
+    
+    // Function to get total network usage across all sessions
+    function getTotalNetworkUsage() {
+        return totalNetworkBytes;
+    }
     
     // Toast notification functionality
     function showToast(message, type = 'error', duration = 4000) {
@@ -1706,12 +1784,29 @@
     }
 
     // Fetch image for a specific session
-    async function fetchSessionImage(session, endpoint) {
+    async function fetchSessionImage(session, endpoint, shouldSample = false) {
       try {
         const response = await fetch(`http://${session.ip}:8080/${endpoint}`);
         if (!response.ok) throw new Error(`Failed to fetch ${endpoint} from ${session.ip}`);
 
+        // Get the blob first
         const blob = await response.blob();
+        
+        // Track network data usage for this session
+        const contentLength = response.headers.get('Content-Length');
+        let bytes = 0;
+        
+        if (contentLength) {
+          bytes = parseInt(contentLength);
+          if (!isNaN(bytes)) {
+            trackSessionNetworkData(session.id, bytes);
+          }
+        } else {
+          // If Content-Length is not available, use blob size
+          bytes = blob.size;
+          trackSessionNetworkData(session.id, bytes);
+        }
+
         const imageUrl = URL.createObjectURL(blob);
         if (session.img.src) URL.revokeObjectURL(session.img.src);
         session.img.src = imageUrl;
