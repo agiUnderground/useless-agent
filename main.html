@@ -3318,10 +3318,144 @@
       updateConnectionLine();
     });
 
+    // Function to get scrollbar width
+    function getScrollbarWidth() {
+      // Create a temporary div to measure scrollbar width
+      const outer = document.createElement('div');
+      outer.style.visibility = 'hidden';
+      outer.style.overflow = 'scroll';
+      outer.style.width = '100px';
+      outer.style.position = 'absolute';
+      document.body.appendChild(outer);
+      
+      const inner = document.createElement('div');
+      inner.style.width = '100%';
+      outer.appendChild(inner);
+      
+      const scrollbarWidth = outer.offsetWidth - inner.offsetWidth;
+      
+      // Clean up
+      outer.parentNode.removeChild(outer);
+      
+      return scrollbarWidth;
+    }
+
+    // Function to calculate user-assist connection path (straight line from task card to chat)
+    function calculateUserAssistPath(taskCardElement, chatElement) {
+      const taskRect = taskCardElement.getBoundingClientRect();
+      const chatRect = chatElement.getBoundingClientRect();
+      const overlayRect = connectionSvg.getBoundingClientRect();
+      
+      // Calculate center of chat fieldset
+      const chatCenterX = chatRect.left + chatRect.width / 2 - overlayRect.left;
+      const chatTopY = chatRect.top - overlayRect.top;
+      
+      // Draw straight line from chat center to bottom edge of task card
+      const taskBottomY = taskRect.bottom - overlayRect.top;
+      
+      // Straight line from bottom edge of task card to top center of chat
+      return `M ${chatCenterX} ${chatTopY} L ${chatCenterX} ${taskBottomY}`;
+    }
+
+    // Function to draw user-assist connection line
+    function drawUserAssistConnectionLine(taskCardElement, chatElement) {
+      // Clear any existing user-assist connection
+      clearUserAssistConnectionLine();
+      
+      const pathData = calculateUserAssistPath(taskCardElement, chatElement);
+      
+      // Create SVG path
+      userAssistConnectionPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      userAssistConnectionPath.setAttribute('d', pathData);
+      userAssistConnectionPath.setAttribute('class', 'connection-path user-assist');
+      userAssistConnectionPath.setAttribute('stroke', '#FFC107');
+      
+      connectionSvg.appendChild(userAssistConnectionPath);
+      
+      // Create traveling pulse dots
+      createUserAssistPulseDots(pathData);
+      
+      console.log('User-assist connection line drawn');
+    }
+
+    // Function to update user-assist connection line
+    function updateUserAssistConnectionLine() {
+      if (userAssistActive && userAssistTaskCard) {
+        const chatFieldset = document.getElementById('chatFieldset');
+        drawUserAssistConnectionLine(userAssistTaskCard, chatFieldset);
+      }
+    }
+
+    // Function to activate user-assist mode
+    function activateUserAssist(taskCard) {
+      // Only allow activation for in-progress tasks
+      if (!taskCard.classList.contains('in-progress')) {
+        console.log('User-assist cannot be activated for non-in-progress tasks');
+        return;
+      }
+      
+      if (userAssistActive && userAssistTaskCard === taskCard) {
+        // If already active for this task card, deactivate it
+        deactivateUserAssist();
+        return;
+      }
+      
+      // Deactivate any existing user-assist
+      deactivateUserAssist();
+      
+      userAssistActive = true;
+      userAssistTaskCard = taskCard;
+      
+      // Draw connection line
+      const chatFieldset = document.getElementById('chatFieldset');
+      drawUserAssistConnectionLine(taskCard, chatFieldset);
+      
+      // Add badge to chat legend
+      addUserAssistBadge();
+      
+      // Change chat input color
+      const chatInput = document.getElementById('llmChatInput');
+      const chatFieldsetElement = document.getElementById('chatFieldset');
+      chatInput.classList.add('user-assist-active');
+      chatFieldsetElement.classList.add('user-assist-active');
+      
+      console.log('User-assist activated');
+    }
+
+    // Function to update connection line when layout changes
+    function updateConnectionLine() {
+      if (selectedSessionId) {
+        const session = sessions.get(selectedSessionId);
+        const chatFieldset = document.getElementById('chatFieldset');
+        
+        if (session && chatFieldset) {
+          drawConnectionLine(chatFieldset, session.container);
+        }
+      } else {
+        clearConnectionLine();
+      }
+      
+      // Also update user-assist connection line if active
+      updateUserAssistConnectionLine();
+    }
+
     // Handle scroll to update connection lines
     window.addEventListener('scroll', () => {
       updateConnectionLine();
     }, { passive: true });
+
+    // Handle tasks container scroll to update user-assist connection line
+    const tasksContainer = document.getElementById('tasksContainer');
+    if (tasksContainer) {
+      tasksContainer.addEventListener('scroll', () => {
+        updateUserAssistConnectionLine();
+      }, { passive: true });
+    }
+
+    // Handle resize to update all connection lines
+    window.addEventListener('resize', () => {
+      updateConnectionLine();
+    });
   </script>
 </body>
 </html>
