@@ -2314,8 +2314,9 @@
     function deactivateUserAssist() {
       if (!userAssistActive) return;
       
-      // Clear connection line
+      // Clear both connection lines (chat-to-session and chat-to-task)
       clearUserAssistConnectionLine();
+      clearConnectionLine();
       
       // Remove badge from chat legend
       removeUserAssistBadge();
@@ -2325,6 +2326,34 @@
       const chatFieldsetElement = document.getElementById('chatFieldset');
       chatInput.classList.remove('user-assist-active');
       chatFieldsetElement.classList.remove('user-assist-active');
+      
+      // Update session selection to remove user-assist styling
+      // Don't add 'selected' class back - let the new session selection handle this
+      if (selectedSessionId) {
+        const session = sessions.get(selectedSessionId);
+        if (session && session.container) {
+          session.container.classList.remove('user-assist-selected');
+          // Don't add 'selected' class here - let the new session selection handle it
+        }
+      }
+      
+      // Force a complete redraw of the normal connection line to ensure no golden styling remains
+      if (selectedSessionId) {
+        // Clear first to ensure clean state
+        clearConnectionLine();
+        
+        // Then redraw with normal styling by temporarily setting userAssistActive to false
+        const session = sessions.get(selectedSessionId);
+        const chatFieldset = document.getElementById('chatFieldset');
+        
+        if (session && chatFieldset) {
+          // Temporarily set userAssistActive to false to ensure normal styling
+          const wasUserAssistActive = userAssistActive;
+          userAssistActive = false;
+          drawConnectionLine(chatFieldset, session.container);
+          userAssistActive = wasUserAssistActive;
+        }
+      }
       
       userAssistActive = false;
       userAssistTaskCard = null;
