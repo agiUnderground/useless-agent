@@ -31,10 +31,22 @@ Currently supported models:
 
 **Environment**: Only works on - `Linux + xfce + X11`.  
 
-Version - `v0.0.1`.  
+Version - `v0.0.2`.
 
 
 # Changelog
+
+### v0.0.2
+
+* Manage multiple sessions at once.
+* Fullscreen & maximize control elements for the video stream. Hotkeys F and M.
+* Added a button to the task card to reopen a session window.
+* MVP of the user-assist feature, only UI for now.
+* Smart scrolling for the tasks section.
+* Many small UI bugfixes and improvements.
+
+![](/assets/img/multi-session-feature.png)
+![](/assets/img/user-assist-feature.png)
 
 ### v0.0.1
 
