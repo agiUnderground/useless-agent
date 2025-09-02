@@ -3388,7 +3388,20 @@
       currentConnectionPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       currentConnectionPath.setAttribute('d', pathData);
       currentConnectionPath.setAttribute('class', 'connection-path pulsating');
-      currentConnectionPath.setAttribute('stroke', '#4CAF50');
+      
+      // Use golden yellow color for user-assist mode, green for normal mode
+      if (userAssistActive && userAssistTaskCard) {
+        const sessionId = sessionElement.dataset.sessionId;
+        const taskSessionId = userAssistTaskCard.dataset.sessionId;
+        if (sessionId === taskSessionId) {
+          currentConnectionPath.setAttribute('stroke', '#FFC107');
+          currentConnectionPath.classList.add('user-assist');
+        } else {
+          currentConnectionPath.setAttribute('stroke', '#4CAF50');
+        }
+      } else {
+        currentConnectionPath.setAttribute('stroke', '#4CAF50');
+      }
       
       connectionSvg.appendChild(currentConnectionPath);
       
@@ -3405,7 +3418,15 @@
         const pulseDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         pulseDot.setAttribute('class', 'pulse-dot');
         pulseDot.setAttribute('r', '3');
-        pulseDot.setAttribute('fill', '#4CAF50');
+        
+        // Use golden yellow color for user-assist mode, green for normal mode
+        if (userAssistActive && userAssistTaskCard && currentConnectionPath && currentConnectionPath.classList.contains('user-assist')) {
+          pulseDot.setAttribute('fill', '#FFC107');
+          pulseDot.classList.add('user-assist');
+        } else {
+          pulseDot.setAttribute('fill', '#4CAF50');
+        }
+        
         pulseDot.style.animationDelay = `${i * 0.3}s`;
         
         // Position the dot at the start of the path initially
