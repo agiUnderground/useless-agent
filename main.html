@@ -1439,6 +1439,17 @@
       if (session && session.container) {
         console.log(`Found session, adding selected class to container`);
         session.container.classList.add('selected');
+        
+        // Check if user-assist is active and user is manually selecting a different session
+        if (userAssistActive && userAssistTaskCard) {
+          const taskSessionId = userAssistTaskCard.dataset.sessionId;
+          if (taskSessionId && taskSessionId !== sessionId) {
+            // User manually selected a different session while user-assist is active
+            console.log('User manually selected different session, deactivating user-assist');
+            deactivateUserAssist();
+          }
+        }
+        
         selectedSessionId = sessionId;
         console.log(`Selected session: ${sessionId}`);
       } else {
@@ -2218,6 +2229,12 @@
       
       userAssistActive = true;
       userAssistTaskCard = taskCard;
+      
+      // Get the session ID from the task card and switch session focus
+      const sessionId = taskCard.dataset.sessionId;
+      if (sessionId && sessionId !== 'null' && sessionId !== 'undefined') {
+        selectSession(sessionId);
+      }
       
       // Draw connection line
       const chatFieldset = document.getElementById('chatFieldset');
@@ -3481,41 +3498,6 @@
       }
     }
 
-    // Function to activate user-assist mode
-    function activateUserAssist(taskCard) {
-      // Only allow activation for in-progress tasks
-      if (!taskCard.classList.contains('in-progress')) {
-        console.log('User-assist cannot be activated for non-in-progress tasks');
-        return;
-      }
-      
-      if (userAssistActive && userAssistTaskCard === taskCard) {
-        // If already active for this task card, deactivate it
-        deactivateUserAssist();
-        return;
-      }
-      
-      // Deactivate any existing user-assist
-      deactivateUserAssist();
-      
-      userAssistActive = true;
-      userAssistTaskCard = taskCard;
-      
-      // Draw connection line
-      const chatFieldset = document.getElementById('chatFieldset');
-      drawUserAssistConnectionLine(taskCard, chatFieldset);
-      
-      // Add badge to chat legend
-      addUserAssistBadge();
-      
-      // Change chat input color
-      const chatInput = document.getElementById('llmChatInput');
-      const chatFieldsetElement = document.getElementById('chatFieldset');
-      chatInput.classList.add('user-assist-active');
-      chatFieldsetElement.classList.add('user-assist-active');
-      
-      console.log('User-assist activated');
-    }
 
     // Function to update connection line when layout changes
     function updateConnectionLine() {
