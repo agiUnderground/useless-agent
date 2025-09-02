@@ -578,6 +578,13 @@
       gap: 8px;
     }
     
+    .task-header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+    }
+    
     .task-header-controls {
       display: flex;
       align-items: center;
@@ -2155,6 +2162,34 @@
       console.log('User-assist deactivated');
     }
 
+    // Global task counter for sequence numbers
+    let taskSequenceNumber = 1;
+
+    // Function for smart scrolling based on task position
+    function smartScrollToTask(taskCard) {
+      const tasksContainer = document.getElementById('tasksContainer');
+      const taskCards = Array.from(tasksContainer.querySelectorAll('.task-card'));
+      const taskIndex = taskCards.indexOf(taskCard);
+      const totalTasks = taskCards.length;
+      
+      if (taskIndex === 0) {
+        // First task - scroll to top
+        tasksContainer.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (taskIndex === totalTasks - 1) {
+        // Last task - scroll to bottom
+        tasksContainer.scrollTo({ top: tasksContainer.scrollHeight, behavior: 'smooth' });
+      } else {
+        // Middle task - scroll to center
+        const taskRect = taskCard.getBoundingClientRect();
+        const containerRect = tasksContainer.getBoundingClientRect();
+        const containerCenter = containerRect.height / 2;
+        const taskCenter = taskRect.top - containerRect.top + taskRect.height / 2;
+        const scrollOffset = taskCenter - containerCenter;
+        
+        tasksContainer.scrollBy({ top: scrollOffset, behavior: 'smooth' });
+      }
+    }
+
     // Update task card click handler to include user-assist functionality
     function createTaskCard(message, status = 'in-progress', sessionId = null) {
       const taskCard = document.createElement('div');
@@ -2162,11 +2197,12 @@
       
       // Store original message as data attribute for later reference
       taskCard.dataset.originalMessage = message;
+      taskCard.dataset.sequenceNumber = taskSequenceNumber;
       if (sessionId) {
         taskCard.dataset.sessionId = sessionId;
       }
       
-      // Add click event to handle user-assist activation
+      // Add click event to handle user-assist activation and smart scrolling
       taskCard.addEventListener('click', (event) => {
         // Check if the click was on an actionable element (buttons, icons)
         const actionableElements = [
@@ -2182,28 +2218,47 @@
         
         // Only handle user-assist if not clicking on actionable elements
         if (!isActionable) {
-          // Scroll task card into view
-          taskCard.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'nearest',
-            inline: 'nearest'
-          });
+          // Smart scroll based on task position
+          smartScrollToTask(taskCard);
           
           // Toggle user-assist only for in-progress tasks
           if (taskCard.classList.contains('in-progress')) {
             activateUserAssist(taskCard);
+          } else if (userAssistActive) {
+            // If user-assist is already active and clicking on a non-in-progress task, deactivate it
+            deactivateUserAssist();
           }
         }
       });
       
+      // Increment sequence number for next task
+      taskSequenceNumber++;
+      
       const taskHeader = document.createElement('div');
       taskHeader.className = 'task-header';
+      
+      // Create left side container for sequence number and status
+      const taskHeaderLeft = document.createElement('div');
+      taskHeaderLeft.className = 'task-header-left';
+      
+      // Add sequence number
+      const sequenceNumber = document.createElement('span');
+      sequenceNumber.className = 'task-sequence-number';
+      sequenceNumber.textContent = `#${taskCard.dataset.sequenceNumber}`;
+      sequenceNumber.style.fontSize = '10px';
+      sequenceNumber.style.color = '#888';
+      sequenceNumber.style.marginRight = '8px';
       
       const taskStatus = document.createElement('span');
       taskStatus.className = 'task-status';
       taskStatus.textContent = status === 'in-progress' ? 'In Progress' : 
                              status === 'completed' ? 'Completed' :
                              status === 'broken' ? 'Broken' : 'Canceled';
+      
+      taskHeaderLeft.appendChild(sequenceNumber);
+      taskHeaderLeft.appendChild(taskStatus);
+      
+      taskHeader.appendChild(taskHeaderLeft);
       
       const controlsContainer = document.createElement('div');
       controlsContainer.className = 'task-header-controls';
@@ -2245,7 +2300,6 @@
         controlsContainer.appendChild(infoIcon);
       }
       
-      taskHeader.appendChild(taskStatus);
       taskHeader.appendChild(controlsContainer);
       taskCard.appendChild(taskHeader);
       
