@@ -46,7 +46,10 @@ Version - `v0.0.2`.
 * Many small UI bugfixes and improvements.
 
 ![](/assets/img/multi-session-feature.png)
+<p align="center">Multi-session</p>
+
 ![](/assets/img/user-assist-feature.png)
+<p align="center">User-assist</p>
 
 ### v0.0.1
 
