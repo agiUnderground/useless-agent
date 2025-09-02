@@ -1910,6 +1910,30 @@
         taskCard.dataset.sessionId = sessionId;
       }
       
+      // Add click event to scroll task card into view
+      taskCard.addEventListener('click', (event) => {
+        // Check if the click was on an actionable element (buttons, icons)
+        const actionableElements = [
+          '.task-session-window-icon',
+          '.task-cancel-btn',
+          '.task-info-icon'
+        ];
+        
+        const clickedElement = event.target;
+        const isActionable = actionableElements.some(selector => 
+          clickedElement.closest(selector)
+        );
+        
+        // Only scroll if not clicking on actionable elements
+        if (!isActionable) {
+          taskCard.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'nearest',
+            inline: 'nearest'
+          });
+        }
+      });
+      
       const taskHeader = document.createElement('div');
       taskHeader.className = 'task-header';
       
