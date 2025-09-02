@@ -620,25 +620,25 @@
       text-overflow: ellipsis;
     }
 
-    /* Session window icon for opening session window */
+    /* Session window icon for opening session window - made more transparent */
     .task-session-window-icon {
       width: 16px;
       height: 16px;
-      background-color: rgba(85, 85, 85, 0.3);
-      color: rgba(255, 255, 255, 0.6);
+      background-color: rgba(85, 85, 85, 0.2); /* Increased transparency from 0.3 to 0.2 */
+      color: rgba(255, 255, 255, 0.5); /* Increased transparency from 0.6 to 0.5 */
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 12px;
       font-weight: bold;
       cursor: pointer;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.08); /* Increased transparency from 0.1 to 0.08 */
       border-radius: 3px;
       transition: all 0.2s ease;
     }
 
     .task-session-window-icon:hover {
-      background-color: rgba(119, 119, 119, 0.7);
+      background-color: rgba(119, 119, 119, 0.5); /* Increased transparency from 0.7 to 0.5 */
       transform: scale(1.05);
     }
     
@@ -651,25 +651,25 @@
       color: #FFC107;
     }
 
-    /* Info icon for completed, broken, and canceled tasks */
+    /* Info icon for completed, broken, and canceled tasks - made more transparent */
     .task-info-icon {
       width: 16px;
       height: 16px;
       border-radius: 50%;
-      background-color: rgba(85, 85, 85, 0.3);
-      color: rgba(255, 255, 255, 0.5);
+      background-color: rgba(85, 85, 85, 0.2); /* Increased transparency from 0.3 to 0.2 */
+      color: rgba(255, 255, 255, 0.4); /* Increased transparency from 0.5 to 0.4 */
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 12px;
       font-weight: bold;
       cursor: default;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.08); /* Increased transparency from 0.1 to 0.08 */
       transition: all 0.2s ease;
     }
 
     .task-info-icon:hover {
-      background-color: rgba(119, 119, 119, 0.4);
+      background-color: rgba(119, 119, 119, 0.3); /* Increased transparency from 0.4 to 0.3 */
       transform: scale(1.05);
     }
 
@@ -1066,6 +1066,98 @@
         transform: scale(1.1);
         box-shadow: 0 0 0 6px rgba(0, 255, 136, 0);
       }
+    }
+
+    /* User-assist connection line styles */
+    .connection-path.user-assist {
+      animation: userAssistPulse 4s ease-in-out infinite;
+      stroke-dasharray: 5, 5;
+    }
+    
+    .pulse-dot.user-assist {
+      fill: #FFC107;
+      animation: userAssistPulseTravel 2.5s linear infinite;
+    }
+    
+    @keyframes userAssistPulse {
+      0%, 100% {
+        stroke: #FFC107;
+        stroke-width: 1;
+        opacity: 0.6;
+      }
+      50% {
+        stroke: #FFD54F;
+        stroke-width: 1.5;
+        opacity: 0.8;
+      }
+    }
+    
+    @keyframes userAssistPulseTravel {
+      0% {
+        opacity: 0;
+        transform: translateX(-10px);
+      }
+      10% {
+        opacity: 1;
+      }
+      90% {
+        opacity: 1;
+      }
+      100% {
+        opacity: 0;
+        transform: translateX(10px);
+      }
+    }
+
+    /* User-assist badge styles - centered sticker on top of chat fieldset */
+    .chat-fieldset {
+      position: relative;
+    }
+    
+    .user-assist-badge {
+      display: inline-block;
+      background-color: #FFC107;
+      color: #333;
+      font-size: 12px;
+      font-weight: bold;
+      padding: 2px 8px;
+      border-radius: 10px;
+      animation: badgePulse 2s ease-in-out infinite;
+      position: absolute;
+      /* top: -10px; */
+      top: 0px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+    }
+    
+    /* Restore original legend styling */
+    .chat-fieldset legend {
+      position: static;
+    }
+    
+    @keyframes badgePulse {
+      0%, 100% {
+        box-shadow: 0 0 5px rgba(255, 193, 7, 0.5);
+      }
+      50% {
+        box-shadow: 0 0 10px rgba(255, 193, 7, 0.8);
+      }
+    }
+
+    /* User-assist chat input color */
+    .chat-fieldset.user-assist-active legend {
+      color: #FFC107;
+    }
+    
+    #llmChatInput.user-assist-active {
+      background-color: rgba(255, 193, 7, 0.1);
+      border-color: rgba(255, 193, 7, 0.3);
+    }
+    
+    #llmChatInput.user-assist-active:focus {
+      border-color: rgba(255, 193, 7, 0.5);
+      box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.2);
     }
   </style>
 </head>
@@ -1899,7 +1991,171 @@
       }
     });
 
-    // Task Management Functions
+    // User-assist functionality
+    let userAssistActive = false;
+    let userAssistTaskCard = null;
+    let userAssistConnectionPath = null;
+    let userAssistPulseDots = [];
+
+    // Function to calculate user-assist connection path (straight line from task card to chat)
+    function calculateUserAssistPath(taskCardElement, chatElement) {
+      const taskRect = taskCardElement.getBoundingClientRect();
+      const chatRect = chatElement.getBoundingClientRect();
+      const overlayRect = connectionSvg.getBoundingClientRect();
+      
+      // Calculate positions relative to SVG overlay
+      const taskCenterX = taskRect.left + taskRect.width / 2 - overlayRect.left;
+      const taskBottomY = taskRect.bottom - overlayRect.top;
+      
+      const chatCenterX = chatRect.left + chatRect.width / 2 - overlayRect.left;
+      const chatTopY = chatRect.top - overlayRect.top;
+      
+      // Straight line from bottom center of task card to top center of chat
+      return `M ${taskCenterX} ${taskBottomY} L ${chatCenterX} ${chatTopY}`;
+    }
+
+    // Function to draw user-assist connection line
+    function drawUserAssistConnectionLine(taskCardElement, chatElement) {
+      // Clear any existing user-assist connection
+      clearUserAssistConnectionLine();
+      
+      const pathData = calculateUserAssistPath(taskCardElement, chatElement);
+      
+      // Create SVG path
+      userAssistConnectionPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      userAssistConnectionPath.setAttribute('d', pathData);
+      userAssistConnectionPath.setAttribute('class', 'connection-path user-assist');
+      userAssistConnectionPath.setAttribute('stroke', '#FFC107');
+      
+      connectionSvg.appendChild(userAssistConnectionPath);
+      
+      // Create traveling pulse dots
+      createUserAssistPulseDots(pathData);
+      
+      console.log('User-assist connection line drawn');
+    }
+
+    // Function to create user-assist traveling pulse dots
+    function createUserAssistPulseDots(pathData) {
+      // Create multiple pulse dots with staggered delays
+      for (let i = 0; i < 3; i++) {
+        const pulseDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        pulseDot.setAttribute('class', 'pulse-dot user-assist');
+        pulseDot.setAttribute('r', '3');
+        pulseDot.setAttribute('fill', '#FFC107');
+        pulseDot.style.animationDelay = `${i * 0.3}s`;
+        
+        // Position the dot at the start of the path initially
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', pathData);
+        const totalLength = path.getTotalLength();
+        const point = path.getPointAtLength(0);
+        
+        pulseDot.setAttribute('cx', point.x);
+        pulseDot.setAttribute('cy', point.y);
+        
+        connectionSvg.appendChild(pulseDot);
+        userAssistPulseDots.push(pulseDot);
+      }
+    }
+
+    // Function to clear user-assist connection line
+    function clearUserAssistConnectionLine() {
+      if (userAssistConnectionPath) {
+        connectionSvg.removeChild(userAssistConnectionPath);
+        userAssistConnectionPath = null;
+      }
+      
+      // Clear pulse dots
+      userAssistPulseDots.forEach(dot => {
+        if (dot.parentNode === connectionSvg) {
+          connectionSvg.removeChild(dot);
+        }
+      });
+      userAssistPulseDots = [];
+    }
+
+    // Function to add user-assist badge to chat legend
+    function addUserAssistBadge() {
+      const chatLegend = document.querySelector('#chatFieldset legend');
+      if (chatLegend && !chatLegend.querySelector('.user-assist-badge')) {
+        const badge = document.createElement('span');
+        badge.className = 'user-assist-badge';
+        badge.textContent = 'user-assist';
+        chatLegend.appendChild(badge);
+      }
+    }
+
+    // Function to remove user-assist badge from chat legend
+    function removeUserAssistBadge() {
+      const chatLegend = document.querySelector('#chatFieldset legend');
+      if (chatLegend) {
+        const badge = chatLegend.querySelector('.user-assist-badge');
+        if (badge) {
+          chatLegend.removeChild(badge);
+        }
+      }
+    }
+
+    // Function to activate user-assist mode
+    function activateUserAssist(taskCard) {
+      // Only allow activation for in-progress tasks
+      if (!taskCard.classList.contains('in-progress')) {
+        console.log('User-assist cannot be activated for non-in-progress tasks');
+        return;
+      }
+      
+      if (userAssistActive && userAssistTaskCard === taskCard) {
+        // If already active for this task card, deactivate it
+        deactivateUserAssist();
+        return;
+      }
+      
+      // Deactivate any existing user-assist
+      deactivateUserAssist();
+      
+      userAssistActive = true;
+      userAssistTaskCard = taskCard;
+      
+      // Draw connection line
+      const chatFieldset = document.getElementById('chatFieldset');
+      drawUserAssistConnectionLine(taskCard, chatFieldset);
+      
+      // Add badge to chat legend
+      addUserAssistBadge();
+      
+      // Change chat input color
+      const chatInput = document.getElementById('llmChatInput');
+      const chatFieldsetElement = document.getElementById('chatFieldset');
+      chatInput.classList.add('user-assist-active');
+      chatFieldsetElement.classList.add('user-assist-active');
+      
+      console.log('User-assist activated');
+    }
+
+    // Function to deactivate user-assist mode
+    function deactivateUserAssist() {
+      if (!userAssistActive) return;
+      
+      // Clear connection line
+      clearUserAssistConnectionLine();
+      
+      // Remove badge from chat legend
+      removeUserAssistBadge();
+      
+      // Restore chat input color
+      const chatInput = document.getElementById('llmChatInput');
+      const chatFieldsetElement = document.getElementById('chatFieldset');
+      chatInput.classList.remove('user-assist-active');
+      chatFieldsetElement.classList.remove('user-assist-active');
+      
+      userAssistActive = false;
+      userAssistTaskCard = null;
+      
+      console.log('User-assist deactivated');
+    }
+
+    // Update task card click handler to include user-assist functionality
     function createTaskCard(message, status = 'in-progress', sessionId = null) {
       const taskCard = document.createElement('div');
       taskCard.className = `task-card ${status}`;
@@ -1910,7 +2166,7 @@
         taskCard.dataset.sessionId = sessionId;
       }
       
-      // Add click event to scroll task card into view
+      // Add click event to handle user-assist activation
       taskCard.addEventListener('click', (event) => {
         // Check if the click was on an actionable element (buttons, icons)
         const actionableElements = [
@@ -1924,13 +2180,19 @@
           clickedElement.closest(selector)
         );
         
-        // Only scroll if not clicking on actionable elements
+        // Only handle user-assist if not clicking on actionable elements
         if (!isActionable) {
+          // Scroll task card into view
           taskCard.scrollIntoView({ 
             behavior: 'smooth', 
             block: 'nearest',
             inline: 'nearest'
           });
+          
+          // Toggle user-assist only for in-progress tasks
+          if (taskCard.classList.contains('in-progress')) {
+            activateUserAssist(taskCard);
+          }
         }
       });
       
@@ -2232,6 +2494,11 @@
         // Stop timer if task is no longer in progress
         if (data.status !== 'in-progress') {
           stopTaskTimer(taskCard);
+          
+          // Deactivate user-assist if this was the active task
+          if (userAssistActive && userAssistTaskCard === taskCard) {
+            deactivateUserAssist();
+          }
         }
       }
       
