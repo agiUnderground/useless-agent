@@ -1887,9 +1887,39 @@ function toggleSessionFullscreen(session) {
 function toggleSessionMaximize(session) {
   const sessionContainer = session.container;
   const mainContent = document.getElementById('mainContent');
+  const imageSizeContainer = session.content.querySelector('.image-size-container');
+  const screenshotOverlay = session.content.querySelector('.screenshot-overlay');
+  const screenshotContainer = session.screenshotContainer;
   
   // Check if session is already maximized
   const isMaximized = sessionContainer.classList.contains('maximized');
+  
+  // Clean up existing maximized mode event listeners if restoring
+  if (isMaximized && screenshotContainer._maximizedHandlers) {
+    const handlers = screenshotContainer._maximizedHandlers;
+    
+    // Remove event listeners
+    document.removeEventListener('mousemove', handlers.mouseMove);
+    screenshotContainer.removeEventListener('mouseenter', handlers.mouseEnter);
+    screenshotContainer.removeEventListener('mouseleave', handlers.mouseLeave);
+    
+    // Clear timeout
+    if (handlers.timeout) {
+      clearTimeout(handlers.timeout);
+    }
+    
+    // Remove handlers reference
+    delete screenshotContainer._maximizedHandlers;
+  }
+  
+  // Completely remove overlay from DOM during transition to prevent any artifacts
+  let overlayParent = null;
+  let overlayNextSibling = null;
+  if (screenshotOverlay) {
+    overlayParent = screenshotOverlay.parentNode;
+    overlayNextSibling = screenshotOverlay.nextSibling;
+    overlayParent.removeChild(screenshotOverlay);
+  }
   
   if (isMaximized) {
     // Restore normal layout - show all sessions
@@ -1908,6 +1938,168 @@ function toggleSessionMaximize(session) {
     });
     mainContent.setAttribute('data-session-count', '1');
   }
+  
+  // Force immediate recalculation of screenshot overlay positioning
+  setTimeout(() => {
+    if (imageSizeContainer && session.img.width && session.img.height) {
+      // Force recalculation of the image size container positioning
+      const isFullscreen = document.fullscreenElement || 
+                          document.webkitFullscreenElement || 
+                          document.mozFullScreenElement || 
+                          document.msFullscreenElement;
+      
+      if (!isFullscreen) {
+        // Temporarily clear and reset positioning to force recalculation
+        imageSizeContainer.style.width = '';
+        imageSizeContainer.style.height = '';
+        
+        // Force a reflow
+        imageSizeContainer.offsetHeight;
+        
+        // Restore proper positioning for maximized session
+        imageSizeContainer.style.width = session.img.width + 'px';
+        imageSizeContainer.style.height = session.img.height + 'px';
+        imageSizeContainer.style.position = 'absolute';
+        imageSizeContainer.style.top = '50%';
+        imageSizeContainer.style.left = '50%';
+        imageSizeContainer.style.transform = 'translate(-50%, -50%)';
+        
+        // Force another reflow to ensure the container is properly sized
+        imageSizeContainer.offsetHeight;
+      }
+    }
+    
+    // Redraw connection line when exiting maximized mode to fix the path redrawing issue
+    updateConnectionLine();
+    
+    // Recreate and reinsert overlay after everything is properly resized
+    if (overlayParent && screenshotOverlay) {
+      // Reinsert the overlay in its original position
+      if (overlayNextSibling) {
+        overlayParent.insertBefore(screenshotOverlay, overlayNextSibling);
+      } else {
+        overlayParent.appendChild(screenshotOverlay);
+      }
+      
+      // NOW set up the overlay timer and event listeners AFTER the overlay is back in the DOM
+      const screenshotContainer = session.screenshotContainer;
+      const isFullscreen = document.fullscreenElement || 
+                          document.webkitFullscreenElement || 
+                          document.mozFullScreenElement || 
+                          document.msFullscreenElement;
+      
+      if (!isFullscreen && screenshotContainer) {
+        // Copy EXACTLY from fullscreen implementation
+        let overlayTimeout = null;
+        const OVERLAY_TIMEOUT = 3000; // 3 seconds
+        
+        function resetMaximizedOverlayTimer() {
+          // Clear existing timeout
+          if (overlayTimeout) {
+            clearTimeout(overlayTimeout);
+          }
+          
+          // Show overlay immediately when activity is detected
+          screenshotOverlay.style.opacity = '1';
+          screenshotOverlay.style.pointerEvents = 'auto';
+          
+          // Set new timeout to hide overlay after inactivity
+          overlayTimeout = setTimeout(() => {
+            screenshotOverlay.style.opacity = '0';
+            screenshotOverlay.style.pointerEvents = 'none';
+          }, OVERLAY_TIMEOUT);
+        }
+        
+        // Mouse event handling for overlay - EXACTLY like fullscreen
+        let isMouseOverOverlay = false;
+        let isMouseOverContainer = false;
+        
+        // Handle mouse enter on overlay
+        screenshotOverlay.addEventListener('mouseenter', () => {
+          isMouseOverOverlay = true;
+          if (overlayTimeout) {
+            clearTimeout(overlayTimeout);
+          }
+        });
+        
+        // Handle mouse leave from overlay
+        screenshotOverlay.addEventListener('mouseleave', () => {
+          isMouseOverOverlay = false;
+          // Only hide if mouse is not over container either
+          if (!isMouseOverContainer) {
+            const isFullscreen = document.fullscreenElement || 
+                                document.webkitFullscreenElement || 
+                                document.mozFullScreenElement || 
+                                document.msFullscreenElement;
+            
+            if (!isFullscreen) {
+              // Normal mode - hide overlay immediately when mouse leaves
+              screenshotOverlay.style.opacity = '0';
+              screenshotOverlay.style.pointerEvents = 'none';
+            } else {
+              // Fullscreen mode - start timer
+              resetMaximizedOverlayTimer();
+            }
+          }
+        });
+        
+        // Handle mouse enter on container
+        screenshotContainer.addEventListener('mouseenter', () => {
+          isMouseOverContainer = true;
+          const isFullscreen = document.fullscreenElement || 
+                              document.webkitFullscreenElement || 
+                              document.mozFullScreenElement || 
+                              document.msFullscreenElement;
+          
+          if (isFullscreen) {
+            // Fullscreen mode - show overlay and start timer
+            screenshotOverlay.style.opacity = '1';
+            screenshotOverlay.style.pointerEvents = 'auto';
+            resetMaximizedOverlayTimer();
+          } else {
+            // Normal mode - show overlay immediately
+            screenshotOverlay.style.opacity = '1';
+            screenshotOverlay.style.pointerEvents = 'auto';
+          }
+        });
+        
+        // Handle mouse leave from container
+        screenshotContainer.addEventListener('mouseleave', () => {
+          isMouseOverContainer = false;
+          // Only hide if mouse is not over overlay either
+          if (!isMouseOverOverlay) {
+            const isFullscreen = document.fullscreenElement || 
+                                document.webkitFullscreenElement || 
+                                document.mozFullScreenElement || 
+                                document.msFullscreenElement;
+            
+            if (!isFullscreen) {
+              // Normal mode - hide overlay immediately when mouse leaves container
+              screenshotOverlay.style.opacity = '0';
+              screenshotOverlay.style.pointerEvents = 'none';
+            } else {
+              // Fullscreen mode - start timer
+              resetMaximizedOverlayTimer();
+            }
+          }
+        });
+        
+        // Mouse move detection for both container and overlay - EXACTLY like fullscreen
+        screenshotContainer.addEventListener('mousemove', resetMaximizedOverlayTimer);
+        screenshotOverlay.addEventListener('mousemove', resetMaximizedOverlayTimer);
+        
+        // Store handlers for cleanup
+        screenshotContainer._maximizedHandlers = {
+          timeout: overlayTimeout
+        };
+        
+        // Start the timer - EXACTLY like fullscreen
+        resetMaximizedOverlayTimer();
+        
+        console.log('Maximized mode overlay timer setup completed - copied from fullscreen');
+      }
+    }
+  }, 0);
 }
 
 // Global keyboard shortcut for fullscreen (F key) and maximize (M key) - applies to selected session

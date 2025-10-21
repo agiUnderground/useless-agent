@@ -87,6 +87,20 @@ html, body {
   border-color: #4CAF50;
 }
 
+.session-container.maximized {
+  position: relative;
+  z-index: 10;
+}
+
+.session-container.maximized .screenshot-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  z-index: 1000;
+}
+
 .session-container.selected::before {
   content: '';
   position: absolute;
