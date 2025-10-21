@@ -1016,19 +1016,20 @@ fieldset legend {
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: 100;
+  z-index: 1; /* Put behind other elements */
 }
 
 .connection-path {
   fill: none;
-  stroke-width: 2;
+  stroke-width: 1;
   stroke-linecap: round;
   stroke-linejoin: round;
+  stroke-dasharray: 5, 5;
 }
 
 .connection-path.pulsating {
-  animation: connectionPulse 4s ease-in-out infinite;
   stroke-dasharray: 5, 5;
+  transition: all 0.3s ease;
 }
 
 .pulse-dot {
@@ -1038,15 +1039,20 @@ fieldset legend {
 }
 
 @keyframes connectionPulse {
-  0%, 100% {
+  0% {
     stroke: #4CAF50;
     stroke-width: 1;
-    opacity: 0.6;
+    opacity: 0.84;
+  }
+  100% {
+    stroke: #4CAF50;
+    stroke-width: 1;
+    opacity: 0.84;
   }
   50% {
     stroke: #66BB6A;
     stroke-width: 1.5;
-    opacity: 0.8;
+    opacity: 1;
   }
 }
 
@@ -1114,7 +1120,6 @@ fieldset legend {
 
 /* User-assist connection line styles */
 .connection-path.user-assist {
-  animation: userAssistPulse 4s ease-in-out infinite;
   stroke-dasharray: 5, 5;
 }
 

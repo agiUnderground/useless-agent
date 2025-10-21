@@ -884,7 +884,7 @@ function drawUserAssistConnectionLine(taskCardElement, chatElement) {
   userAssistConnectionPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   userAssistConnectionPath.setAttribute('d', pathData);
   userAssistConnectionPath.setAttribute('class', 'connection-path user-assist');
-  userAssistConnectionPath.setAttribute('stroke', '#FFC107');
+  userAssistConnectionPath.setAttribute('stroke', '#4CAF50'); // Use same green color as main lines
   
   connectionSvg.appendChild(userAssistConnectionPath);
   
@@ -894,28 +894,13 @@ function drawUserAssistConnectionLine(taskCardElement, chatElement) {
   console.log('User-assist connection line drawn');
 }
 
-// Function to create user-assist traveling pulse dots
+// Function to create user-assist line (no traveling dots)
 function createUserAssistPulseDots(pathData) {
-  // Create multiple pulse dots with staggered delays
-  for (let i = 0; i < 3; i++) {
-    const pulseDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    pulseDot.setAttribute('class', 'pulse-dot user-assist');
-    pulseDot.setAttribute('r', '3');
-    pulseDot.setAttribute('fill', '#FFC107');
-    pulseDot.style.animationDelay = `${i * 0.3}s`;
-    
-    // Position the dot at the start of the path initially
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', pathData);
-    const totalLength = path.getTotalLength();
-    const point = path.getPointAtLength(0);
-    
-    pulseDot.setAttribute('cx', point.x);
-    pulseDot.setAttribute('cy', point.y);
-    
-    connectionSvg.appendChild(pulseDot);
-    userAssistPulseDots.push(pulseDot);
-  }
+  // Start synchronized animation if not already running
+  startSynchronizedAnimation();
+  
+  // No traveling dots - just the line itself
+  console.log('Creating user-assist line with synchronized animation');
 }
 
 // Function to clear user-assist connection line
@@ -2025,73 +2010,135 @@ const connectionSvg = document.getElementById('connectionSvg');
 let currentConnectionPath = null;
 let currentPulseDots = [];
 
+// Global animation synchronization
+let animationStartTime = null;
+let animationPhase = 0; // 0 to 100 for animation progress
+let animationFrameId = null;
+const ANIMATION_DURATION = 4000; // 4 seconds for one complete cycle
+const ANIMATION_UPDATE_INTERVAL = 16; // ~60fps update rate
+
 // Function to calculate connection path around session perimeter
 function calculateConnectionPath(chatElement, sessionElement) {
   const chatRect = chatElement.getBoundingClientRect();
   const sessionRect = sessionElement.getBoundingClientRect();
   const mainContentRect = mainContent.getBoundingClientRect();
-  const overlayRect = connectionSvg.getBoundingClientRect();
   
-  // Calculate positions relative to SVG overlay
-  const chatRightX = chatRect.right - overlayRect.left;
-  const chatCenterY = chatRect.top + chatRect.height / 2 - overlayRect.top;
+  // Get the textbox element inside the chat fieldset
+  const chatInput = document.getElementById('llmChatInput');
+  const inputRect = chatInput.getBoundingClientRect();
   
-  const sessionLeftX = sessionRect.left - overlayRect.left;
-  const sessionRightX = sessionRect.right - overlayRect.left;
-  const sessionTopY = sessionRect.top - overlayRect.top;
-  const sessionBottomY = sessionRect.bottom - overlayRect.top;
-  const sessionCenterY = sessionRect.top + sessionRect.height / 2 - overlayRect.top;
+  // Start from right side of the textbox inside the chat fieldset
+  const chatStartX = inputRect.right;
+  const chatStartY = inputRect.top + inputRect.height / 2;
   
-  const mainContentLeftX = mainContentRect.left - overlayRect.left;
-  const mainContentRightX = mainContentRect.right - overlayRect.left;
-  const mainContentTopY = mainContentRect.top - overlayRect.top;
-  const mainContentBottomY = mainContentRect.bottom - overlayRect.top;
+  // Calculate paths for both LEFT and RIGHT edges
+  const sessionCenterY = sessionRect.top + sessionRect.height / 2;
+  const sessionToRightScreenPadding = (window.innerWidth - sessionRect.right) / 2;
+  const sessionRightEndX = sessionRect.right + sessionToRightScreenPadding;
   
-  // Calculate which edge of the session container to connect to
-  const sessionCenterX = sessionRect.left + sessionRect.width / 2 - overlayRect.left;
-  const isSessionOnLeft = sessionCenterX < mainContentLeftX + mainContentRect.width / 2;
+  // Calculate midpoint between chatbox and main content (excluding invisible padding)
+  const chatVisibleRight = chatRect.right;
+  const mainContentVisibleLeft = mainContentRect.left + 10; // Add back the 10px padding to get actual visible left edge
+  const midPointX = chatVisibleRight + (mainContentVisibleLeft - chatVisibleRight) / 2;
   
-  // Start from chat right edge
-  let path = `M ${chatRightX} ${chatCenterY}`;
+  // Calculate LEFT path: go to middle point, then to session's Y level, then to middle of left edge
+  let leftPath = `M ${chatStartX} ${chatStartY}`;
+  leftPath += ` L ${midPointX} ${chatStartY}`;                  // Go to middle point between chatbox and main-content
+  leftPath += ` L ${midPointX} ${sessionCenterY}`;              // Go to session's Y level at middle X
+  leftPath += ` L ${sessionRect.left} ${sessionCenterY}`;        // Go to middle of left edge
   
-  // Move horizontally to the edge of the main content area
-  const buffer = 7; // Buffer from the edge
+  // Calculate RIGHT path: go to middle point, then to TOP, then to RIGHT edge with padding, then down, then left to session edge
+  let rightPath = `M ${chatStartX} ${chatStartY}`;
+  rightPath += ` L ${midPointX} ${chatStartY}`;                  // Go to middle point between chatbox and main-content
+  rightPath += ` L ${midPointX} ${mainContentRect.top}`;          // Go up to top edge of main-content
+  rightPath += ` L ${window.innerWidth - sessionToRightScreenPadding} ${mainContentRect.top}`;  // Go to right edge at top with padding
+  rightPath += ` L ${sessionRightEndX} ${sessionCenterY}`;          // Go down to session center at right edge with padding
+  rightPath += ` L ${sessionRect.right} ${sessionCenterY}`;        // FINAL TURN: Go left to actual session edge
   
-  if (isSessionOnLeft) {
-    // Session is on the left side of the main content area
-    // Go to right edge of main content area first (outside)
-    path += ` L ${mainContentLeftX - buffer} ${chatCenterY}`;
-    
-    // Then go up/down to session level (outside main content)
-    if (sessionCenterY > chatCenterY) {
-      // Session is below chat - go down
-      path += ` L ${mainContentLeftX - buffer} ${sessionCenterY}`;
-    } else {
-      // Session is above chat - go up
-      path += ` L ${mainContentLeftX - buffer} ${sessionCenterY}`;
-    }
-    
-    // Then go to session left edge
-    path += ` L ${sessionLeftX} ${sessionCenterY}`;
+  // SIMPLE LOGIC: Check if session's left edge is accessible (not blocked by other sessions)
+  const leftEdgeOffset = sessionRect.left - mainContentRect.left;
+  const isLeftEdgeAccessible = leftEdgeOffset <= 10; // 10px or less from main content left edge means left edge is accessible
+  
+  console.log(`Session left edge offset from main content: ${leftEdgeOffset}px`);
+  console.log(`Left edge accessible: ${isLeftEdgeAccessible}`);
+  
+  // Choose path based on simple accessibility logic
+  if (isLeftEdgeAccessible) {
+    console.log('Choosing LEFT path (left edge is accessible - shortest path)');
+    return leftPath;
   } else {
-    // Session is on the right side of the main content area
-    // Go to left edge of main content area first (outside)
-    path += ` L ${mainContentRightX + buffer} ${chatCenterY}`;
-    
-    // Then go up/down to session level (outside main content)
-    if (sessionCenterY > chatCenterY) {
-      // Session is below chat - go down
-      path += ` L ${mainContentRightX + buffer} ${sessionCenterY}`;
-    } else {
-      // Session is above chat - go up
-      path += ` L ${mainContentRightX + buffer} ${sessionCenterY}`;
-    }
-    
-    // Then go to session right edge
-    path += ` L ${sessionRightX} ${sessionCenterY}`;
+    console.log('Choosing RIGHT path (left edge blocked by other sessions)');
+    return rightPath;
+  }
+}
+
+// Helper function to check if a straight line path crosses the main content container
+function doesPathCrossMainContent(x1, y1, x2, y2, mainContentRect) {
+  // Adjust main content rect to exclude padding (padding is 10px on all sides)
+  const paddedRect = {
+    left: mainContentRect.left + 10,
+    top: mainContentRect.top + 10,
+    right: mainContentRect.right - 10,
+    bottom: mainContentRect.bottom - 10
+  };
+  
+  // Check if the line segment from (x1,y1) to (x2,y2) intersects with the padded main content area
+  return lineIntersectsRect(x1, y1, x2, y2, paddedRect.left, paddedRect.top, paddedRect.right, paddedRect.bottom);
+}
+
+// Helper function to check if a line segment intersects with a rectangle
+function lineIntersectsRect(x1, y1, x2, y2, rectLeft, rectTop, rectRight, rectBottom) {
+  // Check if either endpoint is inside the rectangle
+  if ((x1 >= rectLeft && x1 <= rectRight && y1 >= rectTop && y1 <= rectBottom) ||
+      (x2 >= rectLeft && x2 <= rectRight && y2 >= rectTop && y2 <= rectBottom)) {
+    return true;
   }
   
-  return path;
+  // Check if line intersects with any of the rectangle edges
+  return lineIntersectsLine(x1, y1, x2, y2, rectLeft, rectTop, rectRight, rectTop) || // Top edge
+         lineIntersectsLine(x1, y1, x2, y2, rectLeft, rectBottom, rectRight, rectBottom) || // Bottom edge
+         lineIntersectsLine(x1, y1, x2, y2, rectLeft, rectTop, rectLeft, rectBottom) || // Left edge
+         lineIntersectsLine(x1, y1, x2, y2, rectRight, rectTop, rectRight, rectBottom); // Right edge
+}
+
+// Helper function to check if two line segments intersect
+function lineIntersectsLine(x1, y1, x2, y2, x3, y3, x4, y4) {
+  const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+  if (Math.abs(denom) < 0.0001) return false; // Lines are parallel
+  
+  const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
+  const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
+  
+  return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+}
+
+// Helper function to calculate the actual distance of a path string
+function calculatePathDistance(pathString) {
+  const commands = pathString.match(/[ML]\s*[-+]?\d*\.?\d+\s*[-+]?\d*\.?\d+/g);
+  if (!commands || commands.length < 2) return 0;
+  
+  let totalDistance = 0;
+  let currentX = 0, currentY = 0;
+  
+  for (let i = 0; i < commands.length; i++) {
+    const match = commands[i].match(/([ML])\s*([-+]?\d*\.?\d+)\s*([-+]?\d*\.?\d+)/);
+    if (match) {
+      const [, command, x, y] = match;
+      const newX = parseFloat(x);
+      const newY = parseFloat(y);
+      
+      if (i > 0) {
+        const dx = newX - currentX;
+        const dy = newY - currentY;
+        totalDistance += Math.sqrt(dx * dx + dy * dy);
+      }
+      
+      currentX = newX;
+      currentY = newY;
+    }
+  }
+  
+  return totalDistance;
 }
 
 // Function to draw connection line
@@ -2099,12 +2146,29 @@ function drawConnectionLine(chatElement, sessionElement) {
   // Clear any existing connection
   clearConnectionLine();
   
+  console.log('=== Drawing Connection Line ===');
+  console.log('Chat element:', chatElement);
+  console.log('Session element:', sessionElement);
+  console.log('Connection SVG:', connectionSvg);
+  
+  // Check if connectionSvg exists
+  if (!connectionSvg) {
+    console.error('Connection SVG element not found!');
+    return;
+  }
+  
   const pathData = calculateConnectionPath(chatElement, sessionElement);
+  console.log('Generated path:', pathData);
+  
+  if (!pathData || pathData.trim() === '') {
+    console.error('Path data is empty, cannot draw connection line');
+    return;
+  }
   
   // Create SVG path
   currentConnectionPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   currentConnectionPath.setAttribute('d', pathData);
-  currentConnectionPath.setAttribute('class', 'connection-path pulsating');
+  currentConnectionPath.setAttribute('class', 'connection-path');
   
   // Use golden yellow color for user-assist mode, green for normal mode
   if (userAssistActive && userAssistTaskCard) {
@@ -2121,43 +2185,77 @@ function drawConnectionLine(chatElement, sessionElement) {
   }
   
   connectionSvg.appendChild(currentConnectionPath);
+  console.log('Path added to SVG:', currentConnectionPath);
   
   // Create traveling pulse dots
   createPulseDots(pathData);
   
   console.log('Connection line drawn between chat and session');
+  console.log('=== End Connection Line Drawing ===');
 }
 
-// Function to create traveling pulse dots
-function createPulseDots(pathData) {
-  // Create multiple pulse dots with staggered delays
-  for (let i = 0; i < 3; i++) {
-    const pulseDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    pulseDot.setAttribute('class', 'pulse-dot');
-    pulseDot.setAttribute('r', '3');
-    
-    // Use golden yellow color for user-assist mode, green for normal mode
-    if (userAssistActive && userAssistTaskCard && currentConnectionPath && currentConnectionPath.classList.contains('user-assist')) {
-      pulseDot.setAttribute('fill', '#FFC107');
-      pulseDot.classList.add('user-assist');
-    } else {
-      pulseDot.setAttribute('fill', '#4CAF50');
-    }
-    
-    pulseDot.style.animationDelay = `${i * 0.3}s`;
-    
-    // Position the dot at the start of the path initially
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', pathData);
-    const totalLength = path.getTotalLength();
-    const point = path.getPointAtLength(0);
-    
-    pulseDot.setAttribute('cx', point.x);
-    pulseDot.setAttribute('cy', point.y);
-    
-    connectionSvg.appendChild(pulseDot);
-    currentPulseDots.push(pulseDot);
+// Function to start synchronized animation
+function startSynchronizedAnimation() {
+  if (!animationStartTime) {
+    animationStartTime = Date.now();
+    animationPhase = 0;
   }
+  
+  if (!animationFrameId) {
+    animationFrameId = requestAnimationFrame(updateSynchronizedAnimation);
+  }
+}
+
+// Function to update synchronized animation
+function updateSynchronizedAnimation() {
+  const currentTime = Date.now();
+  const elapsed = currentTime - animationStartTime;
+  animationPhase = (elapsed % ANIMATION_DURATION) / ANIMATION_DURATION * 100;
+  
+  // Update all connection lines with synchronized phase
+  updateAllConnectionLinesWithPhase(animationPhase);
+  
+  // Continue animation
+  animationFrameId = requestAnimationFrame(updateSynchronizedAnimation);
+}
+
+// Function to stop synchronized animation
+function stopSynchronizedAnimation() {
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+}
+
+// Function to calculate animation values based on phase
+function calculateAnimationValues(phase, isUserAssist = false) {
+  // No brightness animation - always use consistent brightness across all segments
+  const opacity = 0.84; // Fixed consistent brightness (matches the CSS opacity)
+  
+  // No stroke width animation - always use fixed width
+  const strokeWidth = 1;
+  
+  // Fixed colors without animation - use green for all lines (including user-assist)
+  const strokeColor = 'rgb(76, 175, 80)';
+  
+  return { opacity, strokeWidth, strokeColor };
+}
+
+// Function to update all connection lines with synchronized phase (NO ANIMATION)
+function updateAllConnectionLinesWithPhase(phase) {
+  // NO ANIMATION - do nothing
+}
+
+// Function to update pulse dots with synchronized phase (simplified - no dots)
+function updatePulseDotsWithPhase(phase) {
+  // No traveling dots - just update line brightness
+  // All animation is handled by updateAllConnectionLinesWithPhase
+}
+
+// Function to create line (no traveling dots)
+function createPulseDots(pathData) {
+  // No animation - static lines only
+  console.log('Creating static line without animation');
 }
 
 // Function to clear connection line
