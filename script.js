@@ -164,6 +164,7 @@ const mainContent = document.getElementById('mainContent');
 let currentFPS = 5; // Default FPS
 let selectedSessionId = null;
 
+
 // Function to select a session and apply wave animation
 function selectSession(sessionId) {
   console.log(`Attempting to select session: ${sessionId}`);
@@ -1125,7 +1126,8 @@ function createTaskCard(message, status = 'in-progress', sessionId = null) {
   taskStatus.className = 'task-status';
   taskStatus.textContent = status === 'in-progress' ? 'In Progress' : 
                          status === 'completed' ? 'Completed' :
-                         status === 'broken' ? 'Broken' : 'Canceled';
+                         status === 'broken' ? 'Broken' : 
+                         status === 'canceled' ? 'Canceled' : 'In Queue';
   
   taskHeaderLeft.appendChild(sequenceNumber);
   taskHeaderLeft.appendChild(taskStatus);
@@ -1148,8 +1150,8 @@ function createTaskCard(message, status = 'in-progress', sessionId = null) {
     controlsContainer.appendChild(fullscreenIcon);
   }
   
-  // Add cancel button for in-progress tasks
-  if (status === 'in-progress') {
+  // Add cancel button for in-progress and queued tasks
+  if (status === 'in-progress' || status === 'in-the-queue') {
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'task-cancel-btn';
     cancelBtn.textContent = 'Cancel';
@@ -1195,8 +1197,8 @@ function createTaskCard(message, status = 'in-progress', sessionId = null) {
   taskCard.appendChild(sessionInfo);
   taskCard.appendChild(taskMessage);
   
-  // Add timer for in-progress tasks
-  if (status === 'in-progress') {
+  // Add timer for in-progress and queued tasks
+  if (status === 'in-progress' || status === 'in-the-queue') {
     const timerContainer = document.createElement('div');
     timerContainer.className = 'task-timer';
     
@@ -1295,7 +1297,8 @@ function cancelTask(taskCard) {
       
       // Update UI based on backend response
       if (data.result === 'Task canceled successfully') {
-        taskCard.classList.remove('in-progress');
+        // Remove both possible status classes
+        taskCard.classList.remove('in-progress', 'in-the-queue');
         taskCard.classList.add('canceled');
         
         const statusElement = taskCard.querySelector('.task-status');
@@ -1306,6 +1309,9 @@ function cancelTask(taskCard) {
         if (cancelBtn) {
           cancelBtn.remove();
         }
+        
+        // Stop timer
+        stopTaskTimer(taskCard);
         
         // Update current task status
         if (currentTask === taskCard) {
@@ -1367,7 +1373,7 @@ function handleTaskUpdate(data) {
     console.log('Updating task card with status:', data.status);
     
     // Remove all status classes first
-    taskCard.classList.remove('in-progress', 'completed', 'broken', 'canceled');
+    taskCard.classList.remove('in-progress', 'completed', 'broken', 'canceled', 'in-the-queue');
     // Add the new status class based on the status field
     taskCard.classList.add(data.status);
     
@@ -1377,7 +1383,8 @@ function handleTaskUpdate(data) {
     if (statusElement) {
       statusElement.textContent = data.status === 'in-progress' ? 'In Progress' : 
                                 data.status === 'completed' ? 'Completed' :
-                                data.status === 'broken' ? 'Broken' : 'Canceled';
+                                data.status === 'broken' ? 'Broken' : 
+                                data.status === 'canceled' ? 'Canceled' : 'In Queue';
     }
     
     if (messageElement && data.message) {
@@ -1386,10 +1393,26 @@ function handleTaskUpdate(data) {
     }
     
     // Remove cancel button if task is completed, broken, or canceled
-    if (data.status !== 'in-progress') {
+    if (data.status !== 'in-progress' && data.status !== 'in-the-queue') {
       const cancelBtn = taskCard.querySelector('.task-cancel-btn');
       if (cancelBtn) {
         cancelBtn.remove();
+      }
+    }
+    
+    // Add cancel button for queued tasks
+    if (data.status === 'in-the-queue') {
+      const controlsContainer = taskCard.querySelector('.task-header-controls');
+      const existingCancelBtn = taskCard.querySelector('.task-cancel-btn');
+      
+      if (!existingCancelBtn && controlsContainer) {
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'task-cancel-btn';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.addEventListener('click', () => {
+          cancelTask(taskCard);
+        });
+        controlsContainer.appendChild(cancelBtn);
       }
     }
     
@@ -1417,8 +1440,16 @@ function handleTaskUpdate(data) {
       }
     }
     
-    // Stop timer if task is no longer in progress
-    if (data.status !== 'in-progress') {
+    // Handle timer based on status changes
+    if (data.status === 'in-progress' || data.status === 'in-the-queue') {
+      // Start or continue timer for in-progress or queued tasks
+      if (!taskCard.dataset.timerInterval) {
+        // Timer is not running, start it
+        startTaskTimer(taskCard);
+      }
+      // If timer is already running, it will continue automatically
+    } else {
+      // Stop timer for completed, broken, or canceled tasks
       stopTaskTimer(taskCard);
       
       // Deactivate user-assist if this was the active task
@@ -1501,7 +1532,7 @@ function handleTaskCreation(message, sessionId = null) {
   // Create task card for every message with temporary ID
   const tasksContainer = document.getElementById('tasksContainer');
   
-  const taskCard = createTaskCard(message, 'in-progress', sessionId);
+  const taskCard = createTaskCard(message, 'in-the-queue', sessionId);
   taskCard.dataset.taskId = 'pending'; // Temporary ID until we get real one
   tasksContainer.appendChild(taskCard);
   currentTask = taskCard;
@@ -1547,7 +1578,10 @@ document.getElementById("llmSendButton").addEventListener("click", () => {
   fetch(`http://${targetSession.ip}:8080/llm-input`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: inputText })
+    body: JSON.stringify({ 
+      text: inputText,
+      sessionId: targetSession.id 
+    })
   }).catch(error => {
     console.error('Error sending task to session:', error);
   });

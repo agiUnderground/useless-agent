@@ -64,10 +64,18 @@ var (
 	taskIDCounter int
 )
 
+// Task queue management - simple global queue
+var (
+	taskQueue   = make([]*Task, 0) // Simple queue of tasks
+	queueMutex  sync.RWMutex
+	runningTask *Task // Currently running task
+	queueBusy   bool  // Flag to prevent concurrent queue processing
+)
+
 // Task represents a running task
 type Task struct {
 	ID        string
-	Status    string // "in-progress", "completed", "broken", "canceled"
+	Status    string // "in-the-queue", "in-progress", "completed", "broken", "canceled"
 	Message   string
 	CreatedAt time.Time
 	Cancel    chan bool
@@ -211,6 +219,22 @@ func cancelTask(taskID string) bool {
 				// Cancel channel already has a signal
 				return false
 			}
+		} else if task.Status == "in-the-queue" {
+			// For queued tasks, we can cancel them immediately by removing from queue
+			// Remove from queue if it's there
+			queueMutex.Lock()
+			for i, queuedTask := range taskQueue {
+				if queuedTask.ID == taskID {
+					// Remove from queue slice
+					taskQueue = append(taskQueue[:i], taskQueue[i+1:]...)
+					break
+				}
+			}
+			queueMutex.Unlock()
+
+			task.Status = "canceled"
+			sendTaskUpdate(task)
+			return true
 		}
 	}
 	return false
@@ -222,6 +246,122 @@ func getTask(taskID string) (*Task, bool) {
 
 	task, exists := tasks[taskID]
 	return task, exists
+}
+
+// Queue management functions - simplified
+func enqueueTask(task *Task) {
+	queueMutex.Lock()
+	defer queueMutex.Unlock()
+
+	// Add task to the global queue
+	taskQueue = append(taskQueue, task)
+	log.Printf("Task %s enqueued (queue length: %d)", task.ID, len(taskQueue))
+
+	// Start processing if no task is currently running
+	if runningTask == nil && !queueBusy {
+		go processNextTask()
+	}
+}
+
+func dequeueNextTask() *Task {
+	queueMutex.Lock()
+	defer queueMutex.Unlock()
+
+	if len(taskQueue) == 0 {
+		return nil
+	}
+
+	// Get the first task (FIFO)
+	task := taskQueue[0]
+	taskQueue = taskQueue[1:]
+
+	log.Printf("Task %s dequeued (remaining: %d)", task.ID, len(taskQueue))
+	return task
+}
+
+func processNextTask() {
+	log.Printf("=== PROCESS NEXT TASK ===")
+
+	queueMutex.Lock()
+
+	// Prevent concurrent queue processing
+	if queueBusy {
+		log.Printf("Queue already busy, exiting")
+		queueMutex.Unlock()
+		return
+	}
+
+	// Set busy flag
+	queueBusy = true
+
+	// Check if there's already a task running
+	if runningTask != nil {
+		log.Printf("Task %s already running", runningTask.ID)
+		queueBusy = false
+		queueMutex.Unlock()
+		return
+	}
+
+	// Get the next task from queue (inline to avoid deadlock)
+	var task *Task
+	if len(taskQueue) == 0 {
+		log.Printf("No tasks in queue")
+		queueBusy = false
+		queueMutex.Unlock()
+		return
+	}
+
+	// Get the first task (FIFO)
+	task = taskQueue[0]
+	taskQueue = taskQueue[1:]
+	log.Printf("Task %s dequeued (remaining: %d)", task.ID, len(taskQueue))
+
+	// Mark this task as running
+	runningTask = task
+
+	log.Printf("Starting task %s", task.ID)
+
+	// Update task status to in-progress
+	updateTaskStatus(task.ID, "in-progress", task.Message)
+
+	// Store task reference before unlocking
+	taskRef := task
+
+	queueMutex.Unlock()
+
+	// Execute the task - launch goroutine outside of mutex lock
+	go func() {
+		log.Printf("=== GOROUTINE STARTED for task %s ===", taskRef.ID)
+		defer func() {
+			log.Printf("=== GOROUTINE ENDING for task %s ===", taskRef.ID)
+			// Clear the running task when done
+			queueMutex.Lock()
+			runningTask = nil
+			queueBusy = false
+			queueMutex.Unlock()
+
+			log.Printf("Task %s completed, processing next task", taskRef.ID)
+
+			// Process the next task in the queue
+			go processNextTask()
+		}()
+
+		executeTask(taskRef)
+	}()
+
+	log.Printf("=== PROCESS NEXT TASK COMPLETED ===")
+}
+
+func getQueueLength() int {
+	queueMutex.RLock()
+	defer queueMutex.RUnlock()
+	return len(taskQueue)
+}
+
+func isTaskRunning() bool {
+	queueMutex.RLock()
+	defer queueMutex.RUnlock()
+	return runningTask != nil
 }
 
 var upgrader = websocket.Upgrader{
@@ -1644,6 +1784,9 @@ type PromptLog struct {
 }
 
 func executeTask(task *Task) {
+	log.Printf("=== EXECUTING TASK %s ===", task.ID)
+	log.Printf("Task message: %s", task.Message)
+
 	var prevActionsJSONString string
 	log.Println("prevActionsJSONString:", prevActionsJSONString)
 	var iteration int64 = 1
@@ -1889,7 +2032,8 @@ func executeTask(task *Task) {
 
 func llmInputHandler(w http.ResponseWriter, r *http.Request) {
 	type PostMessage struct {
-		Text string
+		Text      string `json:"text"`
+		SessionID string `json:"sessionId,omitempty"`
 	}
 	type ConfirmationMessage struct {
 		ReceivedText string `json:"Received llm input text,omitempty"`
@@ -1903,7 +2047,8 @@ func llmInputHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 	}
 
-	log.Println(receivedMessage.Text)
+	log.Println("Received message:", receivedMessage.Text)
+	log.Println("Received sessionID:", receivedMessage.SessionID)
 
 	acknowledgment.ReceivedText = receivedMessage.Text
 
@@ -1922,18 +2067,43 @@ func llmInputHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Create a new task for this request
-	task := createTask(receivedMessage.Text)
-	log.Printf("Created task %s for message: %s", task.ID, receivedMessage.Text)
+	// Use provided session ID or fall back to "default" if not provided
+	sessionID := receivedMessage.SessionID
+	if sessionID == "" {
+		sessionID = "default"
+		log.Println("No sessionID provided, using default")
+	}
 
-	// Send immediate WebSocket update with the task ID and status
+	// Create a new task for this request
+	taskMutex.Lock()
+	taskIDCounter++
+	taskID := fmt.Sprintf("task-%d-%d", taskIDCounter, time.Now().Unix())
+
+	task := &Task{
+		ID:        taskID,
+		Status:    "in-the-queue", // Start with queued status
+		Message:   receivedMessage.Text,
+		CreatedAt: time.Now(),
+		Cancel:    make(chan bool, 1),
+	}
+
+	tasks[taskID] = task
+	taskMutex.Unlock()
+
+	log.Printf("Created task %s with message: %s", task.ID, receivedMessage.Text)
+
+	// Send immediate WebSocket update with the task ID and queued status
 	sendTaskUpdate(task)
 
-	// Return immediate JSON response and run task execution in background
+	// Enqueue the task
+	enqueueTask(task)
+
+	// Return immediate JSON response
 	var response []map[string]interface{}
 	response = append(response, map[string]interface{}{
-		"result": "Task started successfully",
-		"taskId": task.ID,
+		"result":    "Task queued successfully",
+		"taskId":    task.ID,
+		"sessionId": sessionID,
 	})
 
 	jsonBytes, err := json.Marshal(response)
@@ -1943,9 +2113,6 @@ func llmInputHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(jsonBytes)
-
-	// Run task execution in a separate goroutine
-	go executeTask(task)
 }
 
 // Delta represents the changes between old and new data

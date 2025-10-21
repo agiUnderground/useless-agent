@@ -628,6 +628,11 @@ fieldset legend {
   color: #9E9E9E;
 }
 
+.task-card.in-the-queue {
+  border-color: #2196F3;
+  color: #2196F3;
+}
+
 .task-header {
   display: flex;
   justify-content: space-between;
@@ -749,6 +754,10 @@ fieldset legend {
 
 .task-card.canceled .task-timer {
   color: #BDBDBD; /* Lighter gray */
+}
+
+.task-card.in-the-queue .task-timer {
+  color: #2196F3; /* Blue for queued tasks */
 }
 
 .sandwatch-icon {
