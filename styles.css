@@ -1,0 +1,1205 @@
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: local('./fonts/webfonts/JetBrainsMono-Regular.woff2') format('woff2'),
+       url('https://cdn.jsdelivr.net/gh/JetBrains/JetBrainsMono/web/woff2/JetBrainsMono-Regular.woff2') format('woff2'),
+       url('https://cdn.jsdelivr.net/gh/JetBrains/JetBrainsMono/web/woff/JetBrainsMono-Regular.woff') format('woff');
+  font-display: swap;
+  font-weight: 400;
+  font-style: normal;
+}
+
+:root {
+  --dot-bg: #000000de;
+  --dot-color: #403f3f;
+  --dot-size: 1px;
+  --dot-space: 22px;
+  --primary-bg: #212121;
+  --border-color: #333333;
+}
+
+html, body {
+  height: 100vh;
+  width: 100vw;
+  margin: 0;
+  overflow: hidden;
+  font-family: 'JetBrains Mono', monospace;
+  color: white;
+  background: linear-gradient(90deg, var(--dot-bg) calc(var(--dot-space) - var(--dot-size)), transparent 1%) center / var(--dot-space) var(--dot-space),
+              linear-gradient(var(--dot-bg) calc(var(--dot-space) - var(--dot-size)), transparent 1%) center / var(--dot-space) var(--dot-space),
+              var(--dot-color);
+}
+
+.main-wrapper {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  gap: 20px;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  width: 320px;
+  min-width: 320px;
+  gap: 10px;
+  height: calc(100vh - 40px);
+  /* overflow-y: auto; */
+}
+
+.main-content {
+  flex: 1;
+  min-width: 0;
+  height: calc(100vh - 40px);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  grid-auto-rows: minmax(300px, 1fr);
+  /* gap: 10px; */
+  padding: 10px;
+  overflow: auto;
+}
+
+.session-container {
+  position: relative;
+  background-color: rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border-color);
+  /* border-radius: 8px; */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.3s ease;
+  -webkit-user-select: none; /* Safari */
+  -moz-user-select: none; /* Firefox */
+  -ms-user-select: none; /* IE10+/Edge */
+  user-select: none; /* Standard */
+}
+
+.session-container * {
+  -webkit-user-select: none; /* Safari */
+  -moz-user-select: none; /* Firefox */
+  -ms-user-select: none; /* IE10+/Edge */
+  user-select: none; /* Standard */
+}
+
+.session-container.selected {
+  position: relative;
+  border-color: #4CAF50;
+}
+
+.session-container.selected::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: waveBorder 2s ease-in-out infinite;
+  z-index: 1;
+}
+
+.session-container.user-assist-selected {
+  position: relative;
+  border-color: #FFC107;
+}
+
+.session-container.user-assist-selected::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: userAssistWaveBorder 2s ease-in-out infinite;
+  z-index: 1;
+}
+
+@keyframes waveBorder {
+  0% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 2px rgba(76, 175, 80, 0.2),
+      inset 0 0 4px rgba(76, 175, 80, 0.1);
+  }
+  25% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 3px rgba(76, 175, 80, 0.3),
+      inset 0 0 6px rgba(76, 175, 80, 0.15);
+  }
+  50% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 4px rgba(76, 175, 80, 0.4),
+      inset 0 0 8px rgba(76, 175, 80, 0.2);
+  }
+  75% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 3px rgba(76, 175, 80, 0.3),
+      inset 0 0 6px rgba(76, 175, 80, 0.15);
+  }
+  100% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 2px rgba(76, 175, 80, 0.2),
+      inset 0 0 4px rgba(76, 175, 80, 0.1);
+  }
+}
+
+@keyframes userAssistWaveBorder {
+  0% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 2px rgba(255, 193, 7, 0.3),
+      inset 0 0 4px rgba(255, 193, 7, 0.2);
+  }
+  25% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 3px rgba(255, 193, 7, 0.4),
+      inset 0 0 6px rgba(255, 193, 7, 0.25);
+  }
+  50% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 4px rgba(255, 193, 7, 0.5),
+      inset 0 0 8px rgba(255, 193, 7, 0.3);
+  }
+  75% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 3px rgba(255, 193, 7, 0.4),
+      inset 0 0 6px rgba(255, 193, 7, 0.25);
+  }
+  100% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 2px rgba(255, 193, 7, 0.3),
+      inset 0 0 4px rgba(255, 193, 7, 0.2);
+  }
+}
+
+.session-header {
+  background-color: var(--primary-bg);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #6f6f6f;
+}
+
+.session-close {
+  background: none;
+  border: none;
+  color: #ff6b6b;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.session-close:hover {
+  background-color: rgba(255, 107, 107, 0.1);
+}
+
+.session-content {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  min-height: 0;
+  overflow: hidden; /* Prevent content from overflowing */
+}
+
+/* Layout adjustments for different session counts */
+.main-content[data-session-count="1"] {
+  grid-template-columns: 1fr;
+}
+
+.main-content[data-session-count="2"] {
+  grid-template-columns: 1fr 1fr;
+}
+
+.main-content[data-session-count="3"] {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.main-content[data-session-count="3"] .session-container:nth-child(3) {
+  grid-column: span 2;
+}
+
+.main-content[data-session-count="4"] {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.main-content[data-session-count="5"] {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+
+.main-content[data-session-count="5"] .session-container:nth-child(5) {
+  grid-column: span 3;
+}
+
+.main-content[data-session-count="6"] {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+
+.button-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.control-button {
+  background-color: rgb(1, 1, 1);
+  border: 1px solid var(--border-color);
+  color: #6f6f6f;
+  padding: 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  width: 100%;
+  text-align: left;
+}
+
+.control-button:hover {
+  background-color: #010b13;
+}
+
+.screenshot-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.input-group {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.coord-inputs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.coord-input {
+  width: 60px;
+  padding: 6px;
+  background: var(--primary-bg);
+  border: 1px solid var(--border-color);
+  color: white;
+  border-radius: 4px;
+}
+
+.dark-textarea {
+  background-color: var(--primary-bg);
+  color: white;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px;
+  resize: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+#llmChatInput {
+  height: 100%;
+  margin-top: 0px;
+}
+
+#llmChatInput:focus {
+  outline: none;
+}
+
+fieldset {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px;
+  margin: 0;
+  position: relative;
+}
+
+fieldset legend {
+  cursor: default;
+  -webkit-user-select: none; /* Safari */
+  -moz-user-select: none; /* Firefox */
+  -ms-user-select: none; /* IE10+/Edge */
+  user-select: none; /* Standard */
+}
+
+#colorsList ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+#colorsList li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.color-square {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+}
+
+.scrollable {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Connection Status Indicator */
+.connection-status {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+  background-color: #666; /* Grey - inactive */
+}
+
+.connection-status.connected {
+  background-color: #4CAF50; /* Green - connected */
+  box-shadow: 0 0 5px rgba(76, 175, 80, 0.5);
+}
+
+.connection-status.connecting {
+  background-color: #FFC107; /* Yellow - connecting/error */
+  box-shadow: 0 0 5px rgba(255, 193, 7, 0.5);
+}
+
+.connection-button {
+  display: flex;
+  align-items: center;
+}
+
+/* Hidden button group */
+.button-group.hidden {
+  display: none;
+}
+
+/* Small toggle button */
+.toggle-buttons-btn {
+  position: fixed;
+  top: 5px;
+  left: 5px;
+  width: 10px;
+  height: 10px;
+  background-color: black; /* #333; */
+  border: 1px solid #555;
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 1000;
+  padding: 0;
+  margin: 0;
+}
+
+.toggle-buttons-btn:hover {
+  background-color: #444;
+}
+
+/* FPS Button Styles */
+.fps-button {
+  background-color: rgb(1, 1, 1);
+  border: 1px solid var(--border-color);
+  color: #6f6f6f;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  font-size: 11px;
+  height: 20px;
+  min-width: 24px;
+  flex: 1;
+  text-align: center;
+}
+
+.fps-button:hover {
+  background-color: #010b13;
+}
+
+.fps-button.active {
+  background-color: #2a2a2a;
+  color: #ffffff;
+  border-color: #555555;
+}
+
+/* Debug Button Styles */
+.debug-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 10px;
+  height: 10px;
+  background-color: black;
+  border: 1px solid #555;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  z-index: 1;
+}
+
+.debug-button:hover {
+  background-color: #444;
+}
+
+/* Screenshot placeholder styles */
+.screenshot-placeholder {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #6f6f6f;
+  font-size: 14px;
+  text-align: center;
+  width: 100%;
+  height: 100%;
+}
+
+.screenshot-img.hidden {
+  display: none;
+}
+
+.screenshot-placeholder.hidden {
+  display: none;
+}
+
+/* Task Management Styles */
+.tasks-section {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.3s ease;
+}
+
+.tasks-section.visible {
+  display: flex;
+  flex: 1;
+  max-height: fit-content;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.tasks-section fieldset {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding-right: 0px;
+  padding-bottom: 0px;
+  padding-top: 0px;
+  padding-left: 0px;
+}
+
+.tasks-section fieldset legend {
+  margin-left: 10px;
+}
+
+.tasks-section {
+  min-height: 0;
+  max-height: 50vh; /* Limit maximum height to 50% of viewport */
+}
+
+/* Ensure tasks container is scrollable */
+#tasksContainer {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 15px;
+  
+  /* Custom scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: #555 #212121;
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+#tasksContainer::-webkit-scrollbar {
+  width: 6px;
+}
+
+#tasksContainer::-webkit-scrollbar-track {
+  background: #212121;
+  border-radius: 3px;
+}
+
+#tasksContainer::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 3px;
+}
+
+#tasksContainer::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}
+
+/* Firefox */
+#tasksContainer {
+  scrollbar-width: thin;
+  scrollbar-color: #444 #212121;
+}
+
+.tasks-section.visible {
+  max-height: fit-content;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.task-card {
+  background-color: var(--primary-bg);
+  border: 2px solid;
+  border-radius: 8px;
+  padding: 12px;
+  position: relative;
+  animation: waveOutline 3s ease-in-out infinite;
+  transition: all 0.3s ease;
+  margin-top: 4px;
+  margin-bottom: 4px;
+  cursor: default;
+}
+
+@keyframes waveOutline {
+  0% {
+    box-shadow: 0 0 5px currentColor, 0 0 10px rgba(255, 255, 255, 0.1);
+    border-color: currentColor;
+  }
+  50% {
+    box-shadow: 0 0 20px currentColor, 0 0 30px rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.8);
+  }
+  100% {
+    box-shadow: 0 0 5px currentColor, 0 0 10px rgba(255, 255, 255, 0.1);
+    border-color: currentColor;
+  }
+}
+
+.task-card.in-progress {
+  border-color: #FFC107;
+  color: #FFC107;
+}
+
+.task-card.completed {
+  border-color: #4CAF50;
+  color: #4CAF50;
+}
+
+.task-card.broken {
+  border-color: #F44336;
+  color: #F44336;
+}
+
+.task-card.canceled {
+  border-color: #9E9E9E;
+  color: #9E9E9E;
+}
+
+.task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.task-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.task-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-status {
+  font-size: 12px;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.task-cancel-btn {
+  background: none;
+  border: 1px solid currentColor;
+  color: currentColor;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.2s ease;
+}
+
+.task-cancel-btn:hover:not(:disabled) {
+  /* background-color: currentColor; */
+  color: white;
+}
+
+.task-cancel-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.task-message {
+  font-size: 12px;
+  line-height: 1.4;
+  word-wrap: break-word;
+  max-height: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Session window icon for opening session window - made more transparent */
+.task-session-window-icon {
+  width: 16px;
+  height: 16px;
+  background-color: rgba(85, 85, 85, 0.2); /* Increased transparency from 0.3 to 0.2 */
+  color: rgba(255, 255, 255, 0.5); /* Increased transparency from 0.6 to 0.5 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.08); /* Increased transparency from 0.1 to 0.08 */
+  border-radius: 3px;
+  transition: all 0.2s ease;
+}
+
+.task-session-window-icon:hover {
+  background-color: rgba(119, 119, 119, 0.5); /* Increased transparency from 0.7 to 0.5 */
+  transform: scale(1.05);
+}
+
+/* Timer for in-progress tasks */
+.task-timer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #FFC107;
+}
+
+/* Info icon for completed, broken, and canceled tasks - made more transparent */
+.task-info-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: rgba(85, 85, 85, 0.2); /* Increased transparency from 0.3 to 0.2 */
+  color: rgba(255, 255, 255, 0.4); /* Increased transparency from 0.5 to 0.4 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: default;
+  border: 1px solid rgba(255, 255, 255, 0.08); /* Increased transparency from 0.1 to 0.08 */
+  transition: all 0.2s ease;
+}
+
+.task-info-icon:hover {
+  background-color: rgba(119, 119, 119, 0.3); /* Increased transparency from 0.4 to 0.3 */
+  transform: scale(1.05);
+}
+
+/* Timer colors for different statuses */
+.task-card.completed .task-timer {
+  color: #66BB6A; /* Lighter green */
+}
+
+.task-card.broken .task-timer {
+  color: #EF5350; /* Lighter red */
+}
+
+.task-card.canceled .task-timer {
+  color: #BDBDBD; /* Lighter gray */
+}
+
+.sandwatch-icon {
+  font-size: 12px;
+}
+
+.chat-fieldset.shrunk {
+  /* flex: 1.5 !important; */
+  flex: 1 !important;
+  transition: flex 0.3s ease;
+}
+
+/* Screenshot container and overlay styles */
+.screenshot-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-width: 100%;
+  max-height: 100%;
+  /* width: 100%; */
+  height: 100%;
+}
+
+/* Invisible container that matches image size exactly */
+.image-size-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none; /* Allow clicks to pass through to the image */
+}
+
+.screenshot-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 30px;
+  background-color: rgba(0, 0, 0, 0.3); /* More transparent (30% instead of 85%) */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 10px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none; /* Allow clicks to pass through to the image */
+  width: 100%; /* Use full width of the invisible container */
+  z-index: 1000; /* Ensure it's above the image */
+}
+
+/* Fullscreen mode - overlay should span full width */
+.screenshot-container:fullscreen .screenshot-overlay,
+.screenshot-container:-webkit-full-screen .screenshot-overlay,
+.screenshot-container:-moz-full-screen .screenshot-overlay,
+.screenshot-container:-ms-fullscreen .screenshot-overlay {
+  position: fixed !important; /* Make overlay fixed to viewport in fullscreen */
+  width: 100vw !important; /* Force full screen width */
+  left: 0 !important;
+  bottom: 0 !important;
+  transform: none !important;
+  justify-content: flex-end;
+  padding-right: 20px;
+  z-index: 9999; /* Ensure it's above everything */
+}
+
+/* Fullscreen mode - make image-size-container span full width */
+.screenshot-container:fullscreen .image-size-container,
+.screenshot-container:-webkit-full-screen .image-size-container,
+.screenshot-container:-moz-full-screen .image-size-container,
+.screenshot-container:-ms-fullscreen .image-size-container {
+  width: 100% !important; /* Use percentage instead of viewport units */
+  height: 100% !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  transform: none !important; /* Reset transform for fullscreen */
+}
+
+/* Fix positioning to ensure overlay is at the bottom of the image */
+.screenshot-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.screenshot-img {
+  display: block; /* Ensure image is treated as a block element */
+}
+
+.fullscreen-button {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+
+.fullscreen-button:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.fullscreen-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.screenshot-container.focused .screenshot-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Remove focus outline from screenshot container */
+.screenshot-container:focus {
+  outline: none !important;
+}
+
+.screenshot-container.focused {
+  outline: none !important;
+}
+
+/* Fullscreen styling - center image and make it fit content */
+.screenshot-container:fullscreen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: black;
+  width: 100vw;
+  height: 100vh;
+}
+
+.screenshot-container:fullscreen .screenshot-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+/* Vendor prefixes for fullscreen */
+.screenshot-container:-webkit-full-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: black;
+  width: 100vw;
+  height: 100vh;
+}
+
+.screenshot-container:-webkit-full-screen .screenshot-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.screenshot-container:-moz-full-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: black;
+  width: 100vw;
+  height: 100vh;
+}
+
+.screenshot-container:-moz-full-screen .screenshot-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.screenshot-container:-ms-fullscreen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: black;
+  width: 100vw;
+  height: 100vh;
+}
+
+.screenshot-container:-ms-fullscreen .screenshot-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+/* Toast notification styles */
+.toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toast {
+  background-color: #f44336;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 300px;
+  max-width: 400px;
+  animation: toastSlideIn 0.3s ease-out;
+  transition: opacity 0.3s ease;
+}
+
+.toast.success {
+  background-color: #4CAF50;
+}
+
+.toast.warning {
+  background-color: #FFC107;
+  color: #333;
+}
+
+.toast.info {
+  background-color: #2196F3;
+}
+
+.toast-content {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  margin-left: 10px;
+  font-size: 16px;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.toast-close:hover {
+  opacity: 1;
+}
+
+@keyframes toastSlideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.toast.fade-out {
+  opacity: 0;
+  transform: translateX(100%);
+}
+
+/* Connection line styles */
+.connection-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.connection-path {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.connection-path.pulsating {
+  animation: connectionPulse 4s ease-in-out infinite;
+  stroke-dasharray: 5, 5;
+}
+
+.pulse-dot {
+  fill: #4CAF50;
+  animation: pulseTravel 2.5s linear infinite;
+  opacity: 0;
+}
+
+@keyframes connectionPulse {
+  0%, 100% {
+    stroke: #4CAF50;
+    stroke-width: 1;
+    opacity: 0.6;
+  }
+  50% {
+    stroke: #66BB6A;
+    stroke-width: 1.5;
+    opacity: 0.8;
+  }
+}
+
+@keyframes pulseTravel {
+  0% {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+
+.connection-start {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #4CAF50;
+  animation: startPulse 2s ease-in-out infinite;
+  z-index: 101;
+  pointer-events: none;
+}
+
+.connection-end {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #4CAF50;
+  border: 2px solid #00ff88;
+  animation: endPulse 1.5s ease-in-out infinite;
+  z-index: 101;
+  pointer-events: none;
+}
+
+@keyframes startPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
+  }
+  50% {
+    transform: scale(1.2);
+    box-shadow: 0 0 0 8px rgba(76, 175, 80, 0);
+  }
+}
+
+@keyframes endPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7);
+  }
+  50% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 6px rgba(0, 255, 136, 0);
+  }
+}
+
+/* User-assist connection line styles */
+.connection-path.user-assist {
+  animation: userAssistPulse 4s ease-in-out infinite;
+  stroke-dasharray: 5, 5;
+}
+
+.pulse-dot.user-assist {
+  fill: #FFC107;
+  animation: userAssistPulseTravel 2.5s linear infinite;
+}
+
+@keyframes userAssistPulse {
+  0%, 100% {
+    stroke: #FFC107;
+    stroke-width: 1;
+    opacity: 0.6;
+  }
+  50% {
+    stroke: #FFD54F;
+    stroke-width: 1.5;
+    opacity: 0.8;
+  }
+}
+
+@keyframes userAssistPulseTravel {
+  0% {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+
+/* User-assist badge styles - centered sticker on top of chat fieldset */
+.chat-fieldset {
+  position: relative;
+}
+
+.user-assist-badge {
+  display: inline-block;
+  background-color: #FFC107;
+  color: #333;
+  font-size: 12px;
+  font-weight: bold;
+  padding: 2px 8px;
+  border-radius: 10px;
+  animation: badgePulse 2s ease-in-out infinite;
+  position: absolute;
+  /* top: -10px; */
+  top: 0px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+/* Restore original legend styling */
+.chat-fieldset legend {
+  position: static;
+}
+
+@keyframes badgePulse {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(255, 193, 7, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(255, 193, 7, 0.8);
+  }
+}
+
+/* User-assist chat input color */
+.chat-fieldset.user-assist-active legend {
+  color: #FFC107;
+}
+
+#llmChatInput.user-assist-active {
+  background-color: rgba(255, 193, 7, 0.1);
+  border-color: rgba(255, 193, 7, 0.3);
+}
+
+#llmChatInput.user-assist-active:focus {
+  border-color: rgba(255, 193, 7, 0.5);
+  box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.2);
+}
