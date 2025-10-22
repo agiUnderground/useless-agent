@@ -31,10 +31,21 @@ Currently supported models:
 
 **Environment**: Only works on - `Linux + xfce + X11`.  
 
-Version - `v0.0.2`.
+Version - `v0.0.3`.
 
 
 # Changelog
+
+### v0.0.3
+* User-assist feature works.
+* Faster task cancellation.
+* Extract css and js from the html file.
+* Fixed routing of the line which connects chat and session window.
+* Fixed media buttons overlay resizing.
+* Tasks destined to the same session now queued.
+* Use more API of the environment where it's possible.
+* Break main.go into separate packages.
+* Other small fixes.
 
 ### v0.0.2
 
@@ -111,11 +122,11 @@ How the project started: I just wanted to take a screenshot over the network.
 
 ### Todo list:  
 - [ ] Build a single fully static binary.  
-- [ ] Add stats about burned tokens per session/task.
+- [X] Add stats about burned tokens.
 - [ ] Allow LLM to spawn local 'thoughts', which would do/monitor something and then allow them to interrupt the main LOOP and to inject its results into the thinking loop.
 - [ ] Build a unified concept space for models that are capable of ingesting more data.
 - [ ] Pause task execution.
-- [ ] Allow intervention in the execution process and provide guidance/additional instructions.
+- [X] Allow intervention in the execution process and provide guidance/additional instructions.
 
 **Problems & Ideas:**  
 * LLMs' context window/input size is so limiting; I want to shuffle in 100M million tokens at each iteration.  
