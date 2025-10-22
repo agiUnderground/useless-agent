@@ -25,6 +25,12 @@ var (
 	queueBusy   bool  // Flag to prevent concurrent queue processing
 )
 
+// User-assist message management globals
+var (
+	userAssistMessages = make(map[string]*UserAssistMessage) // Map of task ID to user-assist message
+	userAssistMutex    sync.RWMutex
+)
+
 // CreateTask creates a new task
 func CreateTask(message string) *Task {
 	taskMutex.Lock()
@@ -241,4 +247,67 @@ func CreateContext() (context.Context, context.CancelFunc) {
 // SendTaskUpdate sends a task update via WebSocket
 func SendTaskUpdate(task *Task) {
 	websocket.SendTaskUpdate(task.ID, task.Status, task.Message)
+}
+
+// AddUserAssistMessage adds a user-assist message for a task
+func AddUserAssistMessage(taskID, message string) bool {
+	userAssistMutex.Lock()
+	defer userAssistMutex.Unlock()
+
+	// Check if task exists and is in progress
+	taskMutex.Lock()
+	task, exists := tasks[taskID]
+	taskMutex.Unlock()
+
+	if !exists {
+		log.Printf("Task %s not found, cannot add user-assist message", taskID)
+		return false
+	}
+
+	if task.Status != "in-progress" {
+		log.Printf("Task %s is not in progress (status: %s), ignoring user-assist message", taskID, task.Status)
+		return false
+	}
+
+	// Check if there's already a non-injected user-assist message for this task
+	if existingMsg, exists := userAssistMessages[taskID]; exists && !existingMsg.Injected {
+		log.Printf("Task %s already has a pending user-assist message, replacing it", taskID)
+	}
+
+	// Add or update the user-assist message
+	userAssistMessages[taskID] = &UserAssistMessage{
+		TaskID:    taskID,
+		Message:   message,
+		CreatedAt: time.Now(),
+		Injected:  false,
+	}
+
+	log.Printf("Added user-assist message for task %s: %s", taskID, message)
+	return true
+}
+
+// GetUserAssistMessage gets the next user-assist message for a task and marks it as injected
+func GetUserAssistMessage(taskID string) *UserAssistMessage {
+	userAssistMutex.Lock()
+	defer userAssistMutex.Unlock()
+
+	msg, exists := userAssistMessages[taskID]
+	if !exists || msg.Injected {
+		return nil
+	}
+
+	// Mark as injected
+	msg.Injected = true
+	log.Printf("Retrieved and marked user-assist message as injected for task %s: %s", taskID, msg.Message)
+
+	return msg
+}
+
+// CleanupUserAssistMessages removes user-assist messages for completed/canceled tasks
+func CleanupUserAssistMessages(taskID string) {
+	userAssistMutex.Lock()
+	defer userAssistMutex.Unlock()
+
+	delete(userAssistMessages, taskID)
+	log.Printf("Cleaned up user-assist messages for task %s", taskID)
 }

@@ -34,3 +34,11 @@ type PromptLog struct {
 	Iteration int64  `json:"iteration"`
 	Message   string `json:"message"`
 }
+
+// UserAssistMessage represents a user-assist message waiting to be injected
+type UserAssistMessage struct {
+	TaskID    string    `json:"taskId"`
+	Message   string    `json:"message"`
+	CreatedAt time.Time `json:"createdAt"`
+	Injected  bool      `json:"injected"`
+}

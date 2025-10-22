@@ -1577,20 +1577,48 @@ document.getElementById("llmSendButton").addEventListener("click", () => {
     return;
   }
 
-  // Send the task to the selected session
-  fetch(`http://${targetSession.ip}:8080/llm-input`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      text: inputText,
-      sessionId: targetSession.id 
-    })
-  }).catch(error => {
-    console.error('Error sending task to session:', error);
-  });
+  // Check if user-assist mode is active
+  if (userAssistActive && userAssistTaskCard) {
+    // Send as user-assist message
+    const taskId = userAssistTaskCard.dataset.taskId;
+    if (taskId && taskId !== 'pending') {
+      fetch(`http://${targetSession.ip}:8080/user-assist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          taskId: taskId,
+          message: inputText
+        })
+      }).then(response => response.json())
+      .then(data => {
+        console.log('User-assist response:', data);
+        if (!data.accepted) {
+          showToast('User-assist message was not accepted. Task may be completed or not found.', 'warning');
+        }
+      })
+      .catch(error => {
+        console.error('Error sending user-assist message:', error);
+        showToast('Failed to send user-assist message', 'error');
+      });
+    } else {
+      showToast('Cannot send user-assist message: task not ready', 'warning');
+    }
+  } else {
+    // Send as regular task
+    fetch(`http://${targetSession.ip}:8080/llm-input`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        text: inputText,
+        sessionId: targetSession.id 
+      })
+    }).catch(error => {
+      console.error('Error sending task to session:', error);
+    });
 
-  // Handle task creation with session ID
-  handleTaskCreation(inputText, targetSession.id);
+    // Handle task creation with session ID
+    handleTaskCreation(inputText, targetSession.id);
+  }
   
   document.getElementById('llmChatInput').value = "";
 });

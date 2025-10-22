@@ -260,13 +260,22 @@ func ExecuteTask(task *Task) {
 			log.Printf("iteration %d, original goal is: %s\n", iteration, goal)
 			log.Printf("iteration %d, current task is: %s\n", iteration, subtask.Description)
 
+			// Check for user-assist messages
+			userAssistMsg := GetUserAssistMessage(task.ID)
+			enhancedSubtaskDescription := subtask.Description
+			if userAssistMsg != nil {
+				log.Printf("Injecting user-assist message for task %s: %s", task.ID, userAssistMsg.Message)
+				enhancedSubtaskDescription = subtask.Description + "\n\nHELPER MESSAGE FROM THE USER: " + userAssistMsg.Message
+				log.Printf("Enhanced subtask description with user-assist: %s", enhancedSubtaskDescription)
+			}
+
 			promptLogBytes, err = json.Marshal(promptLog)
 			if err != nil {
 				log.Println("failed to marshal promptLog to JSON String:", err)
 			}
 			promptLogJSONString = string(promptLogBytes)
 
-			actions, actionsJSONString, err := sendMessageToLLM(task.Context, subtask.Description, boundingBoxesJSON, ocrResultsJSON, textChangesSummary, promptLogJSONString, iteration, prevCursorPositionJSONString, detectedWindowsJSON, x11WindowsData, colorsDistribution)
+			actions, actionsJSONString, err := sendMessageToLLM(task.Context, enhancedSubtaskDescription, boundingBoxesJSON, ocrResultsJSON, textChangesSummary, promptLogJSONString, iteration, prevCursorPositionJSONString, detectedWindowsJSON, x11WindowsData, colorsDistribution)
 
 			if err != nil {
 				log.Println("failed to send message to LLM:", err)
@@ -558,6 +567,9 @@ func ExecuteTask(task *Task) {
 
 	// Update task status to completed
 	UpdateTaskStatus(task.ID, "completed", "Task completed successfully")
+
+	// Clean up user-assist messages for this task
+	CleanupUserAssistMessages(task.ID)
 }
 
 // Helper functions that use the proper mouse package functions

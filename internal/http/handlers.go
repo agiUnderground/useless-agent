@@ -141,6 +141,54 @@ func TaskCancelHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonBytes)
 }
 
+// UserAssistHandler handles user-assist message requests
+func UserAssistHandler(w http.ResponseWriter, r *http.Request) {
+	type UserAssistRequest struct {
+		TaskID  string `json:"taskId"`
+		Message string `json:"message"`
+	}
+
+	type UserAssistResponse struct {
+		Result   string `json:"result"`
+		TaskID   string `json:"taskId"`
+		Accepted bool   `json:"accepted"`
+	}
+
+	var request UserAssistRequest
+
+	err := json.NewDecoder(r.Body).Decode(&request)
+	if err != nil {
+		log.Printf("Error decoding user-assist request: %v", err)
+		http.Error(w, "Invalid JSON request", http.StatusBadRequest)
+		return
+	}
+
+	if request.TaskID == "" || request.Message == "" {
+		http.Error(w, "taskId and message are required", http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("Received user-assist message for task %s: %s", request.TaskID, request.Message)
+
+	// Add user-assist message to the task
+	accepted := task.AddUserAssistMessage(request.TaskID, request.Message)
+
+	response := UserAssistResponse{
+		Result:   "User-assist message processed",
+		TaskID:   request.TaskID,
+		Accepted: accepted,
+	}
+
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, "Failed to encode JSON", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonBytes)
+}
+
 // PingHandler handles ping requests
 func PingHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)

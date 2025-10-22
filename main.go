@@ -30,6 +30,7 @@ func main() {
 	mux.HandleFunc("/llm-input", httpHandlers.LLMInputHandler)
 	mux.HandleFunc("/video2", httpHandlers.Video2Handler)
 	mux.HandleFunc("/task-cancel", httpHandlers.TaskCancelHandler)
+	mux.HandleFunc("/user-assist", httpHandlers.UserAssistHandler)
 	mux.HandleFunc("/ping", httpHandlers.PingHandler)
 
 	bindAddr := net.JoinHostPort(*config.BindIP, strconv.Itoa(*config.BindPORT))
