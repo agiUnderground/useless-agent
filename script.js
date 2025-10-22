@@ -2613,11 +2613,47 @@ function drawUserAssistConnectionLine(taskCardElement, chatElement) {
   console.log('User-assist connection line drawn');
 }
 
+// Function to check if task card is visible in the tasks container
+function isTaskCardVisible(taskCard) {
+  if (!taskCard) return false;
+  
+  const tasksContainer = document.getElementById('tasksContainer');
+  if (!tasksContainer) return false;
+  
+  const containerRect = tasksContainer.getBoundingClientRect();
+  const taskRect = taskCard.getBoundingClientRect();
+  
+  // Check if the BOTTOM of task card is vertically visible within the container
+  // The connection line connects to the bottom of the task card, so we need the bottom to be visible
+  const taskTop = taskRect.top - containerRect.top;
+  const taskBottom = taskRect.bottom - containerRect.top;
+  const containerHeight = containerRect.height;
+  
+  // Task card bottom is visible if it's within the visible area of the container
+  // We need some tolerance for the bottom edge to be visible
+  const bottomVisible = (taskBottom > 0 && taskBottom <= containerHeight);
+  
+  console.log(`Task card visibility check:`);
+  console.log(`  Task top relative to container: ${taskTop}px`);
+  console.log(`  Task bottom relative to container: ${taskBottom}px`);
+  console.log(`  Container height: ${containerHeight}px`);
+  console.log(`  Bottom visible: ${bottomVisible}`);
+  
+  return bottomVisible;
+}
+
 // Function to update user-assist connection line
 function updateUserAssistConnectionLine() {
   if (userAssistActive && userAssistTaskCard) {
     const chatFieldset = document.getElementById('chatFieldset');
-    drawUserAssistConnectionLine(userAssistTaskCard, chatFieldset);
+    
+    // Check if the task card is visible
+    if (isTaskCardVisible(userAssistTaskCard)) {
+      drawUserAssistConnectionLine(userAssistTaskCard, chatFieldset);
+    } else {
+      // Task card is not visible, hide the connection line
+      clearUserAssistConnectionLine();
+    }
   }
 }
 
