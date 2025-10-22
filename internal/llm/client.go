@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"useless-agent/internal/action"
+	"useless-agent/internal/mouse"
+	"useless-agent/internal/token"
 
 	deepseek "github.com/trustsight-io/deepseek-go"
 )
@@ -49,7 +51,7 @@ func SendMessageToLLM(ctx context.Context, prompt string, bboxes string, ocrCont
 
 	// Use the provided context for cancellation
 
-	cursorPosition, _ := getCursorPositionJSON()
+	cursorPosition, _ := mouse.GetCursorPositionJSON()
 	iterationString := strconv.FormatInt(iteration, 10)
 
 	log.Println("====================================================")
@@ -200,7 +202,7 @@ Again, you current task is:
 
 	estimate := client.EstimateTokensFromMessages(messages)
 	fmt.Printf("Estimated total tokens[main llm input func][input]: %d\n", estimate.EstimatedTokens)
-	addTokensAndSendUpdate(estimate.EstimatedTokens)
+	token.AddTokensAndSendUpdate(estimate.EstimatedTokens)
 
 	fmt.Println("\nCreating streaming chat completion...")
 	stream, err := client.CreateChatCompletionStream(
@@ -313,14 +315,4 @@ Again, you current task is:
 	}
 
 	return actions, actionsJSONStringReturn, nil
-}
-
-// Helper functions that need to be implemented
-func getCursorPositionJSON() (string, error) {
-	// This should be moved to mouse package
-	return "", nil
-}
-
-func addTokensAndSendUpdate(tokens int) {
-	// This should be moved to token package
 }
