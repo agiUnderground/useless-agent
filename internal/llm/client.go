@@ -13,30 +13,13 @@ import (
 	"strconv"
 	"time"
 
+	"useless-agent/internal/action"
+
 	deepseek "github.com/trustsight-io/deepseek-go"
 )
 
-// Action represents an action to be executed
-type Action struct {
-	ActionSequenceID int    `json:"actionSequenceID"`
-	Action           string `json:"action"`
-	Coordinates      struct {
-		X int `json:"x"`
-		Y int `json:"y"`
-	} `json:"coordinates,omitempty"`
-	Duration     int         `json:"duration,omitempty"`
-	InputString  string      `json:"inputString,omitempty"`
-	KeyTapString string      `json:"keyTapString,omitempty"`
-	KeyString    string      `json:"keyString,omitempty"`
-	ActionsRange []int       `json:"actionsRange,omitempty"`
-	RepeatTimes  int         `json:"repeatTimes,omitempty"`
-	Parameters   interface{} `json:"parameters,omitempty"`
-	Description  string      `json:"description,omitempty"`
-	Execute      func(*Action, ...interface{}) error
-}
-
 // SendMessageToLLM sends a message to the LLM and returns actions to execute
-func SendMessageToLLM(ctx context.Context, prompt string, bboxes string, ocrContext string, ocrDelta string, prevExecutedCommands string, iteration int64, prevCursorPosJSONString string, allWindowsJSONString string, x11WindowsData string, colorsDistribution string) (actionsToExecute []Action, actionsJSONStringReturn string, err error) {
+func SendMessageToLLM(ctx context.Context, prompt string, bboxes string, ocrContext string, ocrDelta string, prevExecutedCommands string, iteration int64, prevCursorPosJSONString string, allWindowsJSONString string, x11WindowsData string, colorsDistribution string) (actionsToExecute []action.Action, actionsJSONStringReturn string, err error) {
 	// Check if context is nil, use background context if it is
 	if ctx == nil {
 		log.Println("Warning: nil context provided to sendMessageToLLM, using background context")
@@ -57,10 +40,10 @@ func SendMessageToLLM(ctx context.Context, prompt string, bboxes string, ocrCont
 		// Check if the error is due to context cancellation
 		if ctx.Err() == context.Canceled {
 			log.Printf("LLM client creation canceled")
-			return []Action{}, "", errors.New("LLM request canceled by user")
+			return []action.Action{}, "", errors.New("LLM request canceled by user")
 		}
 		log.Printf("Failed to create LLM client: %v", err)
-		return []Action{}, "", errors.New("Failed to create LLM client, error.")
+		return []action.Action{}, "", errors.New("Failed to create LLM client, error.")
 	}
 	defer client.Close()
 
@@ -236,10 +219,10 @@ Again, you current task is:
 		// Check if the error is due to context cancellation
 		if ctx.Err() == context.Canceled {
 			log.Printf("LLM request canceled during stream creation")
-			return []Action{}, "", errors.New("LLM request canceled by user")
+			return []action.Action{}, "", errors.New("LLM request canceled by user")
 		}
 		log.Printf("Failed to create LLM stream: %v", err)
-		return []Action{}, "", errors.New("Failed to send message to LLM, error.")
+		return []action.Action{}, "", errors.New("Failed to send message to LLM, error.")
 	}
 	defer stream.Close()
 
@@ -251,7 +234,7 @@ Again, you current task is:
 		select {
 		case <-ctx.Done():
 			log.Printf("LLM stream canceled for task")
-			return []Action{}, "", errors.New("LLM request canceled by user")
+			return []action.Action{}, "", errors.New("LLM request canceled by user")
 		default:
 			// Continue streaming
 		}
@@ -264,10 +247,10 @@ Again, you current task is:
 			// Check if the error is due to context cancellation
 			if ctx.Err() == context.Canceled {
 				log.Printf("LLM stream canceled during receive")
-				return []Action{}, "", errors.New("LLM request canceled by user")
+				return []action.Action{}, "", errors.New("LLM request canceled by user")
 			}
 			log.Printf("Error receiving from LLM stream: %v", err)
-			return []Action{}, "", errors.New("Failed to receive response from LLM")
+			return []action.Action{}, "", errors.New("Failed to receive response from LLM")
 		}
 		fullResponseMessage += response.Choices[0].Delta.Content
 		fmt.Print(response.Choices[0].Delta.Content)
@@ -278,7 +261,7 @@ Again, you current task is:
 	log.Println("FULL RESPONSE MESSAGE FOR DEBUGGING:", fullResponseMessage)
 
 	// Parse JSON into a slice of Action objects ------------------
-	var actions []Action
+	var actions []action.Action
 
 	// Try to parse the full response as JSON array
 	err = json.Unmarshal([]byte(fullResponseMessage), &actions)
@@ -292,14 +275,14 @@ Again, you current task is:
 		if len(jsonStrings) > 0 {
 			// Try to parse each JSON string
 			for _, jsonString := range jsonStrings {
-				var singleAction Action
+				var singleAction action.Action
 				err = json.Unmarshal([]byte(jsonString), &singleAction)
 				if err == nil {
 					actions = append(actions, singleAction)
 					log.Println("Successfully parsed single action:", singleAction.Action)
 				} else {
 					// Try to parse as array
-					var actionArray []Action
+					var actionArray []action.Action
 					err = json.Unmarshal([]byte(jsonString), &actionArray)
 					if err == nil {
 						actions = append(actions, actionArray...)
@@ -311,7 +294,7 @@ Again, you current task is:
 
 		if len(actions) == 0 {
 			fmt.Println("No valid actions found in response, error:", err)
-			return []Action{}, "", fmt.Errorf("failed to parse any valid actions from LLM response: %v", err)
+			return []action.Action{}, "", fmt.Errorf("failed to parse any valid actions from LLM response: %v", err)
 		}
 	}
 

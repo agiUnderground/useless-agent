@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
-	"image/color"
 	"image/draw"
 	"log"
 	"time"
@@ -20,20 +19,6 @@ import (
 	"useless-agent/internal/token"
 	"useless-agent/pkg/x11"
 )
-
-// colorCount represents a color and its count
-type colorCount struct {
-	Color color.Color `json:"color"`
-	Count int         `json:"count"`
-}
-
-// BoundingBox represents a bounding box
-type BoundingBox struct {
-	X1 int `json:"x1"`
-	Y1 int `json:"y1"`
-	X2 int `json:"x2"`
-	Y2 int `json:"y2"`
-}
 
 // ExecuteTask executes a task with the complete AGILoop implementation
 func ExecuteTask(task *Task) {
@@ -614,67 +599,20 @@ func getX11WindowsData() (string, error) {
 	return x11WindowsJSON, nil
 }
 
-func dominantColors(img image.Image, maxColors int) []colorCount {
-	imageColors := imagepkg.DominantColors(img, maxColors)
-	// Convert imagepkg.ColorCount to task.colorCount
-	result := make([]colorCount, len(imageColors))
-	for i, ic := range imageColors {
-		result[i] = colorCount{
-			Color: ic.Color,
-			Count: ic.Count,
-		}
-	}
-	return result
+func dominantColors(img image.Image, maxColors int) []imagepkg.ColorCount {
+	return imagepkg.DominantColors(img, maxColors)
 }
 
-func dominantColorsToJSONString(colors []colorCount) string {
-	// Convert task.colorCount to imagepkg.ColorCount for JSON conversion
-	imageColors := make([]imagepkg.ColorCount, len(colors))
-	for i, tc := range colors {
-		// Type assert color.Color to color.RGBA
-		rgba, ok := tc.Color.(color.RGBA)
-		if !ok {
-			// If it's not RGBA, convert it
-			r, g, b, a := tc.Color.RGBA()
-			rgba = color.RGBA{uint8(r), uint8(g), uint8(b), uint8(a)}
-		}
-		imageColors[i] = imagepkg.ColorCount{
-			Color:      rgba,
-			Count:      tc.Count,
-			Percentage: 0, // Will be calculated in the image package
-		}
-	}
-	return imagepkg.DominantColorsToJSONString(imageColors)
+func dominantColorsToJSONString(colors []imagepkg.ColorCount) string {
+	return imagepkg.DominantColorsToJSONString(colors)
 }
 
-func findBoundingBoxes(img image.Image) []BoundingBox {
-	bbArray := imagepkg.FindBoundingBoxes(img)
-	// Convert imagepkg.BoundingBox to task.BoundingBox
-	result := make([]BoundingBox, len(bbArray))
-	for i, bb := range bbArray {
-		result[i] = BoundingBox{
-			X1: bb.X,
-			Y1: bb.Y,
-			X2: bb.X2,
-			Y2: bb.Y2,
-		}
-	}
-	return result
+func findBoundingBoxes(img image.Image) []imagepkg.BoundingBox {
+	return imagepkg.FindBoundingBoxes(img)
 }
 
-func boundingBoxArrayToJSONString(bbArray []BoundingBox) string {
-	// Convert task.BoundingBox to imagepkg.BoundingBox for JSON conversion
-	imageBBArray := make([]imagepkg.BoundingBox, len(bbArray))
-	for i, bb := range bbArray {
-		imageBBArray[i] = imagepkg.BoundingBox{
-			ID: 0, // Will be set in the image package
-			X:  bb.X1,
-			Y:  bb.Y1,
-			X2: bb.X2,
-			Y2: bb.Y2,
-		}
-	}
-	return imagepkg.BoundingBoxArrayToJSONString(imageBBArray)
+func boundingBoxArrayToJSONString(bbArray []imagepkg.BoundingBox) string {
+	return imagepkg.BoundingBoxArrayToJSONString(bbArray)
 }
 
 func sendMessageToLLM(ctx context.Context, prompt string, bboxes string, ocrContext string, ocrDelta string, prevExecutedCommands string, iteration int64, prevCursorPosJSONString string, allWindowsJSONString string, x11WindowsData string, colorsDistribution string) ([]actionpkg.Action, string, error) {

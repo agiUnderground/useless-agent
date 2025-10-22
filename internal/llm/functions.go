@@ -14,7 +14,7 @@ import (
 	deepseek "github.com/trustsight-io/deepseek-go"
 )
 
-// SubTask represents a subtask in the goal breakdown
+// SubTask represents a subtask in the goal breakdown (local copy to avoid import cycle)
 type SubTask struct {
 	Id          int    `json:"id"`
 	Description string `json:"description"`

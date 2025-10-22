@@ -5,11 +5,10 @@ go 1.25.2
 require (
 	github.com/BurntSushi/xgb v0.0.0-20210121224620-deaf085860bc
 	github.com/go-vgo/robotgo v0.110.5
-	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
 	github.com/gorilla/websocket v1.5.3
 	github.com/otiai10/gosseract/v2 v2.4.1
 	github.com/trustsight-io/deepseek-go v0.1.0
-	golang.org/x/image v0.23.0
+	golang.org/x/image v0.23.0 // indirect
 )
 
 require (
