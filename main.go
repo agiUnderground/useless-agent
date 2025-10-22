@@ -74,11 +74,12 @@ var (
 
 // Task represents a running task
 type Task struct {
-	ID        string
-	Status    string // "in-the-queue", "in-progress", "completed", "broken", "canceled"
-	Message   string
-	CreatedAt time.Time
-	Cancel    chan bool
+	ID         string
+	Status     string // "in-the-queue", "in-progress", "completed", "broken", "canceled"
+	Message    string
+	CreatedAt  time.Time
+	Context    context.Context    // Context for cancellation
+	CancelFunc context.CancelFunc // Function to cancel the context
 }
 
 // TaskUpdate represents a task status update
@@ -154,12 +155,16 @@ func createTask(message string) *Task {
 	taskIDCounter++
 	taskID := fmt.Sprintf("task-%d-%d", taskIDCounter, time.Now().Unix())
 
+	// Create context with cancellation
+	ctx, cancelFunc := context.WithCancel(context.Background())
+
 	task := &Task{
-		ID:        taskID,
-		Status:    "in-progress",
-		Message:   message,
-		CreatedAt: time.Now(),
-		Cancel:    make(chan bool, 1),
+		ID:         taskID,
+		Status:     "in-progress",
+		Message:    message,
+		CreatedAt:  time.Now(),
+		Context:    ctx,
+		CancelFunc: cancelFunc,
 	}
 
 	tasks[taskID] = task
@@ -210,15 +215,14 @@ func cancelTask(taskID string) bool {
 
 	if task, exists := tasks[taskID]; exists {
 		if task.Status == "in-progress" {
-			select {
-			case task.Cancel <- true:
-				task.Status = "canceled"
-				sendTaskUpdate(task)
-				return true
-			default:
-				// Cancel channel already has a signal
-				return false
+			// Immediate cancellation using context
+			if task.CancelFunc != nil {
+				task.CancelFunc() // This cancels the context immediately
 			}
+
+			task.Status = "canceled"
+			sendTaskUpdate(task)
+			return true
 		} else if task.Status == "in-the-queue" {
 			// For queued tasks, we can cancel them immediately by removing from queue
 			// Remove from queue if it's there
@@ -231,6 +235,11 @@ func cancelTask(taskID string) bool {
 				}
 			}
 			queueMutex.Unlock()
+
+			// Also cancel the context
+			if task.CancelFunc != nil {
+				task.CancelFunc()
+			}
 
 			task.Status = "canceled"
 			sendTaskUpdate(task)
@@ -1276,7 +1285,13 @@ func repeatActionExecution(a *Action, params ...interface{}) {
 
 // store successful sequences of actions and dynamically update list of available actions with the saved one for the llm.
 
-func sendMessageToLLM(prompt string, bboxes string, ocrContext string, ocrDelta string, prevExecutedCommands string, iteration int64, prevCursorPosJSONString string, allWindowsJSONString string, colorsDistribution string) (actionsToExecute []Action, actionsJSONStringReturn string, err error) {
+func sendMessageToLLM(ctx context.Context, prompt string, bboxes string, ocrContext string, ocrDelta string, prevExecutedCommands string, iteration int64, prevCursorPosJSONString string, allWindowsJSONString string, colorsDistribution string) (actionsToExecute []Action, actionsJSONStringReturn string, err error) {
+	// Check if context is nil, use background context if it is
+	if ctx == nil {
+		log.Println("Warning: nil context provided to sendMessageToLLM, using background context")
+		ctx = context.Background()
+	}
+
 	client, err := deepseek.NewClient(
 		os.Getenv("API_KEY"),
 		deepseek.WithBaseURL(os.Getenv("API_BASE_URL")),
@@ -1288,11 +1303,17 @@ func sendMessageToLLM(prompt string, bboxes string, ocrContext string, ocrDelta 
 		deepseek.WithDebug(true),
 	)
 	if err != nil {
-		log.Fatal(err)
+		// Check if the error is due to context cancellation
+		if ctx.Err() == context.Canceled {
+			log.Printf("LLM client creation canceled")
+			return []Action{}, "", errors.New("LLM request canceled by user")
+		}
+		log.Printf("Failed to create LLM client: %v", err)
+		return []Action{}, "", errors.New("Failed to create LLM client, error.")
 	}
 	defer client.Close()
 
-	ctx := context.Background()
+	// Use the provided context for cancellation
 
 	cursorPosition, _ := getCursorPositionJSON()
 	iterationString := strconv.FormatInt(iteration, 10)
@@ -1461,7 +1482,12 @@ Again, you current task is:
 		},
 	)
 	if err != nil {
-		log.Fatal(err)
+		// Check if the error is due to context cancellation
+		if ctx.Err() == context.Canceled {
+			log.Printf("LLM request canceled during stream creation")
+			return []Action{}, "", errors.New("LLM request canceled by user")
+		}
+		log.Printf("Failed to create LLM stream: %v", err)
 		return []Action{}, "", errors.New("Failed to send message to LLM, error.")
 	}
 	defer stream.Close()
@@ -1470,12 +1496,27 @@ Again, you current task is:
 
 	var fullResponseMessage string
 	for {
+		// Check for task cancellation during streaming
+		select {
+		case <-ctx.Done():
+			log.Printf("LLM stream canceled for task")
+			return []Action{}, "", errors.New("LLM request canceled by user")
+		default:
+			// Continue streaming
+		}
+
 		response, err := stream.Recv()
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
-			log.Fatal(err)
+			// Check if the error is due to context cancellation
+			if ctx.Err() == context.Canceled {
+				log.Printf("LLM stream canceled during receive")
+				return []Action{}, "", errors.New("LLM request canceled by user")
+			}
+			log.Printf("Error receiving from LLM stream: %v", err)
+			return []Action{}, "", errors.New("Failed to receive response from LLM")
 		}
 		fullResponseMessage += response.Choices[0].Delta.Content
 		fmt.Print(response.Choices[0].Delta.Content)
@@ -1526,7 +1567,8 @@ func getOCRDeltaAbstractDescription(ocrDelta string) (abstructDescription string
 	)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Failed to create LLM client for OCR delta abstract: %v", err)
+		return "", err
 	}
 
 	messages := []deepseek.Message{
@@ -1615,7 +1657,8 @@ func getOCRDeltaAbstractDescription(ocrDelta string) (abstructDescription string
 		},
 	)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Failed to create LLM completion for OCR delta abstract: %v", err)
+		return "", err
 	}
 
 	fmt.Println(resp.Choices[0].Message.Content)
@@ -1645,7 +1688,8 @@ func breakGoalIntoSubtasks(goal string) (result []SubTask, err error) {
 		deepseek.WithDebug(true),
 	)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Failed to create LLM client for subtask breakdown: %v", err)
+		return nil, err
 	}
 
 	messages := []deepseek.Message{
@@ -1677,7 +1721,8 @@ func breakGoalIntoSubtasks(goal string) (result []SubTask, err error) {
 		},
 	)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Failed to create LLM completion for subtask breakdown: %v", err)
+		return nil, err
 	}
 
 	log.Println("\n\nresp(must be json):", resp)
@@ -1730,7 +1775,8 @@ func isGoalAchieved(goal string, bboxes string, ocrJSONString string, ocrDelta s
 		deepseek.WithDebug(true),
 	)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Failed to create LLM client for goal achievement check: %v", err)
+		return false, "Failed to create LLM client", ""
 	}
 
 	messages := []deepseek.Message{
@@ -1760,7 +1806,8 @@ func isGoalAchieved(goal string, bboxes string, ocrJSONString string, ocrDelta s
 		},
 	)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Failed to create LLM completion for goal achievement check: %v", err)
+		return false, "Failed to create LLM completion", ""
 	}
 
 	jsonStrings := extractJSONFromMarkdown(resp.Choices[0].Message.Content)
@@ -1816,7 +1863,7 @@ func executeTask(task *Task) {
 		for {
 			// Check for task cancellation at the start of each iteration
 			select {
-			case <-task.Cancel:
+			case <-task.Context.Done():
 				log.Printf("Task %s canceled during execution", task.ID)
 				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
 				return
@@ -1826,6 +1873,16 @@ func executeTask(task *Task) {
 
 			if iteration > 40 {
 				break SubTaskLoop
+			}
+
+			// Check for task cancellation before screenshot
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled before screenshot capture", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with screenshot
 			}
 
 			screenshot, err := captureX11Screenshot()
@@ -1839,11 +1896,52 @@ func executeTask(task *Task) {
 			colorsDistribution := dominantColorsToJSONString(dominantColors(screenshot, 10))
 			log.Println("colorsDistribution before actions: ", colorsDistribution)
 
+			// Check for task cancellation before grayscale conversion
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled before grayscale conversion", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with grayscale conversion
+			}
+
 			grayscaleScreenshot := ConvertToGrayscale(screenshot)
+
+			// Check for task cancellation before OCR
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled before OCR processing", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with OCR
+			}
+
 			ocrResults := OCR(grayscaleScreenshot)
+
+			// Check for task cancellation after OCR
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled after OCR processing", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with window detection
+			}
 
 			var detectedWindowsJSON string = "["
 			for index, ocrElement := range ocrResults {
+				// Check for task cancellation during window detection loop
+				select {
+				case <-task.Context.Done():
+					log.Printf("Task %s canceled during window detection", task.ID)
+					updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+					return
+				default:
+					// Continue with current window detection
+				}
+
 				ocrElementBB := image.Rect(ocrElement.BoundingBox.XMin, ocrElement.BoundingBox.YMin, ocrElement.BoundingBox.XMax, ocrElement.BoundingBox.YMax)
 				windowsJSONString, err := vision.DetectWindow(grayscaleScreenshot, ocrElementBB, ocrElement.Text)
 				if err != nil {
@@ -1858,10 +1956,30 @@ func executeTask(task *Task) {
 			detectedWindowsJSON += "]"
 			log.Println("Detected windows json string data:", detectedWindowsJSON)
 
+			// Check for task cancellation after window detection
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled after window detection", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with OCR processing
+			}
+
 			ocrResultsJSON := OCRtoJSONString(ocrResults)
 			if len(ocrResultsJSON) > 10000 {
 				ocrDataMerged := MergeCloseText(ocrResults, 20, 40)
 				ocrResultsJSON = OCRtoJSONString(ocrDataMerged)
+			}
+
+			// Check for task cancellation after OCR JSON processing
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled after OCR JSON processing", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with text changes
 			}
 
 			var textChanges Delta
@@ -1870,16 +1988,49 @@ func executeTask(task *Task) {
 
 			if iteration > 1 {
 				textChanges, err = getOCRDelta(previousOCRText, ocrResultsJSON)
-				textChangesJSON, err = getOCRDeltaJSONString(textChanges)
 				if err != nil {
 					log.Printf("Filed to get OCR Delta[iteration: %d]: %s", iteration, err)
 				}
+				// Check for task cancellation after OCR delta calculation
+				select {
+				case <-task.Context.Done():
+					log.Printf("Task %s canceled after OCR delta calculation", task.ID)
+					updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+					return
+				default:
+					// Continue with delta JSON string
+				}
+
+				textChangesJSON, err = getOCRDeltaJSONString(textChanges)
+				if err != nil {
+					log.Printf("Filed to get OCR Delta JSON string[iteration: %d]: %s", iteration, err)
+				}
+				// Check for task cancellation after delta JSON string
+				select {
+				case <-task.Context.Done():
+					log.Printf("Task %s canceled after OCR delta JSON string", task.ID)
+					updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+					return
+				default:
+					// Continue with abstract description
+				}
+
 				textChangesSummary, err = getOCRDeltaAbstractDescription(textChangesJSON)
 				if err != nil {
 					log.Printf("Filed to get OCR Delta abstract description [iteration: %d]: %s", iteration, err)
 				}
 			}
 			previousOCRText = ocrResultsJSON
+
+			// Check for task cancellation after text changes processing
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled after text changes processing", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with bounding boxes
+			}
 
 			boundingBoxesJSON := boundingBoxArrayToJSONString(findBoundingBoxes(originalScreenshot))
 
@@ -1896,11 +2047,18 @@ func executeTask(task *Task) {
 			}
 			promptLogJSONString = string(promptLogBytes)
 
-			actions, actionsJSONString, err := sendMessageToLLM(subtask.Description, boundingBoxesJSON, ocrResultsJSON, textChangesSummary, promptLogJSONString, iteration, prevCursorPositionJSONString, detectedWindowsJSON, colorsDistribution)
+			actions, actionsJSONString, err := sendMessageToLLM(task.Context, subtask.Description, boundingBoxesJSON, ocrResultsJSON, textChangesSummary, promptLogJSONString, iteration, prevCursorPositionJSONString, detectedWindowsJSON, colorsDistribution)
 
 			if err != nil {
 				log.Println("failed to send message to LLM:", err)
-				updateTaskStatus(task.ID, "broken", "Failed to communicate with LLM")
+				// Check if the error is due to task cancellation
+				if task.Context.Err() == context.Canceled {
+					log.Printf("Task %s was canceled by user during LLM communication", task.ID)
+					updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				} else {
+					log.Printf("Task %s failed due to LLM communication error: %v", task.ID, err)
+					updateTaskStatus(task.ID, "broken", "Failed to communicate with LLM")
+				}
 				return
 			} else {
 				log.Println("successfully sent a message to LLM. Iteration:", iteration)
@@ -1909,7 +2067,7 @@ func executeTask(task *Task) {
 			for i := range actions {
 				// Check for task cancellation before executing each action
 				select {
-				case <-task.Cancel:
+				case <-task.Context.Done():
 					log.Printf("Task %s canceled during execution", task.ID)
 					updateTaskStatus(task.ID, "canceled", "Task canceled by user")
 					return
@@ -1942,6 +2100,16 @@ func executeTask(task *Task) {
 				fmt.Println()
 			}
 
+			// Check for task cancellation before second screenshot
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled before second screenshot capture", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with screenshot
+			}
+
 			screenshot, err = captureX11Screenshot()
 			originalScreenshot = screenshot
 			if err != nil {
@@ -1949,11 +2117,53 @@ func executeTask(task *Task) {
 				updateTaskStatus(task.ID, "broken", "Failed to capture screenshot")
 				return
 			}
+
+			// Check for task cancellation before second grayscale conversion
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled before second grayscale conversion", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with grayscale conversion
+			}
+
 			grayscaleScreenshot = ConvertToGrayscale(screenshot)
+
+			// Check for task cancellation before second OCR
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled before second OCR processing", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with OCR
+			}
+
 			ocrResults = OCR(grayscaleScreenshot)
+
+			// Check for task cancellation after second OCR
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled after second OCR processing", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with window detection
+			}
 
 			detectedWindowsJSON = "["
 			for index, ocrElement := range ocrResults {
+				// Check for task cancellation during second window detection loop
+				select {
+				case <-task.Context.Done():
+					log.Printf("Task %s canceled during second window detection", task.ID)
+					updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+					return
+				default:
+					// Continue with current window detection
+				}
+
 				ocrElementBB := image.Rect(ocrElement.BoundingBox.XMin, ocrElement.BoundingBox.YMin, ocrElement.BoundingBox.XMax, ocrElement.BoundingBox.YMax)
 				windowsJSONString, err := vision.DetectWindow(grayscaleScreenshot, ocrElementBB, ocrElement.Text)
 				if err != nil {
@@ -1968,30 +2178,100 @@ func executeTask(task *Task) {
 			detectedWindowsJSON += "]"
 			log.Println("Detected windows json string data:", detectedWindowsJSON)
 
+			// Check for task cancellation after second window detection
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled after second window detection", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with OCR JSON processing
+			}
+
 			ocrResultsJSON = OCRtoJSONString(ocrResults)
 			if len(ocrResultsJSON) > 10000 {
 				ocrDataMerged := MergeCloseText(ocrResults, 20, 40)
 				ocrResultsJSON = OCRtoJSONString(ocrDataMerged)
 			}
 
-			textChanges, err = getOCRDelta(previousOCRText, ocrResultsJSON)
-			textChangesJSON, err = getOCRDeltaJSONString(textChanges)
+			// Check for task cancellation after second OCR JSON processing
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled after second OCR JSON processing", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with text changes
+			}
 
+			textChanges, err = getOCRDelta(previousOCRText, ocrResultsJSON)
 			if err != nil {
 				log.Printf("Filed to get OCR Delta[iteration: %d]: %s", iteration, err)
 			}
+			// Check for task cancellation after second OCR delta calculation
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled after second OCR delta calculation", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with delta JSON string
+			}
+
+			textChangesJSON, err = getOCRDeltaJSONString(textChanges)
+			if err != nil {
+				log.Printf("Filed to get OCR Delta JSON string[iteration: %d]: %s", iteration, err)
+			}
+			// Check for task cancellation after second delta JSON string
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled after second OCR delta JSON string", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with abstract description
+			}
 
 			textChangesSummary, err = getOCRDeltaAbstractDescription(textChangesJSON)
-
 			if err != nil {
 				log.Printf("Filed to get OCR Delta abstract description [iteration: %d]: %s", iteration, err)
+			}
+
+			// Check for task cancellation after second text changes processing
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled after second text changes processing", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with bounding boxes
 			}
 
 			previousOCRText = ocrResultsJSON
 
 			boundingBoxesJSON = boundingBoxArrayToJSONString(findBoundingBoxes(originalScreenshot))
 
+			// Check for task cancellation after second bounding boxes
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled after second bounding boxes", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with cursor position
+			}
+
 			currentCursorPosition, _ := getCursorPositionJSON()
+
+			// Check for task cancellation after cursor position
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled after cursor position", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with image under cursor
+			}
 
 			_, CursorY := getCursorPosition()
 			log.Println("image under the cursor bounding box[x,y,x2,y2]:", 0, max(0, CursorY-23), grayscaleScreenshot.Bounds().Max.X, min(CursorY+23, grayscaleScreenshot.Bounds().Max.Y))
@@ -2001,9 +2281,29 @@ func executeTask(task *Task) {
 			ocrDataNearTheCursor := OCRtoJSONString(OCR(imgUnderCursor))
 			log.Println("OCR data near the cursor[46 pix height]:", ocrDataNearTheCursor)
 
+			// Check for task cancellation after OCR under cursor
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled after OCR under cursor", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with color distribution
+			}
+
 			colorsDistributionBeforeActions := colorsDistribution
 			colorsDistribution = dominantColorsToJSONString(dominantColors(screenshot, 10))
 			log.Println("colorsDistribution after actions: ", colorsDistribution)
+
+			// Check for task cancellation after color distribution
+			select {
+			case <-task.Context.Done():
+				log.Printf("Task %s canceled after color distribution", task.ID)
+				updateTaskStatus(task.ID, "canceled", "Task canceled by user")
+				return
+			default:
+				// Continue with goal achievement check
+			}
 
 			taskCompleted, completionStatus, nextPrompt = isGoalAchieved(subtask.Description, boundingBoxesJSON, ocrResultsJSON, textChangesJSON, textChangesSummary, promptLogJSONString, iteration, prevCursorPositionJSONString, detectedWindowsJSON, currentCursorPosition, ocrDataNearTheCursor, colorsDistributionBeforeActions, colorsDistribution)
 			log.Println("Verdict description:", completionStatus)
@@ -2079,12 +2379,16 @@ func llmInputHandler(w http.ResponseWriter, r *http.Request) {
 	taskIDCounter++
 	taskID := fmt.Sprintf("task-%d-%d", taskIDCounter, time.Now().Unix())
 
+	// Create context with cancellation for the new task
+	ctx, cancelFunc := context.WithCancel(context.Background())
+
 	task := &Task{
-		ID:        taskID,
-		Status:    "in-the-queue", // Start with queued status
-		Message:   receivedMessage.Text,
-		CreatedAt: time.Now(),
-		Cancel:    make(chan bool, 1),
+		ID:         taskID,
+		Status:     "in-the-queue", // Start with queued status
+		Message:    receivedMessage.Text,
+		CreatedAt:  time.Now(),
+		Context:    ctx,
+		CancelFunc: cancelFunc,
 	}
 
 	tasks[taskID] = task
@@ -2455,7 +2759,8 @@ func OCR(img image.Image) (result []TesseractBoundingBox) {
 	// Get bounding boxes
 	boxes, err := GetTesseractBoundingBoxes(img)
 	if err != nil {
-		log.Fatalf("failed to get bounding boxes: %v", err)
+		log.Printf("failed to get bounding boxes: %v", err)
+		return []TesseractBoundingBox{} // Return empty result instead of fatal
 	}
 	fmt.Println("tesseract ocr done in:", time.Now().Sub(now))
 
@@ -2466,7 +2771,8 @@ func OCRtoJSONString(data []TesseractBoundingBox) (result string) {
 	// Convert bounding boxes to JSON
 	jsonOutput, err := TesseractBoundingBoxesToJSON(data)
 	if err != nil {
-		log.Fatalf("failed to convert bounding boxes to JSON: %v", err)
+		log.Printf("failed to convert bounding boxes to JSON: %v", err)
+		return "[]" // Return empty JSON array instead of fatal
 	}
 	return string(jsonOutput)
 }
