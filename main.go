@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"internal/vision"
+	"useless-agent/pkg/x11"
 
 	"github.com/BurntSushi/xgb"
 	"github.com/BurntSushi/xgb/xproto"
@@ -1283,9 +1284,39 @@ func repeatActionExecution(a *Action, params ...interface{}) {
 	}
 }
 
+// Function to get X11 windows data
+func getX11WindowsData() (string, error) {
+	log.Printf("=== GETTING X11 WINDOWS DATA ===")
+	x11WindowsJSON, err := x11.GetX11Windows()
+	if err != nil {
+		log.Printf("Failed to get X11 windows data: %v", err)
+		return "[]", err
+	}
+
+	// Log the retrieved data for debugging
+	log.Printf("X11 windows data retrieved successfully:")
+	log.Printf("Raw JSON data: %s", x11WindowsJSON)
+
+	// Parse and log structured data for better readability
+	var x11WindowsData x11.X11WindowInfo
+	if parseErr := json.Unmarshal([]byte(x11WindowsJSON), &x11WindowsData); parseErr == nil {
+		log.Printf("Parsed X11 windows data - Total windows: %d", len(x11WindowsData.Windows))
+		for i, window := range x11WindowsData.Windows {
+			log.Printf("Window %d: ID=%d, Title='%s', Class='%s', Position=(%d,%d), Size=%dx%d, Visible=%t",
+				i+1, window.ID, window.Title, window.Class, window.Position.X, window.Position.Y,
+				window.Size.Width, window.Size.Height, window.Visible)
+		}
+	} else {
+		log.Printf("Failed to parse X11 windows JSON for logging: %v", parseErr)
+	}
+
+	log.Printf("=== X11 WINDOWS DATA END ===")
+	return x11WindowsJSON, nil
+}
+
 // store successful sequences of actions and dynamically update list of available actions with the saved one for the llm.
 
-func sendMessageToLLM(ctx context.Context, prompt string, bboxes string, ocrContext string, ocrDelta string, prevExecutedCommands string, iteration int64, prevCursorPosJSONString string, allWindowsJSONString string, colorsDistribution string) (actionsToExecute []Action, actionsJSONStringReturn string, err error) {
+func sendMessageToLLM(ctx context.Context, prompt string, bboxes string, ocrContext string, ocrDelta string, prevExecutedCommands string, iteration int64, prevCursorPosJSONString string, allWindowsJSONString string, x11WindowsData string, colorsDistribution string) (actionsToExecute []Action, actionsJSONStringReturn string, err error) {
 	// Check if context is nil, use background context if it is
 	if ctx == nil {
 		log.Println("Warning: nil context provided to sendMessageToLLM, using background context")
@@ -1342,7 +1373,7 @@ func sendMessageToLLM(ctx context.Context, prompt string, bboxes string, ocrCont
 		},
 		{
 			Role: deepseek.RoleUser,
-			Content: `Context: Deepthink, analyze input data, do not generate random actions. You are an AI assistent which uses linux desktop to complete tasks. Distribution is Linux Ubuntu, desktop environtment is xfce4. Screen size is 1920x1080. Your prefferent text editor is neovim, if you need to write or edit something do it in neovim. You also like to use tmux if working with two or more files. Here is the bounding boxes you see on the screen: ` + bboxes + " Here is an OCR results " + ocrContext + " Here is an OCR state delta, change from previous iteration: " + ocrDelta + " Top 10 colors on the screen: " + colorsDistribution + " Previous iteration cursor position: " + prevCursorPosJSONString + " And there is current cursor position: " + cursorPosition + " Detected windows: " + allWindowsJSONString + " Current iteration number:" + iterationString + " Previously executed commands: " + prevExecutedCommands + " If you see more than 1 identical command in previous commands that means you are doing something wrong and you need to change you actions, maybe move cursor to a little different position for example. " + ` To correctly solve the task you need to output a sequence of actions in json format, to advance on every action and every iteration and to achieve a stated goal, example of actions with explanations: 
+			Content: `Context: Deepthink, analyze input data, do not generate random actions. You are an AI assistent which uses linux desktop to complete tasks. Distribution is Linux Ubuntu, desktop environtment is xfce4. Screen size is 1920x1080. Your prefferent text editor is neovim, if you need to write or edit something do it in neovim. You also like to use tmux if working with two or more files. Here is the bounding boxes you see on the screen: ` + bboxes + " Here is an OCR results " + ocrContext + " Here is an OCR state delta, change from previous iteration: " + ocrDelta + " Top 10 colors on the screen: " + colorsDistribution + " Previous iteration cursor position: " + prevCursorPosJSONString + " And there is current cursor position: " + cursorPosition + " OCR-detected windows: " + allWindowsJSONString + " X11 API-detected windows: " + x11WindowsData + " Current iteration number:" + iterationString + " Previously executed commands: " + prevExecutedCommands + " If you see more than 1 identical command in previous commands that means you are doing something wrong and you need to change you actions, maybe move cursor to a little different position for example. " + ` To correctly solve the task you need to output a sequence of actions in json format, to advance on every action and every iteration and to achieve a stated goal, example of actions with explanations: 
 {
   "action": "mouseMove",
   "coordinates": {
@@ -1930,6 +1961,14 @@ func executeTask(task *Task) {
 				// Continue with window detection
 			}
 
+			// Get X11 windows data
+			x11WindowsData, err := getX11WindowsData()
+			if err != nil {
+				log.Printf("Failed to get X11 windows data, continuing with empty data: %v", err)
+				x11WindowsData = "[]"
+			}
+			log.Printf("X11 windows data: %s", x11WindowsData)
+
 			var detectedWindowsJSON string = "["
 			for index, ocrElement := range ocrResults {
 				// Check for task cancellation during window detection loop
@@ -1955,6 +1994,11 @@ func executeTask(task *Task) {
 			}
 			detectedWindowsJSON += "]"
 			log.Println("Detected windows json string data:", detectedWindowsJSON)
+
+			// Keep X11 windows data separate from OCR-detected windows
+			// They have different JSON formats and should be sent separately to LLM
+			log.Printf("OCR-detected windows data: %s", detectedWindowsJSON)
+			log.Printf("X11 API-detected windows data: %s", x11WindowsData)
 
 			// Check for task cancellation after window detection
 			select {
@@ -2047,7 +2091,7 @@ func executeTask(task *Task) {
 			}
 			promptLogJSONString = string(promptLogBytes)
 
-			actions, actionsJSONString, err := sendMessageToLLM(task.Context, subtask.Description, boundingBoxesJSON, ocrResultsJSON, textChangesSummary, promptLogJSONString, iteration, prevCursorPositionJSONString, detectedWindowsJSON, colorsDistribution)
+			actions, actionsJSONString, err := sendMessageToLLM(task.Context, subtask.Description, boundingBoxesJSON, ocrResultsJSON, textChangesSummary, promptLogJSONString, iteration, prevCursorPositionJSONString, detectedWindowsJSON, x11WindowsData, colorsDistribution)
 
 			if err != nil {
 				log.Println("failed to send message to LLM:", err)

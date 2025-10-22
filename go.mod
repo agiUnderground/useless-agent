@@ -1,8 +1,6 @@
 module useless-agent
 
-go 1.23.0
-
-toolchain go1.24.1
+go 1.25.2
 
 require (
 	github.com/BurntSushi/xgb v0.0.0-20210121224620-deaf085860bc
@@ -44,4 +42,8 @@ require (
 
 require internal/vision v1.0.0
 
+require useless-agent/pkg/x11 v1.0.0
+
 replace internal/vision => ./internal/vision
+
+replace useless-agent/pkg/x11 => ./pkg/x11

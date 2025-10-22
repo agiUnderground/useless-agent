@@ -1,3 +1,3 @@
-module vision
+module internal/vision
 
-go 1.23.0
+go 1.25.2
