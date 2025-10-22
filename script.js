@@ -189,7 +189,8 @@ function selectSession(sessionId) {
       } else {
         // User manually selected a different session while user-assist is active
         console.log('User manually selected different session, deactivating user-assist');
-        deactivateUserAssist();
+        // Deactivate user-assist without restoring green outline to old session
+        deactivateUserAssist(false);
         session.container.classList.add('selected');
       }
     } else {
@@ -985,7 +986,7 @@ function activateUserAssist(taskCard) {
 }
 
 // Function to deactivate user-assist mode
-function deactivateUserAssist() {
+function deactivateUserAssist(restoreGreenOutline = true) {
   if (!userAssistActive) return;
   
   // Clear both connection lines (chat-to-session and chat-to-task)
@@ -1002,12 +1003,14 @@ function deactivateUserAssist() {
   chatFieldsetElement.classList.remove('user-assist-active');
   
   // Update session selection to remove user-assist styling
-  // Don't add 'selected' class back - let the new session selection handle this
   if (selectedSessionId) {
     const session = sessions.get(selectedSessionId);
     if (session && session.container) {
       session.container.classList.remove('user-assist-selected');
-      // Don't add 'selected' class here - let the new session selection handle it
+      // Add back the 'selected' class to restore the green outline only if requested
+      if (restoreGreenOutline) {
+        session.container.classList.add('selected');
+      }
     }
   }
   
