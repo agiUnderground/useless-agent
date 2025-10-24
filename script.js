@@ -2288,14 +2288,24 @@ function calculateConnectionPath(chatElement, sessionElement) {
   const isMobileMode = window.innerWidth < 1100;
   
   if (isMobileMode) {
-    // Mobile mode: sessions are stacked vertically, use simplified path
+    // Mobile mode: sessions are stacked vertically, route to center of left edge with same principle as desktop
     const chatStartX = inputRect.right;
     const chatStartY = inputRect.top + inputRect.height / 2;
-    const sessionCenterX = sessionRect.left + sessionRect.width / 2;
+    const sessionLeftX = sessionRect.left;
     const sessionCenterY = sessionRect.top + sessionRect.height / 2;
     
-    // Simple path: go horizontally to session center, then vertically down
-    return `M ${chatStartX} ${chatStartY} L ${sessionCenterX} ${chatStartY} L ${sessionCenterX} ${sessionCenterY}`;
+    // Calculate midpoint between chat and main content (same as desktop logic)
+    const chatVisibleRight = chatRect.right;
+    const mainContentVisibleLeft = mainContentRect.left + 10;
+    const midPointX = chatVisibleRight + (mainContentVisibleLeft - chatVisibleRight) / 2;
+    
+    // Same routing principle as desktop: go to midpoint, then to session Y level, then to left edge center
+    let mobilePath = `M ${chatStartX} ${chatStartY}`;
+    mobilePath += ` L ${midPointX} ${chatStartY}`;                    // Go to middle point between chatbox and main-content
+    mobilePath += ` L ${midPointX} ${sessionCenterY}`;                // Go to session's Y level at middle X
+    mobilePath += ` L ${sessionLeftX} ${sessionCenterY}`;              // Go to center of left edge
+    
+    return mobilePath;
   }
   
   // Desktop mode: use original logic
@@ -2721,6 +2731,15 @@ function updateConnectionLine() {
 window.addEventListener('scroll', () => {
   updateConnectionLine();
 }, { passive: true });
+
+// Handle main content scroll to update connection lines for dynamic following
+const mainContentScrollHandler = () => {
+  updateConnectionLine();
+};
+
+if (mainContent) {
+  mainContent.addEventListener('scroll', mainContentScrollHandler, { passive: true });
+}
 
 // Handle tasks container scroll to update user-assist connection line
 const tasksContainer = document.getElementById('tasksContainer');
