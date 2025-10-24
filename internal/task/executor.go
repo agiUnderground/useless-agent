@@ -11,6 +11,7 @@ import (
 
 	"internal/vision"
 	actionpkg "useless-agent/internal/action"
+	"useless-agent/internal/config"
 	imagepkg "useless-agent/internal/image"
 	"useless-agent/internal/llm"
 	"useless-agent/internal/mouse"
@@ -585,7 +586,12 @@ func breakGoalIntoSubtasks(goal string) ([]SubTask, error) {
 
 func getX11WindowsData() (string, error) {
 	log.Printf("=== GETTING X11 WINDOWS DATA ===")
-	x11WindowsJSON, err := x11.GetX11Windows()
+
+	// Get display from config - always pass the display value, even if it's the default ":0"
+	display := *config.Display
+	log.Printf("Using display from config: %s", display)
+
+	x11WindowsJSON, err := x11.GetX11WindowsWithDisplay(display)
 	if err != nil {
 		log.Printf("Failed to get X11 windows data: %v", err)
 		return "[]", err

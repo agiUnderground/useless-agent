@@ -9,6 +9,7 @@ import (
 
 	"useless-agent/internal/config"
 	httpHandlers "useless-agent/internal/http"
+	"useless-agent/internal/llm"
 	"useless-agent/internal/mouse"
 	"useless-agent/internal/screenshot"
 	"useless-agent/internal/websocket"
@@ -19,6 +20,11 @@ func main() {
 
 	if err := screenshot.SuppressXGBLogs(); err != nil {
 		log.Fatalf("Failed to suppress xgb logs: %v", err)
+	}
+
+	// Initialize LLM system
+	if err := llm.InitializeLLM(); err != nil {
+		log.Fatalf("Failed to initialize LLM: %v", err)
 	}
 
 	// Set up HTTP routes

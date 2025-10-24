@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/BurntSushi/xgb"
@@ -51,8 +52,32 @@ type WindowButton struct {
 	Type     string         `json:"type"` // "close", "minimize", "maximize", "roll-up"
 }
 
+// setDisplay sets the DISPLAY environment variable
+func setDisplay(display string) error {
+	if display == "" {
+		return nil
+	}
+
+	// Set DISPLAY environment variable for X11 connection
+	return os.Setenv("DISPLAY", display)
+}
+
 // GetX11Windows retrieves all visible windows using X11 APIs
 func GetX11Windows() (string, error) {
+	return GetX11WindowsWithDisplay("")
+}
+
+// GetX11WindowsWithDisplay retrieves all visible windows using X11 APIs with specified display
+func GetX11WindowsWithDisplay(display string) (string, error) {
+	// Set DISPLAY environment variable if specified
+	if display != "" {
+		// Note: xgb.NewConn() uses DISPLAY environment variable internally
+		// We need to set it before creating the connection
+		if err := setDisplay(display); err != nil {
+			return "", fmt.Errorf("failed to set display: %w", err)
+		}
+	}
+
 	// Connect to X11 server
 	conn, err := xgb.NewConn()
 	if err != nil {

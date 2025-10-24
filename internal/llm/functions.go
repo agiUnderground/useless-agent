@@ -5,13 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
-	"os"
 	"strconv"
 	"strings"
-	"time"
 
-	deepseek "github.com/trustsight-io/deepseek-go"
+	"useless-agent/internal/config"
 )
 
 // SubTask represents a subtask in the goal breakdown (local copy to avoid import cycle)
@@ -20,7 +17,7 @@ type SubTask struct {
 	Description string `json:"description"`
 }
 
-// Verdict represents the goal achievement verdict
+// Verdict represents goal achievement verdict
 type Verdict struct {
 	IsGoalAchieved bool   `json:"isGoalAchieved"`
 	Description    string `json:"description"`
@@ -29,33 +26,24 @@ type Verdict struct {
 
 // GetOCRDeltaAbstractDescription gets an abstract description of OCR changes
 func GetOCRDeltaAbstractDescription(ocrDelta string, addTokensAndSendUpdate func(int)) (abstractDescription string, err error) {
-	client, err := deepseek.NewClient(
-		os.Getenv("API_KEY"),
-		deepseek.WithBaseURL(os.Getenv("API_BASE_URL")),
-		deepseek.WithHTTPClient(&http.Client{
-			Timeout: 5 * time.Minute,
-		}),
-		deepseek.WithMaxRetries(2),
-		deepseek.WithMaxRequestSize(50<<20), // 50 MB
-		deepseek.WithDebug(true),
-	)
-
-	if err != nil {
-		log.Printf("Failed to create LLM client for OCR delta abstract: %v", err)
-		return "", err
+	// Get LLM client
+	client := GetLLMClient()
+	if client == nil {
+		log.Printf("LLM client not initialized")
+		return "", fmt.Errorf("LLM client not initialized")
 	}
 
-	messages := []deepseek.Message{
+	messages := []Message{
 		{
-			Role:    deepseek.RoleSystem,
+			Role:    RoleSystem,
 			Content: "You are a helpful assistant. " + " Output only valid JSON. ",
 		},
 		{
-			Role: deepseek.RoleUser,
+			Role: RoleUser,
 			Content: `
               Context: Linux, ubuntu, xfce4, X11. It's linux xfce desktop data. Delta between states. Analize data and summarize what became visible and what not visible anymore.
               You need to add to parent component summary bounding box with coordinates which contains all child elements. and remove most obviously wrong recognized ocr text from elements.
-              Only summarize coordinates of the clean objects, all that vas previously filtered out just ignore.
+              Only summarize coordinates of clean objects, all that vas previously filtered out just ignore.
               If child elements very close to each other horizontally, join them, like "Xfce" and "Terminal" they are located near each other join them to "Xfce Terminal".
               Also add a little 'note' to each 'added' 'removed' 'modified' selctions with summarization of what that object/objects must be. For example for 'removed' section here.
               This json MUST BE GENERATED ONLY BASED ON INPUT OCR DATA AND NOTHING ELSE, if you will not follow this instruction, 10000 billion kitten will die by hirrible death.
@@ -116,12 +104,22 @@ func GetOCRDeltaAbstractDescription(ocrDelta string, addTokensAndSendUpdate func
 	fmt.Printf("Estimated total tokens[getOCRDeltaAbstractDescription][input]: %d\n", estimate.EstimatedTokens)
 	addTokensAndSendUpdate(estimate.EstimatedTokens)
 
-	modelID := os.Getenv("MODEL_ID")
+	// Get configuration for model
+	cfg := config.GetLLMConfig()
+	model := cfg.Model
+	if model == "" {
+		switch cfg.Provider {
+		case "deepseek":
+			model = "deepseek-chat"
+		case "zai":
+			model = "glm-4.6"
+		}
+	}
 
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
-		&deepseek.ChatCompletionRequest{
-			Model:       modelID,
+		&ChatCompletionRequest{
+			Model:       model,
 			Temperature: 1.0,
 			MaxTokens:   8192,
 			Messages:    messages,
@@ -146,29 +144,21 @@ func GetOCRDeltaAbstractDescription(ocrDelta string, addTokensAndSendUpdate func
 
 // BreakGoalIntoSubtasks breaks down a goal into smaller subtasks
 func BreakGoalIntoSubtasks(goal string, addTokensAndSendUpdate func(int)) ([]SubTask, error) {
-	client, err := deepseek.NewClient(
-		os.Getenv("API_KEY"),
-		deepseek.WithBaseURL(os.Getenv("API_BASE_URL")),
-		deepseek.WithHTTPClient(&http.Client{
-			Timeout: 5 * time.Minute,
-		}),
-		deepseek.WithMaxRetries(2),
-		deepseek.WithMaxRequestSize(50<<20), // 50 MB
-		deepseek.WithDebug(true),
-	)
-	if err != nil {
-		log.Printf("Failed to create LLM client for subtask breakdown: %v", err)
-		return nil, err
+	// Get LLM client
+	client := GetLLMClient()
+	if client == nil {
+		log.Printf("LLM client not initialized")
+		return nil, fmt.Errorf("LLM client not initialized")
 	}
 
-	messages := []deepseek.Message{
+	messages := []Message{
 		{
-			Role:    deepseek.RoleSystem,
+			Role:    RoleSystem,
 			Content: "You are a helpful assistant. " + ` Output only valid JSON. You MUST return a JSON ARRAY of objects with this exact structure: [{"id": int, "description": string}]. Do NOT return a single object, always return an array even if there's only one task.`,
 		},
 		{
-			Role:    deepseek.RoleUser,
-			Content: ` Break down user provided goal into primitive tasks which program can execute and easily verify. Do not break very simple goal into tasks(example of the simple goal:"press alt + F4 hotkeys"). Context: Linux desktop, xfce4, X11. IMPORTANT: You must return a JSON ARRAY, not a single object. Example: [{"id": 1, "description": "click on applications menu button"}, {"id": 2, "description": "click on 'web browser' submenu or something similar, there could be 'internet'->'firefox' submenus"}, {"id": 3, "description": "move cursor to the middle of the Firefox header"}, {"id": 4, "description": "drag firefox window by header and move it to the left side of the screen"}]. User provided goal is: ` + goal,
+			Role:    RoleUser,
+			Content: ` Break down user provided goal into primitive tasks which program can execute and easily verify. Do not break very simple goal into tasks(example of simple goal:"press alt + F4 hotkeys"). Context: Linux desktop, xfce4, X11. IMPORTANT: You must return a JSON ARRAY, not a single object. Example: [{"id": 1, "description": "click on applications menu button"}, {"id": 2, "description": "click on 'web browser' submenu or something similar, there could be 'internet'->'firefox' submenus"}, {"id": 3, "description": "move cursor to the middle of Firefox header"}, {"id": 4, "description": "drag firefox window by header and move it to the left side of the screen"}]. User provided goal is: ` + goal,
 		},
 	}
 
@@ -176,12 +166,22 @@ func BreakGoalIntoSubtasks(goal string, addTokensAndSendUpdate func(int)) ([]Sub
 	fmt.Printf("Estimated total tokens[breakGoalIntoSubtasks][input]: %d\n", estimate.EstimatedTokens)
 	addTokensAndSendUpdate(estimate.EstimatedTokens)
 
-	modelID := os.Getenv("MODEL_ID")
+	// Get configuration for model
+	cfg := config.GetLLMConfig()
+	model := cfg.Model
+	if model == "" {
+		switch cfg.Provider {
+		case "deepseek":
+			model = "deepseek-chat"
+		case "zai":
+			model = "glm-4.6"
+		}
+	}
 
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
-		&deepseek.ChatCompletionRequest{
-			Model:       modelID,
+		&ChatCompletionRequest{
+			Model:       model,
 			Temperature: 0.5,
 			MaxTokens:   2000,
 			Messages:    messages,
@@ -216,7 +216,7 @@ func BreakGoalIntoSubtasks(goal string, addTokensAndSendUpdate func(int)) ([]Sub
 	if err != nil {
 		log.Println("failed to unmarshal subtasks from byte string to struct:", err)
 
-		// Try to clean the JSON string by removing any non-JSON content
+		// Try to clean JSON string by removing any non-JSON content
 		cleanedJSON := cleanJSONString(s)
 		log.Println("Cleaned JSON string:", cleanedJSON)
 
@@ -234,13 +234,13 @@ func BreakGoalIntoSubtasks(goal string, addTokensAndSendUpdate func(int)) ([]Sub
 					log.Println("Successfully converted single object to array")
 				} else {
 					log.Println("failed to unmarshal as single object too:", err)
-					// As a fallback, return a single subtask with the original goal
+					// As a fallback, return a single subtask with original goal
 					subtasks = []SubTask{{Id: 1, Description: goal}}
 					log.Println("Using fallback subtask with original goal")
 				}
 			}
 		} else {
-			// As a fallback, return a single subtask with the original goal
+			// As a fallback, return a single subtask with original goal
 			subtasks = []SubTask{{Id: 1, Description: goal}}
 			log.Println("Using fallback subtask with original goal (no valid JSON)")
 		}
@@ -252,29 +252,21 @@ func BreakGoalIntoSubtasks(goal string, addTokensAndSendUpdate func(int)) ([]Sub
 
 // IsGoalAchieved checks if the goal has been achieved
 func IsGoalAchieved(goal string, bboxes string, ocrJSONString string, ocrDelta string, ocrDeltaAbstract string, prevActionsJSONString string, iteration int64, prevCursorPositionJSONString string, allWindowsJSONString string, currentCursorPosition string, ocrDataNearTheCursor string, colorsDistributionBeforeAction string, colorsDistribution string, addTokensAndSendUpdate func(int)) (bool, string, string) {
-	client, err := deepseek.NewClient(
-		os.Getenv("API_KEY"),
-		deepseek.WithBaseURL(os.Getenv("API_BASE_URL")),
-		deepseek.WithHTTPClient(&http.Client{
-			Timeout: 5 * time.Minute,
-		}),
-		deepseek.WithMaxRetries(2),
-		deepseek.WithMaxRequestSize(50<<20),
-		deepseek.WithDebug(true),
-	)
-	if err != nil {
-		log.Printf("Failed to create LLM client for goal achievement check: %v", err)
-		return false, "Failed to create LLM client", ""
+	// Get LLM client
+	client := GetLLMClient()
+	if client == nil {
+		log.Printf("LLM client not initialized")
+		return false, "LLM client not initialized", ""
 	}
 
-	messages := []deepseek.Message{
+	messages := []Message{
 		{
-			Role:    deepseek.RoleSystem,
+			Role:    RoleSystem,
 			Content: "You are a helpful assistant. " + ` Output only valid JSON. Json object structure: {"isGoalAchieved": boolean, "description": string, "newPrompt": string} ` + ` If goal is not achieved yet, 'newPrompt' field must include only promitive instructions for the next step to execute which does not require state update to execute them. 'description' field must contain short description of why you decided that goal achieved or not, only based on facts(input data and stated goal). Analyze Previous actions and current state using input data and if you see that previous action or actions caused undesirable state, issue additional commands to fix that state. Very important: analize ocr data, ocr delta and ocr abstract delta, those data mosly like will show you if goal was acomplished because they will contain new text data that appeared on the screen or removed from the screen.`,
 		},
 		{
-			Role:    deepseek.RoleUser,
-			Content: "Let's say you using linux desktop, xfce4, X11, your goal is: " + goal + ", here the current state of the desktop(what you see): " + " OCR delta: " + ocrDelta + " Bounding boxes: " + bboxes + " OCR data: " + ocrJSONString + " Summary of OCR delta: " + ocrDeltaAbstract + " Previous top 10 colors on the screen: " + colorsDistributionBeforeAction + " Current top 10 colors on the screen: " + colorsDistribution + " Previous iteration cursor position: " + prevCursorPositionJSONString + " Current cursor position: " + currentCursorPosition + " And here is OCR data near the cursor(bounding box is full window width but starts 23 pixels above the cursor and ends 23 pixels below the cursor): " + ocrDataNearTheCursor + " Detected windows: " + allWindowsJSONString + " Previous actions: " + prevActionsJSONString + " Current iteration: " + strconv.FormatInt(iteration, 10) + " Very important: analize ocr data, ocr delta and ocr abstract delta, those data mosly like will show you if goal was acomplished because they will contain new text data that appeared on the screen or removed from the screen. You can not ignore evidence from ocr input data, especially from abstract ocr delta. You goal as a reviwer not to find evidence that action mentions in the task was executed, but that this action leads to the desiared outcome, and if that's true, then task is completed. For example when task was to click on some submenu, you should focus if data shows that application you wanted to start by doing that is started or not. And do not complicate easy tasks which have very high chance of success, like clicking a mouse button is almost always 100 percent success. Let's assume that OCR and other input data is relieble. Did you acomplished the task?",
+			Role:    RoleUser,
+			Content: "Let's say you using linux desktop, xfce4, X11, your goal is: " + goal + ", here current state of the desktop(what you see): " + " OCR delta: " + ocrDelta + " Bounding boxes: " + bboxes + " OCR data: " + ocrJSONString + " Summary of OCR delta: " + ocrDeltaAbstract + " Previous top 10 colors on the screen: " + colorsDistributionBeforeAction + " Current top 10 colors on the screen: " + colorsDistribution + " Previous iteration cursor position: " + prevCursorPositionJSONString + " Current cursor position: " + currentCursorPosition + " And here is OCR data near the cursor(bounding box is full window width but starts 23 pixels above the cursor and ends 23 pixels below the cursor): " + ocrDataNearTheCursor + " Detected windows: " + allWindowsJSONString + " Previous actions: " + prevActionsJSONString + " Current iteration: " + strconv.FormatInt(iteration, 10) + " Very important: analize ocr data, ocr delta and ocr abstract delta, those data mosly like will show you if goal was acomplished because they will contain new text data that appeared on the screen or removed from the screen. You can not ignore evidence from ocr input data, especially from abstract ocr delta. You goal as a reviwer not to find evidence that action mentions in the task was executed, but that this action leads to the desiared outcome, and if that's true, then the task is completed. For example when task was to click on some submenu, you should focus if data shows that application you wanted to start by doing that is started or not. And do not complicate easy tasks which have very high chance of success, like clicking a mouse button is almost always 100 percent success. Let's assume that OCR and other input data is relieble. Did you acomplished the task?",
 		},
 	}
 
@@ -282,10 +274,22 @@ func IsGoalAchieved(goal string, bboxes string, ocrJSONString string, ocrDelta s
 	fmt.Printf("Estimated total tokens[isGoalAchieved][input]: %d\n", estimate.EstimatedTokens)
 	addTokensAndSendUpdate(estimate.EstimatedTokens)
 
+	// Get configuration for model
+	cfg := config.GetLLMConfig()
+	model := cfg.Model
+	if model == "" {
+		switch cfg.Provider {
+		case "deepseek":
+			model = "deepseek-chat"
+		case "zai":
+			model = "glm-4.6"
+		}
+	}
+
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
-		&deepseek.ChatCompletionRequest{
-			Model:       os.Getenv("MODEL_ID"),
+		&ChatCompletionRequest{
+			Model:       model,
 			Temperature: 0.3,
 			MaxTokens:   2000,
 			Messages:    messages,
@@ -367,7 +371,7 @@ func extractJSONFromMarkdown(content string) []string {
 }
 
 func cleanJSONString(jsonStr string) string {
-	// Remove any non-JSON content before and after the JSON object
+	// Remove any non-JSON content before and after JSON object
 	start := strings.Index(jsonStr, "{")
 	end := strings.LastIndex(jsonStr, "}")
 	if start != -1 && end != -1 && end > start {

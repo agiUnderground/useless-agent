@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"useless-agent/internal/config"
 	"useless-agent/internal/image"
 	"useless-agent/internal/screenshot"
 	"useless-agent/internal/task"
@@ -269,7 +270,13 @@ func Video2Handler(w http.ResponseWriter, r *http.Request) {
 
 				// Process larger components
 				if absy >= 25 && absx >= 25 {
-					bbArray = append(bbArray, image.BoundingBox{bbCounter, x1, y1, x2, y2})
+					bbArray = append(bbArray, image.BoundingBox{
+						ID: bbCounter,
+						X:  x1,
+						Y:  y1,
+						X2: x2,
+						Y2: y2,
+					})
 
 					// Draw ID box and number
 					borderColor = color.RGBA{R: 12, G: 236, B: 28, A: 255}
@@ -310,7 +317,12 @@ func DrawText(img interface{}, offsetX, offsetY int, text []string) (interface{}
 // GetX11WindowsData gets X11 windows data
 func GetX11WindowsData() (string, error) {
 	log.Printf("=== GETTING X11 WINDOWS DATA ===")
-	x11WindowsJSON, err := x11.GetX11Windows()
+
+	// Get display from config - always pass the display value, even if it's default ":0"
+	display := *config.Display
+	log.Printf("Using display from config: %s", display)
+
+	x11WindowsJSON, err := x11.GetX11WindowsWithDisplay(display)
 	if err != nil {
 		log.Printf("Failed to get X11 windows data: %v", err)
 		return "[]", err

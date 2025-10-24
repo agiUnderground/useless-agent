@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"image/png"
 	"os"
+	"useless-agent/internal/config"
 
 	"github.com/BurntSushi/xgb"
 	"github.com/BurntSushi/xgb/xproto"
@@ -23,6 +24,11 @@ func SuppressXGBLogs() error {
 
 // CaptureX11Screenshot captures an X11 screenshot
 func CaptureX11Screenshot() (image.Image, error) {
+	// Set DISPLAY environment variable if specified
+	if display := *config.Display; display != "" {
+		os.Setenv("DISPLAY", display)
+	}
+
 	conn, err := xgb.NewConn()
 
 	if err != nil {
