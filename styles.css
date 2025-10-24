@@ -136,6 +136,26 @@ html, body {
   }
 }
 
+/* Hide connection section when window height is less than 700px */
+@media (max-height: 699px) {
+  fieldset legend:contains("Connection") {
+    display: none;
+  }
+  
+  /* Hide the entire fieldset that contains Connection legend */
+  .toolbar > fieldset:nth-of-type(1) {
+    display: none;
+  }
+}
+
+/* Hide status section when window height is less than 600px */
+@media (max-height: 599px) {
+  /* Hide the entire fieldset that contains Status legend */
+  .toolbar > fieldset:nth-of-type(2) {
+    display: none;
+  }
+}
+
 .session-container {
   position: relative;
   background-color: rgba(0, 0, 0, 0.1);
@@ -582,6 +602,7 @@ fieldset legend {
   flex-direction: column;
   gap: 10px;
   transition: all 0.3s ease;
+  min-height: 163px;
 }
 
 .tasks-section.visible {
@@ -609,7 +630,6 @@ fieldset legend {
 }
 
 .tasks-section {
-  min-height: 0;
   max-height: 50vh; /* Limit maximum height to 50% of viewport */
 }
 
