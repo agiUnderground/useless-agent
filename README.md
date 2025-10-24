@@ -25,9 +25,16 @@
 > [!NOTE]  
 > It is super slow. Right now, speed is not a priority. If your only problem is speed, you have already won the agents game.  
 
+Currently supported llm providers:
+* `DeepSeek`
+* `Z.AI`
+
 Currently supported models:
 * `deepseek-chat`
 * `deepseek-reasoner`
+* `glm-4.6`
+* `glm-4.5`
+* `glm-4.5-flash`
 
 **Environment**: Only works on - `Linux + xfce + X11`.  
 
@@ -105,7 +112,8 @@ sudo systemctl enable --now xvfb.service xfce4.service
 
 `start executable:`
 ```bash
-API_KEY=your-api-token-value DISPLAY=:1 API_BASE_URL='https://api.deepseek.com/v1' MODEL_ID='deepseek-chat' ./useless-agent --ip=127.0.0.1 --port 8080
+./useless-agent --provider=deepseek --base-url="https://api.deepseek.com/v1" --key=YOUR-API-KEY --model='deepseek-chat' --display=:1 --ip=127.0.0.1 --port=8080
+./useless-agent --provider=zai --base-url="https://api.z.ai/api/paas/v4" --key=YOUR-API-KEY --model='glm-4.5-flash' --display=:1 --ip=127.0.0.1 --port=8080
 ```
 `On client machine open main.html in the browser.`
 
