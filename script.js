@@ -2284,6 +2284,21 @@ function calculateConnectionPath(chatElement, sessionElement) {
   const chatInput = document.getElementById('llmChatInput');
   const inputRect = chatInput.getBoundingClientRect();
   
+  // Check if we're in mobile responsive mode (width < 1100px)
+  const isMobileMode = window.innerWidth < 1100;
+  
+  if (isMobileMode) {
+    // Mobile mode: sessions are stacked vertically, use simplified path
+    const chatStartX = inputRect.right;
+    const chatStartY = inputRect.top + inputRect.height / 2;
+    const sessionCenterX = sessionRect.left + sessionRect.width / 2;
+    const sessionCenterY = sessionRect.top + sessionRect.height / 2;
+    
+    // Simple path: go horizontally to session center, then vertically down
+    return `M ${chatStartX} ${chatStartY} L ${sessionCenterX} ${chatStartY} L ${sessionCenterX} ${sessionCenterY}`;
+  }
+  
+  // Desktop mode: use original logic
   // Start from right side of the textbox inside the chat fieldset
   const chatStartX = inputRect.right;
   const chatStartY = inputRect.top + inputRect.height / 2;
@@ -2718,4 +2733,25 @@ if (tasksContainer) {
 // Handle resize to update all connection lines
 window.addEventListener('resize', () => {
   updateConnectionLine();
+});
+
+// Handle window resize to detect responsive mode changes
+let previousWidth = window.innerWidth;
+window.addEventListener('resize', () => {
+  const currentWidth = window.innerWidth;
+  
+  // Check if we crossed the 1100px threshold
+  const wasDesktop = previousWidth >= 1100;
+  const isDesktop = currentWidth >= 1100;
+  
+  if (wasDesktop !== isDesktop) {
+    console.log(`Responsive mode changed: ${wasDesktop ? 'Desktop -> Mobile' : 'Mobile -> Desktop'}`);
+    // Force connection line update when switching between responsive modes
+    setTimeout(() => {
+      updateConnectionLine();
+      updateUserAssistConnectionLine();
+    }, 100); // Small delay to ensure layout has settled
+  }
+  
+  previousWidth = currentWidth;
 });

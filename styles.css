@@ -58,6 +58,69 @@ html, body {
   /* gap: 10px; */
   padding: 10px;
   overflow: auto;
+  
+  /* Custom scrollbar styling to match tasks container */
+  scrollbar-width: thin;
+  scrollbar-color: #555 #212121;
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+.main-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.main-content::-webkit-scrollbar-track {
+  background: #212121;
+  border-radius: 3px;
+}
+
+.main-content::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 3px;
+}
+
+.main-content::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}
+
+/* Firefox */
+.main-content {
+  scrollbar-width: thin;
+  scrollbar-color: #444 #212121;
+}
+
+/* Responsive design for screens less than 1100px wide */
+@media (max-width: 1099px) {
+  .main-content {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 10px;
+    gap: 10px;
+  }
+  
+  .session-container {
+    min-height: 300px;
+    width: 100%;
+    flex-shrink: 0;
+  }
+  
+  /* Override all grid-based layouts for mobile */
+  .main-content[data-session-count="1"],
+  .main-content[data-session-count="2"],
+  .main-content[data-session-count="3"],
+  .main-content[data-session-count="4"],
+  .main-content[data-session-count="5"],
+  .main-content[data-session-count="6"] {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .main-content[data-session-count="3"] .session-container:nth-child(3),
+  .main-content[data-session-count="5"] .session-container:nth-child(5) {
+    grid-column: span 1;
+  }
 }
 
 .session-container {
