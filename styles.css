@@ -121,6 +121,19 @@ html, body {
   .main-content[data-session-count="5"] .session-container:nth-child(5) {
     grid-column: span 1;
   }
+  
+  /* Fix vertical centering for maximized sessions in mobile mode */
+  .main-content:has(.session-container.maximized) {
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .session-container.maximized {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: none !important;
+    margin: 0 auto;
+  }
 }
 
 .session-container {
