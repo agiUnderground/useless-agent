@@ -1294,3 +1294,22 @@ fieldset legend {
   border-color: rgba(255, 193, 7, 0.5);
   box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.2);
 }
+
+/* Selected session IP display */
+.selected-session-ip {
+  font-size: 10px;
+  color: #888;
+  margin-bottom: 5px;
+  text-align: right;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.selected-session-ip:hover {
+  opacity: 1;
+}
+
+.selected-session-ip #selectedIpText {
+  font-weight: normal;
+  color: #aaa;
+}

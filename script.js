@@ -200,9 +200,29 @@ function selectSession(sessionId) {
     
     selectedSessionId = sessionId;
     console.log(`Selected session: ${sessionId}`);
+    
+    // Update the selected session IP display
+    updateSelectedSessionIp(sessionId);
   } else {
     console.log(`Session not found or container missing for sessionId: ${sessionId}`);
     console.log(`Available sessions:`, Array.from(sessions.keys()));
+  }
+}
+
+// Function to update the selected session IP display
+function updateSelectedSessionIp(sessionId) {
+  const selectedSessionIpElement = document.getElementById('selectedSessionIp');
+  const selectedIpTextElement = document.getElementById('selectedIpText');
+  
+  if (selectedSessionIpElement && selectedIpTextElement) {
+    if (sessionId) {
+      // Show the selected session IP
+      selectedIpTextElement.textContent = sessionId;
+      selectedSessionIpElement.style.display = 'block';
+    } else {
+      // Hide the IP display if no session is selected
+      selectedSessionIpElement.style.display = 'none';
+    }
   }
 }
 
@@ -394,6 +414,8 @@ function closeSession(sessionId) {
     // No sessions left, clear selection
     selectedSessionId = null;
     clearConnectionLine();
+    // Hide IP display when no sessions are left
+    updateSelectedSessionIp(null);
   }
   
   updateSessionLayout();
