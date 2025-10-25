@@ -305,14 +305,16 @@ func ExecuteTask(task *Task) {
 				if actions[i].Action == "stopIteration" {
 					log.Printf("Executing stopIteration action")
 					actions[i].Execute(&actions[i])
-					break SubTaskLoop
-				}
-				if actions[i].Action == "stateUpdate" {
-					log.Printf("Executing stateUpdate action")
-					actions[i].Execute(&actions[i])
-					time.Sleep(1 * time.Second)
+					// break SubTaskLoop
+					// stop executing actions but don't break a SubTaskLoop, because task completion needs to be verified.
 					break
 				}
+				//if actions[i].Action == "stateUpdate" {
+				//	log.Printf("Executing stateUpdate action")
+				//	actions[i].Execute(&actions[i])
+				//	time.Sleep(1 * time.Second)
+				//	break
+				//}
 				if actions[i].Action == "repeat" {
 					log.Printf("Executing repeat action")
 					actions[i].Execute(&actions[i], &actions)
@@ -538,7 +540,7 @@ func ExecuteTask(task *Task) {
 				promptLog = nil
 				break SubTaskLoop
 			} else {
-				log.Println("task not achieved, new prompt is:", nextPrompt)
+				log.Println("task not completed, new prompt is:", nextPrompt)
 				prompt = nextPrompt
 				promptLog = append(promptLog, PromptLog{iteration, nextPrompt})
 			}
