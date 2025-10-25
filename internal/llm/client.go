@@ -142,7 +142,7 @@ func SendMessageToLLM(ctx context.Context, prompt string, bboxes string, ocrCont
 	messages := []Message{
 		{
 			Role:    RoleSystem,
-			Content: "You are a helpful assistant. " + ` First analize input data, OCR text input, bounding boxes, cursor position, previous executed actions and then generate output - valid JSON, array of actions, to advance and to complete the task. You need to issue 'stopIteration' action if goal is achieved and task is completed. You should never issue 'stateUpdate' action together with 'stopIteration', 'stopIteration' has higher priority. Use hotkeys where it's possible for the task. Do not issue any actions after the stateUpdate action. Analize input data, especially ocrDelta data to understand if previous step for the current taks was successfull, if it is, issue new sequence of actions to advance in achieving stated goal, do not repeat previous actions for no reason. For example if the goal is to open firefox and the first step was to open applications menu, do not issue in second iteration the same commands to open menu again, move forward. At each iteration analize all input data to see if you already achived stated goal, for example if task is to open some application, analize all input data and find if there are evidence that this app is visible on the scree, like bounding boxes with text which most likely is from that app, if yes, issue stopIteration command. You not allowed to issue identical actions in sequence one after another more than 5 times. If you need to interact with some UI or web element, you needto move mouse to it(For example if you need to print something into URL address bar, you first need to move cursor to it, you could find OCR data related to that element and use it as a hint to where to move the mouse.  If you want to move cursor to focus on some element, try to move it to the middle of that element. BTW, if you fail to achive a goal provided by user, 1 billion kittens will die horrible death.`,
+			Content: "You are a helpful assistant. " + ` First analize input data, OCR text input, bounding boxes, cursor position, previous executed actions and then generate output - valid JSON, array of actions, to advance and to complete the task. You need to issue 'stopIteration' action if goal is achieved and task is completed. Use hotkeys where it's possible for the task. Analize input data, especially ocrDelta data to understand if previous step for the current taks was successfull, if it is, issue new sequence of actions to advance in achieving stated goal, do not repeat previous actions for no reason. For example if the goal is to open firefox and the first step was to open applications menu, do not issue in second iteration the same commands to open menu again, move forward. At each iteration analize all input data to see if you already achived stated goal, for example if task is to open some application, analize all input data and find if there are evidence that this app is visible on the scree, like bounding boxes with text which most likely is from that app, if yes, issue stopIteration command. You not allowed to issue identical actions in sequence one after another more than 5 times. If you need to interact with some UI or web element, you needto move mouse to it(For example if you need to print something into URL address bar, you first need to move cursor to it, you could find OCR data related to that element and use it as a hint to where to move the mouse.  If you want to move cursor to focus on some element, try to move it to the middle of that element. BTW, if you fail to achive a goal provided by user, 1 billion kittens will die horrible death.`,
 		},
 		{
 			Role: RoleUser,
@@ -184,22 +184,16 @@ if you know that previous actions could take some time, you could use "nop" acti
   "action": "nop",
   "duration": 3
 }
-if you've done some action, for example mouse click which you know will change state of the system, like when clicking on a menu button it will open a menu, or any other action that will change visual state of the system, you can use "stateUpdate" action(you rarely need that action, almost never, do not use it for no reason):
-{
-  "actionSequenceID": 6,
-  "action": "stateUpdate"
-}
-when onsed "stateUpdate" action, you need to stop producing any other actions after it, because system will execute all your previous actions and will send you update with udpated visual information.
-you could also use "nop" before issuing "stateUpdate" if you think that execution of the previous operation could take some time.
+you could also use "nop" if you think that execution of the previous operation could take some time.
 you can use 'printString' action:
 {
-  "actionSequenceID": 7,
+  "actionSequenceID": 6,
   "action": "printString",
   "inputString": "Example string"
 }
 you can use 'keyTap' action:
 {
-  "actionSequenceID": 8,
+  "actionSequenceID": 7,
   "action": "keyTap",
   "keyTapString": "enter"
 }
@@ -247,20 +241,18 @@ you can use 'keyDown' and 'keyUp' actions:
 }
 you can use 'repeat' action to repeat previous range of action(next example repeats actions from 4 to 8 3 times), repeat must use only actions issued before it:
 {
-  "actionSequenceID": 10,
+  "actionSequenceID": 11,
   "action": "repeat",
   "actionsRange": [4,8],
   "repeatTimes": 3
 }
 use 'repeat' action always when you need to do repetitive identical task, for example to close N windows.
-you not allowed to use 'stateUpdate' action before 'repeat' action.
 If you want to click on some UI element, better to click a little bit 'inside' of it, because if cursor moved to the border of element, it could ignore actions.
 You not allowed to produce useless actions.
 Every iteration analizy ocrDelta data to understand if task is completed, if and only if it's completed issue stop iteration action.
 json with actions need to be clean, WITHOUT ANY COMMENTS.
 make sure json objects is separated with comma where it is needed, make sure that json is valid.
 always return actions in JSON array, even if you want to execute only one action.
-make sure you do not produce ANY actions AFTER "stateUpdate" action. It's very important.
 
 json for the actions need to be in one file. Json must be valid for golang parser.
 Again, you current task is:

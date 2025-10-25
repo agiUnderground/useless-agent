@@ -15,7 +15,6 @@ var actionFunctions = map[string]func(*Action, ...interface{}){
 	"mouseClickLeftDouble": mouseClickLeftDoubleExecution,
 	"mouseClickRight":      mouseClickRightExecution,
 	"nop":                  nopActionExecution,
-	"stateUpdate":          stateUpdateActionExecution,
 	"stopIteration":        stopIterationActionExecution,
 	"printString":          printStringActionExecution,
 	"keyTap":               keyTapActionExecution,
@@ -78,10 +77,6 @@ func nopActionExecution(a *Action, params ...interface{}) {
 	if a.Duration > 0 {
 		time.Sleep(time.Duration(a.Duration) * time.Second)
 	}
-}
-
-func stateUpdateActionExecution(a *Action, params ...interface{}) {
-	fmt.Printf("Executing stateUpdate action '%s' (ID: %d)\n", a.Action, a.ActionSequenceID)
 }
 
 func stopIterationActionExecution(a *Action, params ...interface{}) {
