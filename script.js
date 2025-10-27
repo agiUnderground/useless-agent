@@ -2251,6 +2251,17 @@ document.addEventListener('keydown', (event) => {
       // Toggle the settings sidebar
       toggleSettingsSidebar();
     }
+    
+    // Chat input focus shortcut (C key)
+    if (event.key === 'c' || event.key === 'C') {
+      event.preventDefault(); // Prevent default browser behavior
+      
+      // Focus on the chat input textarea
+      const chatInput = document.getElementById('llmChatInput');
+      if (chatInput) {
+        chatInput.focus();
+      }
+    }
   }
 });
 
