@@ -103,8 +103,20 @@
         <span style="font-size: 12px !important; font-weight: normal !important; letter-spacing: 1px; cursor: default; user-select: none;">Settings</span>
         <button class="settings-close-btn" id="settingsCloseBtn">×</button>
       </div>
+      <div class="settings-tabs">
+        <button class="settings-tab active" data-tab="execution">Execution engine</button>
+        <button class="settings-tab" data-tab="logs">Logs</button>
+      </div>
       <div class="settings-content">
-        <!-- Settings content will be added here -->
+        <div class="settings-tab-content active" id="execution-tab">
+          <p>Execution engine settings will be displayed here.</p>
+        </div>
+        <div class="settings-tab-content" id="logs-tab">
+          <div class="logs-header">
+            <button class="control-button" id="clearLogsBtn">Clear Logs</button>
+          </div>
+          <p>Logs will be displayed here.</p>
+        </div>
       </div>
     </div>
   </div>

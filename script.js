@@ -506,9 +506,21 @@ function setupSessionWebSocket(session) {
         document.getElementById('tokenCounter').textContent = data.total;
       } else if (data.type === 'taskUpdate') {
         handleTaskUpdate(data);
+      } else if (data.type === 'log') {
+        handleLogMessage(data.data);
       }
     } catch (error) {
       console.log(`WebSocket message from ${session.ip} (non-JSON):`, event.data);
+      
+      // Try to parse as JSON for non-JSON messages too (in case of parsing issues above)
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'log') {
+          handleLogMessage(data.data);
+        }
+      } catch (jsonError) {
+        // If it's not JSON, ignore
+      }
     }
   };
   
@@ -922,7 +934,6 @@ function drawUserAssistConnectionLine(taskCardElement, chatElement) {
   // Create traveling pulse dots
   createUserAssistPulseDots(pathData);
   
-  console.log('User-assist connection line drawn');
 }
 
 // Function to create user-assist line (no traveling dots)
@@ -931,7 +942,6 @@ function createUserAssistPulseDots(pathData) {
   startSynchronizedAnimation();
   
   // No traveling dots - just the line itself
-  console.log('Creating user-assist line with synchronized animation');
 }
 
 // Function to clear user-assist connection line
@@ -976,7 +986,6 @@ function removeUserAssistBadge() {
 function activateUserAssist(taskCard) {
   // Only allow activation for in-progress tasks
   if (!taskCard.classList.contains('in-progress')) {
-    console.log('User-assist cannot be activated for non-in-progress tasks');
     return;
   }
   
@@ -1011,7 +1020,6 @@ function activateUserAssist(taskCard) {
   chatInput.classList.add('user-assist-active');
   chatFieldsetElement.classList.add('user-assist-active');
   
-  console.log('User-assist activated');
 }
 
 // Function to deactivate user-assist mode
@@ -1040,6 +1048,7 @@ function deactivateUserAssist(restoreGreenOutline = true) {
       if (restoreGreenOutline) {
         session.container.classList.add('selected');
       }
+      console.log('User-assist activated');
     }
   }
   
@@ -1620,7 +1629,6 @@ document.getElementById("llmSendButton").addEventListener("click", () => {
         })
       }).then(response => response.json())
       .then(data => {
-        console.log('User-assist response:', data);
         if (!data.accepted) {
           showToast('User-assist message was not accepted. Task may be completed or not found.', 'warning');
         }
@@ -2411,15 +2419,10 @@ function calculateConnectionPath(chatElement, sessionElement) {
   const leftEdgeOffset = sessionRect.left - mainContentRect.left;
   const isLeftEdgeAccessible = leftEdgeOffset <= 10; // 10px or less from main content left edge means left edge is accessible
   
-  console.log(`Session left edge offset from main content: ${leftEdgeOffset}px`);
-  console.log(`Left edge accessible: ${isLeftEdgeAccessible}`);
-  
   // Choose path based on simple accessibility logic
   if (isLeftEdgeAccessible) {
-    console.log('Choosing LEFT path (left edge is accessible - shortest path)');
     return leftPath;
   } else {
-    console.log('Choosing RIGHT path (left edge blocked by other sessions)');
     return rightPath;
   }
 }
@@ -2498,10 +2501,6 @@ function drawConnectionLine(chatElement, sessionElement) {
   // Clear any existing connection
   clearConnectionLine();
   
-  console.log('=== Drawing Connection Line ===');
-  console.log('Chat element:', chatElement);
-  console.log('Session element:', sessionElement);
-  console.log('Connection SVG:', connectionSvg);
   
   // Check if connectionSvg exists
   if (!connectionSvg) {
@@ -2510,7 +2509,6 @@ function drawConnectionLine(chatElement, sessionElement) {
   }
   
   const pathData = calculateConnectionPath(chatElement, sessionElement);
-  console.log('Generated path:', pathData);
   
   if (!pathData || pathData.trim() === '') {
     console.error('Path data is empty, cannot draw connection line');
@@ -2537,13 +2535,9 @@ function drawConnectionLine(chatElement, sessionElement) {
   }
   
   connectionSvg.appendChild(currentConnectionPath);
-  console.log('Path added to SVG:', currentConnectionPath);
   
   // Create traveling pulse dots
   createPulseDots(pathData);
-  
-  console.log('Connection line drawn between chat and session');
-  console.log('=== End Connection Line Drawing ===');
 }
 
 // Function to start synchronized animation
@@ -2607,7 +2601,6 @@ function updatePulseDotsWithPhase(phase) {
 // Function to create line (no traveling dots)
 function createPulseDots(pathData) {
   // No animation - static lines only
-  console.log('Creating static line without animation');
 }
 
 // Function to clear connection line
@@ -2733,7 +2726,6 @@ function drawUserAssistConnectionLine(taskCardElement, chatElement) {
   // Create traveling pulse dots
   createUserAssistPulseDots(pathData);
   
-  console.log('User-assist connection line drawn');
 }
 
 // Function to check if task card is visible in the tasks container
@@ -2756,11 +2748,6 @@ function isTaskCardVisible(taskCard) {
   // We need some tolerance for the bottom edge to be visible
   const bottomVisible = (taskBottom > 0 && taskBottom <= containerHeight);
   
-  console.log(`Task card visibility check:`);
-  console.log(`  Task top relative to container: ${taskTop}px`);
-  console.log(`  Task bottom relative to container: ${taskBottom}px`);
-  console.log(`  Container height: ${containerHeight}px`);
-  console.log(`  Bottom visible: ${bottomVisible}`);
   
   return bottomVisible;
 }
@@ -2834,7 +2821,6 @@ window.addEventListener('resize', () => {
   const isDesktop = currentWidth >= 1100;
   
   if (wasDesktop !== isDesktop) {
-    console.log(`Responsive mode changed: ${wasDesktop ? 'Desktop -> Mobile' : 'Mobile -> Desktop'}`);
     // Force connection line update when switching between responsive modes
     setTimeout(() => {
       updateConnectionLine();
@@ -2916,6 +2902,55 @@ if (settingsBtn) {
 if (settingsCloseBtn) {
   settingsCloseBtn.addEventListener('click', toggleSettingsSidebar);
 }
+
+// Settings tabs functionality
+function initSettingsTabs() {
+  const tabButtons = document.querySelectorAll('.settings-tab');
+  const tabContents = document.querySelectorAll('.settings-tab-content');
+  
+  tabButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const targetTab = button.getAttribute('data-tab');
+      
+      // Remove active class from all tabs and contents
+      tabButtons.forEach(btn => btn.classList.remove('active'));
+      tabContents.forEach(content => content.classList.remove('active'));
+      
+      // Add active class to clicked tab and corresponding content
+      button.classList.add('active');
+      document.getElementById(`${targetTab}-tab`).classList.add('active');
+    });
+  });
+}
+
+// Initialize settings tabs when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  initSettingsTabs();
+  
+  // Add event listener for logs tab
+  const logsTab = document.querySelector('[data-tab="logs"]');
+  if (logsTab) {
+    logsTab.addEventListener('click', () => {
+      // Start log streaming when logs tab is selected
+      startLogStreaming();
+    });
+  }
+  
+  // Add event listener for execution tab to stop log streaming
+  const executionTab = document.querySelector('[data-tab="execution"]');
+  if (executionTab) {
+    executionTab.addEventListener('click', () => {
+      // Stop log streaming when switching away from logs tab
+      stopLogStreaming();
+    });
+  }
+  
+  // Add clear logs button functionality
+  const clearLogsBtn = document.getElementById('clearLogsBtn');
+  if (clearLogsBtn) {
+    clearLogsBtn.addEventListener('click', resetLogs);
+  }
+});
 
 // Close settings sidebar when Escape key is pressed
 document.addEventListener('keydown', (event) => {
@@ -3193,5 +3228,190 @@ function navigateSession(direction) {
         inline: 'nearest'
       });
     }
+    
+    // Log streaming functions are now global
+    
+    // Function to handle log messages from WebSocket
+    function handleLogMessage(logData) {
+      if (!logStreamingActive) return;
+      
+      // Add to log messages array (server already adds timestamp)
+      logMessages.push(logData);
+      
+      // Update logs display if logs tab is active
+      updateLogsDisplay();
+    }
+    
+    // Function to update logs display
+    function updateLogsDisplay() {
+      const logsTab = document.getElementById('logs-tab');
+      if (!logsTab) return;
+      
+      // Check if logs container already exists
+      let logsContainer = logsTab.querySelector('.logs-container');
+      let logsPre = logsTab.querySelector('.logs-content');
+      
+      // Create container if it doesn't exist
+      if (!logsContainer) {
+        logsContainer = document.createElement('div');
+        logsContainer.className = 'logs-container';
+        
+        logsPre = document.createElement('pre');
+        logsPre.className = 'logs-content';
+        
+        logsContainer.appendChild(logsPre);
+        
+        // Clear existing content except for the header
+        const existingHeader = logsTab.querySelector('.logs-header');
+        logsTab.innerHTML = '';
+        if (existingHeader) {
+          logsTab.appendChild(existingHeader);
+        }
+        logsTab.appendChild(logsContainer);
+      }
+      
+      // Update the log content
+      logsPre.textContent = logMessages.join('');
+      
+      // Auto-scroll to bottom
+      logsPre.scrollTop = logsPre.scrollHeight;
+    }
+    
+    // Function to start log streaming
+    function startLogStreaming() {
+      logStreamingActive = true;
+      logMessages = []; // Clear existing messages
+      
+      const logsTab = document.getElementById('logs-tab');
+      if (logsTab) {
+        logsTab.innerHTML = '<div class="logs-status">Log streaming started...</div>';
+      }
+    }
+    
+    // Function to stop log streaming
+    function stopLogStreaming() {
+      logStreamingActive = false;
+      
+      const logsTab = document.getElementById('logs-tab');
+      if (logsTab) {
+        const statusDiv = logsTab.querySelector('.logs-status');
+        if (statusDiv) {
+          statusDiv.textContent = 'Log streaming stopped';
+        }
+      }
+    }
+    
+    // Function to clear logs
+    function clearLogs() {
+      logMessages = [];
+      
+      const logsPre = document.querySelector('.logs-content');
+      if (logsPre) {
+        logsPre.textContent = '';
+      }
+    }
+  }
+}
+
+// Log streaming functionality - Global scope
+  // End of navigateSession function
+let logStreamingActive = false;
+let logMessages = [];
+
+// Function to handle log messages from WebSocket
+function handleLogMessage(logData) {
+  if (!logStreamingActive) return;
+  
+  // Add to log messages array (server already adds timestamp)
+  logMessages.push(logData);
+  
+  // Update logs display if logs tab is active
+  updateLogsDisplay();
+}
+
+// Function to update logs display
+function updateLogsDisplay() {
+  const logsTab = document.getElementById('logs-tab');
+  if (!logsTab) return;
+  
+  // Check if logs container already exists
+  let logsContainer = logsTab.querySelector('.logs-container');
+  let logsPre = logsTab.querySelector('.logs-content');
+  
+  // Create container if it doesn't exist
+  if (!logsContainer) {
+    logsContainer = document.createElement('div');
+    logsContainer.className = 'logs-container';
+    
+    logsPre = document.createElement('pre');
+    logsPre.className = 'logs-content';
+    
+    logsContainer.appendChild(logsPre);
+    
+    // Clear existing content except for the header
+    const existingHeader = logsTab.querySelector('.logs-header');
+    logsTab.innerHTML = '';
+    if (existingHeader) {
+      logsTab.appendChild(existingHeader);
+    }
+    logsTab.appendChild(logsContainer);
+  }
+  
+  // Update log content
+  logsPre.textContent = logMessages.join('');
+  
+  // Auto-scroll to bottom
+  logsPre.scrollTop = logsPre.scrollHeight;
+}
+
+// Function to start log streaming
+function startLogStreaming() {
+  logStreamingActive = true;
+  // Don't clear existing messages when switching tabs - only clear on explicit user action
+  
+  const logsTab = document.getElementById('logs-tab');
+  if (logsTab) {
+    // Check if logs container already exists
+    let logsContainer = logsTab.querySelector('.logs-container');
+    if (!logsContainer) {
+      // Only create status message if container doesn't exist
+      logsTab.innerHTML = '<div class="logs-status">Log streaming started...</div>';
+    } else {
+      // If container exists, just update the display with existing messages
+      updateLogsDisplay();
+    }
+  }
+}
+
+// Function to stop log streaming
+function stopLogStreaming() {
+  logStreamingActive = false;
+  
+  const logsTab = document.getElementById('logs-tab');
+  if (logsTab) {
+    const statusDiv = logsTab.querySelector('.logs-status');
+    if (statusDiv) {
+      statusDiv.textContent = 'Log streaming stopped';
+    }
+  }
+}
+
+// Function to clear logs
+function clearLogs() {
+  logMessages = [];
+  
+  const logsPre = document.querySelector('.logs-content');
+  if (logsPre) {
+    logsPre.textContent = '';
+  }
+}
+
+// Function to completely reset logs (for fresh start)
+function resetLogs() {
+  logMessages = [];
+  
+  const logsTab = document.getElementById('logs-tab');
+  if (logsTab) {
+    logsTab.innerHTML = '<div class="logs-status">Log streaming started...</div>';
   }
 }

@@ -143,3 +143,27 @@ func BroadcastMessage(messageType string, data interface{}) {
 		}
 	}
 }
+
+// SendLogMessage sends log data to all WebSocket clients
+func SendLogMessage(logData string) {
+	wsmutex.Lock()
+	defer wsmutex.Unlock()
+
+	update := map[string]interface{}{
+		"type": "log",
+		"data": logData,
+	}
+
+	updateJSON, err := json.Marshal(update)
+	if err != nil {
+		log.Println("Error marshaling log message:", err)
+		return
+	}
+
+	for _, conn := range websocketConnections {
+		err = conn.WriteMessage(websocket.TextMessage, updateJSON)
+		if err != nil {
+			log.Println("Error sending log message:", err)
+		}
+	}
+}

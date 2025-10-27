@@ -1436,6 +1436,7 @@ fieldset legend {
   align-items: center;
   padding: 15px 30px 0;
   height: 45px;
+  padding-left: 34px;
 }
 
 .settings-close-btn {
@@ -1456,8 +1457,9 @@ fieldset legend {
 
 .settings-content {
   padding: 0 30px 30px;
+  padding-right: 0px;
   color: #fff;
-  overflow-y: auto;
+  overflow-y: hidden;
   flex: 1;
   font-family: 'JetBrains Mono', monospace;
 }
@@ -1469,6 +1471,83 @@ fieldset legend {
   font-weight: normal !important;
   text-transform: uppercase;
   letter-spacing: 1px;
+}
+
+/* Settings Tabs Styles */
+.settings-tabs {
+  display: flex;
+  padding: 0 30px;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #333;
+}
+
+.settings-tab {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 8px 4px;
+  border-radius: 3px;
+  opacity: 0.7;
+  transition: opacity 0.3s ease, color 0.3s ease;
+  font-family: 'JetBrains Mono', monospace;
+  margin-right: 15px;
+  position: relative;
+}
+
+/* First tab (execution engine) positioning */
+.settings-tab:first-child {
+  margin-left: 0;
+}
+
+.settings-tab:hover {
+  opacity: 1;
+  color: #aaa;
+}
+
+.settings-tab.active {
+  opacity: 1;
+  color: #fff;
+}
+
+.settings-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background-color: #fff;
+}
+
+.settings-tab-content {
+  display: none;
+  color: #fff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  padding: 15px 0;
+  line-height: 1.4;
+}
+
+/* Align logs content with tab text */
+#logs-tab {
+  padding-left: 0;
+}
+
+/* Ensure logs content aligns with execution engine tab text */
+.logs-container {
+  margin-left: 0;
+}
+
+/* Fix logs content alignment to match execution engine tab text */
+.logs-content {
+  margin-left: 0;
+  padding-left: 4px !important;
+}
+
+.settings-tab-content.active {
+  display: block;
 }
 
 /* Mobile mode for main content when settings sidebar is open */
@@ -1527,4 +1606,80 @@ fieldset legend {
 .main-content.mobile-mode[data-session-count="6"] {
   display: flex !important;
   flex-direction: column !important;
+}
+
+/* Logs Tab Styles */
+.logs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #444; /* Medium gray to match scrollbar */
+}
+
+.logs-container {
+  height: calc(100vh - 150px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.logs-content {
+  background-color: #000; /* Black background */
+  color: #e0e0e0; /* Soft, pleasant light gray text instead of harsh green */
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 10px;
+  margin: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  height: 100%;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 0;
+  /* Removed box shadow for cleaner appearance */
+}
+
+.logs-status {
+  text-align: center;
+}
+
+/* Custom scrollbar for logs content - matching tasks scrollbar */
+.logs-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.logs-content::-webkit-scrollbar-track {
+  background: #212121;
+  border-radius: 3px;
+}
+
+.logs-content::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 3px;
+}
+
+.logs-content::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}
+
+/* Firefox scrollbar for logs content - matching tasks scrollbar */
+.logs-content {
+  scrollbar-width: thin;
+  scrollbar-color: #444 #212121;
+}
+
+/* Add text selection styling for logs */
+.logs-content::selection {
+  background-color: rgba(30, 64, 124, 0.7); /* Beautiful dark blue highlight */
+  color: #e0e0e0;
+}
+
+.logs-content::-moz-selection {
+  background-color: rgba(30, 64, 124, 0.7);
+  color: #e0e0e0;
 }
