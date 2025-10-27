@@ -1977,9 +1977,13 @@ function toggleSessionMaximize(session) {
   const imageSizeContainer = session.content.querySelector('.image-size-container');
   const screenshotOverlay = session.content.querySelector('.screenshot-overlay');
   const screenshotContainer = session.screenshotContainer;
+  const mainWrapper = document.querySelector('.main-wrapper');
   
   // Check if session is already maximized
   const isMaximized = sessionContainer.classList.contains('maximized');
+  
+  // Check if settings sidebar is open
+  const isSettingsOpen = mainWrapper.classList.contains('settings-open');
   
   // Clean up existing maximized mode event listeners if restoring
   if (isMaximized && screenshotContainer._maximizedHandlers) {
@@ -2227,6 +2231,11 @@ document.addEventListener('keydown', (event) => {
     // Maximize shortcut (M key)
     if (event.key === 'm' || event.key === 'M') {
       event.preventDefault(); // Prevent default browser behavior
+      
+      // Blur any potentially focused elements to prevent outline on settings button
+      if (document.activeElement) {
+        document.activeElement.blur();
+      }
       
       // Maximize the selected session
       const selectedSession = getSelectedSession();
@@ -2795,4 +2804,83 @@ window.addEventListener('resize', () => {
   }
   
   previousWidth = currentWidth;
+});
+
+// Settings Sidebar Functionality
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsSidebar = document.getElementById('settingsSidebar');
+const settingsContainer = document.getElementById('settingsContainer');
+const settingsCloseBtn = document.getElementById('settingsCloseBtn');
+let settingsOpen = false;
+
+// Toggle settings sidebar
+function toggleSettingsSidebar() {
+  settingsOpen = !settingsOpen;
+  const mainWrapper = document.querySelector('.main-wrapper');
+  
+  if (settingsOpen) {
+    // Open sidebar
+    settingsContainer.classList.add('open');
+    // Add mobile mode to main content
+    mainContent.classList.add('mobile-mode');
+    // Add settings-open class to main wrapper
+    mainWrapper.classList.add('settings-open');
+    
+    // Ensure no sessions are automatically maximized when settings open
+    sessions.forEach((session) => {
+      if (session.container.classList.contains('maximized')) {
+        // If any session is maximized, restore normal layout
+        toggleSessionMaximize(session);
+      }
+    });
+  } else {
+    // Close sidebar
+    settingsContainer.classList.remove('open');
+    // Remove mobile mode from main content
+    mainContent.classList.remove('mobile-mode');
+    // Remove settings-open class from main wrapper
+    mainWrapper.classList.remove('settings-open');
+  }
+}
+
+// Listen for transition end on settings container
+settingsContainer.addEventListener('transitionend', function(event) {
+  if (event.propertyName === 'transform') {
+    // Final update connection lines when transition completes
+    updateConnectionLine();
+    updateUserAssistConnectionLine();
+  }
+});
+
+// Continuous update during transition
+function updateConnectionLinesDuringTransition() {
+  if (settingsContainer.classList.contains('open') || settingsContainer.classList.contains('open') === false) {
+    updateConnectionLine();
+    updateUserAssistConnectionLine();
+    requestAnimationFrame(updateConnectionLinesDuringTransition);
+  }
+}
+
+// Start continuous updates when toggling
+const originalToggleSettingsSidebar = toggleSettingsSidebar;
+toggleSettingsSidebar = function() {
+  originalToggleSettingsSidebar();
+  requestAnimationFrame(updateConnectionLinesDuringTransition);
+};
+
+// Settings button click event
+if (settingsBtn) {
+  settingsBtn.addEventListener('click', toggleSettingsSidebar);
+}
+
+// Settings close button click event
+if (settingsCloseBtn) {
+  settingsCloseBtn.addEventListener('click', toggleSettingsSidebar);
+}
+
+// Close settings sidebar when Escape key is pressed
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && settingsOpen) {
+    toggleSettingsSidebar();
+  }
 });
