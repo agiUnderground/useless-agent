@@ -1660,6 +1660,19 @@ document.getElementById("llmChatInput").addEventListener("keydown", (event) => {
       }
     }
   }
+  
+  // Ctrl+L - clear the chat input
+  if (event.ctrlKey && event.key === "l") {
+    event.preventDefault();
+    document.getElementById('llmChatInput').value = "";
+  }
+  
+  // Esc - lose focus from chat input
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation(); // Prevent event from bubbling up to avoid closing settings sidebar
+    document.getElementById('llmChatInput').blur();
+  }
 });
 
 // Pop Out WS
