@@ -2916,3 +2916,275 @@ document.addEventListener('keydown', (event) => {
     toggleSettingsSidebar();
   }
 });
+
+// Vim-style session navigation with Ctrl+hjkl
+document.addEventListener('keydown', (event) => {
+  // Check if chat input or IP input is focused
+  const isChatInputFocused = document.activeElement === document.getElementById('llmChatInput');
+  const isIpInputFocused = document.activeElement === document.getElementById('ipv4');
+  
+  // Only process vim keys when Ctrl is pressed and not in input fields
+  if (event.ctrlKey && !isChatInputFocused && !isIpInputFocused) {
+    let direction = null;
+    
+    // Map vim keys to directions
+    switch(event.key.toLowerCase()) {
+      case 'h':
+        direction = 'left';
+        event.preventDefault();
+        break;
+      case 'j':
+        direction = 'down';
+        event.preventDefault();
+        break;
+      case 'k':
+        direction = 'up';
+        event.preventDefault();
+        break;
+      case 'l':
+        direction = 'right';
+        event.preventDefault();
+        break;
+    }
+    
+    if (direction) {
+      navigateSession(direction);
+    }
+  }
+});
+
+// Function to get session grid layout information
+function getSessionGridLayout() {
+  const sessionContainers = Array.from(document.querySelectorAll('.session-container:not([style*="display: none"])'));
+  const mainContent = document.getElementById('mainContent');
+  
+  if (sessionContainers.length === 0) return null;
+  
+  // Check if we're in mobile mode (sessions stacked vertically)
+  const isMobileMode = window.innerWidth < 1100;
+  
+  if (isMobileMode) {
+    // Mobile mode: sessions are stacked vertically
+    return {
+      type: 'vertical',
+      rows: sessionContainers.length,
+      cols: 1,
+      grid: sessionContainers.map((container, index) => ({
+        element: container,
+        row: index,
+        col: 0,
+        sessionId: container.dataset.sessionId
+      }))
+    };
+  }
+  
+  // Desktop mode: determine grid layout based on session count
+  const sessionCount = sessionContainers.length;
+  let cols, rows;
+  
+  // Use the same logic as CSS grid layout
+  if (sessionCount === 1) {
+    cols = 1; rows = 1;
+  } else if (sessionCount === 2) {
+    cols = 2; rows = 1;
+  } else if (sessionCount === 3) {
+    cols = 2; rows = 2;
+  } else if (sessionCount === 4) {
+    cols = 2; rows = 2;
+  } else if (sessionCount === 5) {
+    cols = 3; rows = 2;
+  } else if (sessionCount === 6) {
+    cols = 3; rows = 2;
+  } else {
+    // Fallback for more sessions
+    cols = Math.ceil(Math.sqrt(sessionCount));
+    rows = Math.ceil(sessionCount / cols);
+  }
+  
+  // Get actual positions from DOM to determine grid positions
+  const grid = [];
+  const positions = [];
+  
+  sessionContainers.forEach((container, index) => {
+    const rect = container.getBoundingClientRect();
+    const mainRect = mainContent.getBoundingClientRect();
+    
+    // Calculate relative position
+    const relativeTop = rect.top - mainRect.top;
+    const relativeLeft = rect.left - mainRect.left;
+    
+    positions.push({
+      element: container,
+      sessionId: container.dataset.sessionId,
+      index: index,
+      top: relativeTop,
+      left: relativeLeft,
+      width: rect.width,
+      height: rect.height
+    });
+  });
+  
+  // Sort by top, then left to determine grid positions
+  positions.sort((a, b) => {
+    if (Math.abs(a.top - b.top) < 50) { // Same row (within 50px tolerance)
+      return a.left - b.left;
+    }
+    return a.top - b.top;
+  });
+  
+  // Determine grid layout based on actual positions
+  let currentRow = 0;
+  let currentCol = 0;
+  let lastTop = -1;
+  
+  positions.forEach((pos, index) => {
+    if (lastTop !== -1 && Math.abs(pos.top - lastTop) > 50) {
+      // New row
+      currentRow++;
+      currentCol = 0;
+    }
+    
+    grid.push({
+      element: pos.element,
+      row: currentRow,
+      col: currentCol,
+      sessionId: pos.sessionId,
+      index: pos.index
+    });
+    
+    currentCol++;
+    lastTop = pos.top;
+  });
+  
+  // Determine actual grid dimensions
+  const actualRows = Math.max(...grid.map(item => item.row)) + 1;
+  const actualCols = Math.max(...grid.map(item => item.col)) + 1;
+  
+  return {
+    type: 'grid',
+    rows: actualRows,
+    cols: actualCols,
+    grid: grid
+  };
+}
+
+// Function to find session in a specific direction
+function findSessionInDirection(direction) {
+  if (!selectedSessionId || sessions.size === 0) return null;
+  
+  const layout = getSessionGridLayout();
+  if (!layout) return null;
+  
+  // Find current session in the grid
+  const currentSession = layout.grid.find(item => item.sessionId === selectedSessionId);
+  if (!currentSession) return null;
+  
+  let targetRow = currentSession.row;
+  let targetCol = currentSession.col;
+  
+  // Calculate target position based on direction
+  switch(direction) {
+    case 'up':
+      targetRow--;
+      break;
+    case 'down':
+      targetRow++;
+      break;
+    case 'left':
+      targetCol--;
+      break;
+    case 'right':
+      targetCol++;
+      break;
+  }
+  
+  // Find session at target position
+  const targetSession = layout.grid.find(item =>
+    item.row === targetRow && item.col === targetCol
+  );
+  
+  if (targetSession) {
+    return targetSession.sessionId;
+  }
+  
+  // Smart navigation: if exact position not found, find closest session in direction
+  return findClosestSessionInDirection(layout, currentSession, direction);
+}
+
+// Function to find closest session in a direction when exact position doesn't exist
+function findClosestSessionInDirection(layout, currentSession, direction) {
+  const candidates = layout.grid.filter(item => item.sessionId !== currentSession.sessionId);
+  
+  if (candidates.length === 0) return null;
+  
+  let bestCandidate = null;
+  let bestScore = Infinity;
+  
+  candidates.forEach(candidate => {
+    let score = Infinity;
+    
+    switch(direction) {
+      case 'up':
+        if (candidate.row < currentSession.row) {
+          const rowDiff = currentSession.row - candidate.row;
+          const colDiff = Math.abs(candidate.col - currentSession.col);
+          score = rowDiff * 100 + colDiff; // Prioritize rows over columns
+        }
+        break;
+      case 'down':
+        if (candidate.row > currentSession.row) {
+          const rowDiff = candidate.row - currentSession.row;
+          const colDiff = Math.abs(candidate.col - currentSession.col);
+          score = rowDiff * 100 + colDiff;
+        }
+        break;
+      case 'left':
+        if (candidate.col < currentSession.col) {
+          const colDiff = currentSession.col - candidate.col;
+          const rowDiff = Math.abs(candidate.row - currentSession.row);
+          score = colDiff * 100 + rowDiff;
+        }
+        break;
+      case 'right':
+        if (candidate.col > currentSession.col) {
+          const colDiff = candidate.col - currentSession.col;
+          const rowDiff = Math.abs(candidate.row - currentSession.row);
+          score = colDiff * 100 + rowDiff;
+        }
+        break;
+    }
+    
+    if (score < bestScore) {
+      bestScore = score;
+      bestCandidate = candidate;
+    }
+  });
+  
+  return bestCandidate ? bestCandidate.sessionId : null;
+}
+
+// Main navigation function
+function navigateSession(direction) {
+  // If no session is currently selected, select the first one
+  if (!selectedSessionId && sessions.size > 0) {
+    const firstSessionId = Array.from(sessions.keys())[0];
+    selectSession(firstSessionId);
+    return;
+  }
+  
+  const targetSessionId = findSessionInDirection(direction);
+  
+  if (targetSessionId) {
+    selectSession(targetSessionId);
+    
+    // Scroll the selected session into view if needed
+    const targetSession = sessions.get(targetSessionId);
+    if (targetSession && targetSession.container) {
+      targetSession.container.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'nearest'
+      });
+    }
+  }
+}
