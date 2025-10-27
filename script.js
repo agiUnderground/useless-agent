@@ -778,7 +778,7 @@ document.getElementById("setTargetIP").addEventListener("click", () => {
   connectButton.textContent = 'Connect';
 });
 
-// IP input field Enter key functionality
+// IP input field Enter key and Escape key functionality
 document.getElementById("ipv4").addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
@@ -810,6 +810,13 @@ document.getElementById("ipv4").addEventListener("keydown", (event) => {
     // Button remains "Connect" for new connections
     const connectButton = document.getElementById('setTargetIP');
     connectButton.textContent = 'Connect';
+  }
+  
+  // Esc - lose focus from IP input
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation(); // Prevent event from bubbling up to avoid closing settings sidebar
+    document.getElementById('ipv4').blur();
   }
 });
 
