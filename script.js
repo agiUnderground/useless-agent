@@ -2243,6 +2243,14 @@ document.addEventListener('keydown', (event) => {
           toggleSessionMaximize(selectedSession);
         }
     }
+    
+    // Settings shortcut (S key)
+    if (event.key === 's' || event.key === 'S') {
+      event.preventDefault(); // Prevent default browser behavior
+      
+      // Toggle the settings sidebar
+      toggleSettingsSidebar();
+    }
   }
 });
 
