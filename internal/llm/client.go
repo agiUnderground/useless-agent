@@ -306,8 +306,7 @@ Again, you current task is:
 	fmt.Print("\nStreaming response: ")
 
 	var fullResponseMessage string
-	var emptyChunkCount int = 0
-	var maxEmptyChunks = 50 // Prevent infinite loops
+	var chunkCount int = 0
 
 	for {
 		// Check for task cancellation during streaming
@@ -319,11 +318,13 @@ Again, you current task is:
 			// Continue streaming
 		}
 
+		chunkCount++
+
 		response, err := stream.Recv()
 		if err != nil {
 			if err == io.EOF {
 				// Stream completed normally - break out of loop
-				fmt.Println("\n=== STREAM COMPLETED NORMALLY (io.EOF) ===")
+				fmt.Println("\n=== STREAM COMPLETED ===")
 				break
 			}
 			// Check if the error is due to context cancellation
@@ -337,35 +338,23 @@ Again, you current task is:
 
 		// Handle response from our generic interface with additional nil checks
 		if response == nil {
-			log.Printf("=== RECEIVED NIL RESPONSE FROM STREAM - BREAKING TO PREVENT INFINITE LOOP ===")
-			// Break immediately to prevent infinite logging
+			// Break immediately to prevent infinite loop
 			break
 		}
 
-		// Check if response has valid choices with content
-		if len(response.Choices) == 0 {
-			// Empty chunk - increment counter and continue
-			emptyChunkCount++
-			if emptyChunkCount > maxEmptyChunks {
-				log.Printf("=== TOO MANY EMPTY CHUNKS (%d > %d), BREAKING TO PREVENT INFINITE LOOP ===", emptyChunkCount, maxEmptyChunks)
-				break
-			}
-			continue
-		}
-
-		// Reset empty chunk counter when we get valid data
-		emptyChunkCount = 0
-
 		// Process the response content
-		if len(response.Choices) > 0 && response.Choices[0].Delta.Content != "" {
+		if len(response.Choices) > 0 {
+			// Always process the delta content, even if it's empty
+			// This ensures proper stream termination detection
 			fullResponseMessage += response.Choices[0].Delta.Content
-			fmt.Print(response.Choices[0].Delta.Content)
+			if response.Choices[0].Delta.Content != "" {
+				fmt.Print(response.Choices[0].Delta.Content)
+			}
 		}
 	}
 
 	// Extract JSON
 	fmt.Println("\nFULL RESPONSE MESSAGE:", fullResponseMessage)
-	log.Println("FULL RESPONSE MESSAGE FOR DEBUGGING:", fullResponseMessage)
 
 	// Parse JSON into a slice of Action objects ------------------
 	var actions []action.Action

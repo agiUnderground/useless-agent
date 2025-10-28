@@ -21,8 +21,8 @@ func AddTokensAndSendUpdate(tokens int) {
 	currentTotal := totalTokensUsed
 	tokenMutex.Unlock()
 
-	// Send update to all websocket clients
-	websocket.SendTokenUpdate(currentTotal)
+	// Send update to all websocket clients (non-blocking)
+	go websocket.SendTokenUpdate(currentTotal)
 	log.Printf("Token usage updated: %d (added: %d)", currentTotal, tokens)
 }
 
@@ -32,8 +32,8 @@ func ResetTokenCounter() {
 	totalTokensUsed = 0
 	tokenMutex.Unlock()
 
-	// Send reset update to all websocket clients
-	websocket.SendTokenUpdate(0)
+	// Send reset update to all websocket clients (non-blocking)
+	go websocket.SendTokenUpdate(0)
 	log.Printf("Token counter reset")
 }
 
