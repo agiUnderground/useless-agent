@@ -95,6 +95,18 @@ https://github.com/user-attachments/assets/370bdd7e-0955-4b1e-8e81-8ee3eb913e90
 
 
 ### How to build:
+
+**The easiest way:**
+```bash
+docker compose up --build
+```
+
+For more information, see [DOCKER_README.md](DOCKER_README.md).
+
+> [!WARNING]
+> Docker is not a sufficient level of isolation and it is risky.
+
+**or manually:**
 * `git clone`
 * `cd useless-agent`
 * `go build`
@@ -102,10 +114,15 @@ https://github.com/user-attachments/assets/370bdd7e-0955-4b1e-8e81-8ee3eb913e90
 ### How to prepare headless vm:
 Scripts - "assets/scripts"
 ```bash
-sudo apt update && sudo apt install -y \
+sudo apt update && sudo add-apt-repository ppa:alex-p/tesseract-ocr5 && sudo apt install -y \
   xfce4 xvfb tesseract-ocr-eng tesseract-ocr libtesseract5 libleptonica-dev libtesseract-dev
 sudo apt remove -y xfce4-screensaver
 sudo systemctl enable --now xvfb.service xfce4.service
+```
+
+### How to establish a secure tunnel between client and remote server:
+```bash
+ssh -p 22 -fN -o IPQoS=ef USERNAME@REMOTE-HOST-PUBLIC-IP -L 127.0.0.1:8080:127.0.0.1:8080
 ```
 
 ### How to use:
