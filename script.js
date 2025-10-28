@@ -174,6 +174,9 @@ function selectSession(sessionId) {
     container.classList.remove('selected', 'user-assist-selected');
   });
   
+  // Clear any existing server offline error when switching to another session
+  clearServerOfflineError();
+  
   // Add selected class to the chosen session
   const session = sessions.get(sessionId);
   if (session && session.container) {
@@ -385,6 +388,12 @@ function closeSession(sessionId) {
     session.container.parentNode.removeChild(session.container);
   }
 
+  // Clear any existing ping interval
+  if (session.pingInterval) {
+    clearInterval(session.pingInterval);
+    session.pingInterval = null;
+  }
+  
   // Remove from sessions map
   sessions.delete(sessionId);
   
@@ -445,6 +454,7 @@ function updateSessionConnectionStatus(session, status) {
         session.isConnected = false;
         break;
       case 'disconnected':
+        statusIndicator.classList.add('disconnected');
         session.isConnected = false;
         // When disconnected, reset the screenshot container and show placeholder
         resetScreenshotContainer(session);
@@ -483,6 +493,12 @@ function resetScreenshotContainer(session) {
 
 // Setup WebSocket for a session
 function setupSessionWebSocket(session) {
+  // Clear any existing ping interval before creating new WebSocket
+  if (session.pingInterval) {
+    clearInterval(session.pingInterval);
+    session.pingInterval = null;
+  }
+  
   if (session.ws) session.ws.close();
   
   updateSessionConnectionStatus(session, 'connecting');
@@ -492,6 +508,12 @@ function setupSessionWebSocket(session) {
   session.ws.onopen = () => {
     console.log(`Connected to server ${session.ip}`);
     updateSessionConnectionStatus(session, 'connected');
+    
+    // Clear any server offline error states
+    clearServerOfflineError();
+    
+    // Reset session state after successful reconnection
+    resetSessionState(session);
     
     // Automatically start video when connection is established
     startSessionVideo(session, 'screenshot');
@@ -528,6 +550,9 @@ function setupSessionWebSocket(session) {
     console.log(`Disconnected from server ${session.ip}`);
     updateSessionConnectionStatus(session, 'disconnected');
     // showToast(`Connection to server ${session.ip} was closed`, 'error');
+    
+    // Start ping mechanism to check when server comes back online
+    startServerPing(session);
   };
   
   session.ws.onerror = (error) => {
@@ -539,6 +564,12 @@ function setupSessionWebSocket(session) {
 
 // Disconnect WebSocket for a session
 function disconnectSessionWebSocket(session) {
+  // Clear any existing ping interval
+  if (session.pingInterval) {
+    clearInterval(session.pingInterval);
+    session.pingInterval = null;
+  }
+  
   if (session.ws) {
     session.ws.close();
     updateSessionConnectionStatus(session, 'disconnected');
@@ -773,6 +804,9 @@ document.getElementById("setTargetIP").addEventListener("click", () => {
   // Hide validation error immediately if valid IP is entered
   hideValidationError();
   
+  // Clear any existing server offline error when connecting to a new server
+  clearServerOfflineError();
+  
   const ipAddress = formatIp(ipValue);
   
   // Create new session
@@ -806,6 +840,9 @@ document.getElementById("ipv4").addEventListener("keydown", (event) => {
 
     // Hide validation error immediately if valid IP is entered
     hideValidationError();
+    
+    // Clear any existing server offline error when connecting to a new server
+    clearServerOfflineError();
     
     const ipAddress = formatIp(ipValue);
 
@@ -1532,6 +1569,74 @@ async function checkServerAvailability(ip) {
   }
 }
 
+// Function to start server ping when disconnected
+function startServerPing(session) {
+  // Clear any existing ping interval
+  if (session.pingInterval) {
+    clearInterval(session.pingInterval);
+  }
+  
+  session.pingInterval = setInterval(async () => {
+    const isServerAvailable = await checkServerAvailability(session.ip);
+    
+    if (isServerAvailable) {
+      console.log(`Server ${session.ip} is back online, attempting to reconnect...`);
+      
+      // Clear the ping interval
+      clearInterval(session.pingInterval);
+      session.pingInterval = null;
+      
+      // Attempt to reconnect
+      setupSessionWebSocket(session);
+    }
+  }, 1000); // Ping every second
+}
+
+// Function to reset session state after reconnection
+function resetSessionState(session) {
+  console.log(`Resetting session state for ${session.ip}`);
+  
+  // Reset any pending tasks that might be in incorrect state
+  const tasksContainer = document.getElementById('tasksContainer');
+  const taskCards = tasksContainer.querySelectorAll('.task-card');
+  
+  taskCards.forEach(card => {
+    // If task is associated with this session and is in incorrect state, update it
+    if (card.dataset.sessionId === session.ip) {
+      const taskId = card.dataset.taskId;
+      
+      // If task is marked as in-progress but server just reconnected,
+      // it might be in an inconsistent state
+      if (card.classList.contains('in-progress') && taskId !== 'pending') {
+        // We'll let the server send the correct status updates
+        // but mark it for potential resync
+        console.log(`Task ${taskId} for session ${session.ip} may need status resync`);
+        
+        // Temporarily mark as in-queue until server confirms status
+        card.classList.remove('in-progress');
+        card.classList.add('in-the-queue');
+        
+        const statusElement = card.querySelector('.task-status');
+        if (statusElement) {
+          statusElement.textContent = 'In Queue';
+        }
+      }
+    }
+  });
+  
+  // Clear any stale connection state
+  session.isConnected = true;
+  
+  // Update UI to reflect proper connection status
+  updateSessionConnectionStatus(session, 'connected');
+  
+  // Clear any server offline error states
+  const chatFieldset = document.getElementById('chatFieldset');
+  if (chatFieldset) {
+    chatFieldset.classList.remove('server-offline');
+  }
+}
+
 // Function to open session window for a task
 async function openTaskSessionWindow(sessionId) {
   console.log(`Opening session window for: ${sessionId}`);
@@ -1596,6 +1701,47 @@ function handleTaskCreation(message, sessionId = null) {
   isFirstMessage = false;
 }
 
+// Function to show server offline error
+function showServerOfflineError(ip) {
+  // Make chat fieldset blink with red and show error message
+  const chatFieldset = document.getElementById('chatFieldset');
+  const chatInput = document.getElementById('llmChatInput');
+  
+  // Add blinking red border to chat fieldset
+  chatFieldset.classList.add('server-offline');
+  
+  // Show error message in chat input
+  const originalPlaceholder = chatInput.placeholder;
+  chatInput.placeholder = `Cannot create task - server ${ip} is offline`;
+  
+  // Store the original placeholder to restore later
+  if (!chatInput.dataset.originalPlaceholder) {
+    chatInput.dataset.originalPlaceholder = originalPlaceholder;
+  }
+  
+  // Clear the blinking after exactly 1 second (two blinks)
+  setTimeout(() => {
+    chatFieldset.classList.remove('server-offline');
+  }, 1000);
+  
+  showToast(`Cannot create task - server ${ip} is offline. Please wait for server to reconnect.`, 'error');
+}
+
+// Function to clear server offline error
+function clearServerOfflineError() {
+  const chatFieldset = document.getElementById('chatFieldset');
+  const chatInput = document.getElementById('llmChatInput');
+  
+  if (chatFieldset) {
+    chatFieldset.classList.remove('server-offline');
+  }
+  
+  if (chatInput && chatInput.dataset.originalPlaceholder) {
+    chatInput.placeholder = chatInput.dataset.originalPlaceholder;
+    delete chatInput.dataset.originalPlaceholder;
+  }
+}
+
 // LLM Chat
 document.getElementById("llmSendButton").addEventListener("click", () => {
   const inputText = document.getElementById('llmChatInput').value;
@@ -1615,6 +1761,12 @@ document.getElementById("llmSendButton").addEventListener("click", () => {
     return;
   }
 
+  // Check if session is connected
+  if (!targetSession.isConnected) {
+    showServerOfflineError(targetSession.ip);
+    return;
+  }
+
   // Check if user-assist mode is active
   if (userAssistActive && userAssistTaskCard) {
     // Send as user-assist message
@@ -1623,7 +1775,7 @@ document.getElementById("llmSendButton").addEventListener("click", () => {
       fetch(`http://${targetSession.ip}:8080/user-assist`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           taskId: taskId,
           message: inputText
         })
@@ -1645,9 +1797,9 @@ document.getElementById("llmSendButton").addEventListener("click", () => {
     fetch(`http://${targetSession.ip}:8080/llm-input`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         text: inputText,
-        sessionId: targetSession.id 
+        sessionId: targetSession.id
       })
     }).catch(error => {
       console.error('Error sending task to session:', error);
@@ -1671,6 +1823,16 @@ document.getElementById("llmChatInput").addEventListener("keydown", (event) => {
       event.preventDefault();
       const inputText = document.getElementById('llmChatInput').value.trim();
       if (inputText) {
+        // Check if session is connected before sending
+        const targetSession = getSelectedSession();
+        if (!targetSession) {
+          alert('Please connect to a session first');
+          return;
+        }
+        if (!targetSession.isConnected) {
+          showServerOfflineError(targetSession.ip);
+          return;
+        }
         document.getElementById("llmSendButton").click();
       }
     }

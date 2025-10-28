@@ -1683,3 +1683,26 @@ fieldset legend {
   background-color: rgba(30, 64, 124, 0.7);
   color: #e0e0e0;
 }
+
+/* Server Offline Error Styling */
+.chat-fieldset.server-offline {
+  animation: blink-red-border-twice 1s ease-in-out;
+}
+
+@keyframes blink-red-border-twice {
+  0% {
+    border-color: rgba(255, 0, 0, 0.8);
+  }
+  25% {
+    border-color: rgba(255, 0, 0, 0.3);
+  }
+  50% {
+    border-color: rgba(255, 0, 0, 0.8);
+  }
+  75% {
+    border-color: rgba(255, 0, 0, 0.3);
+  }
+  100% {
+    border-color: rgba(255, 0, 0, 0.8);
+  }
+}
