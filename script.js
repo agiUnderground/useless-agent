@@ -164,10 +164,156 @@ const mainContent = document.getElementById('mainContent');
 let currentFPS = 5; // Default FPS
 let selectedSessionId = null;
 
+// Session-specific settings state management
+const sessionTabStates = new Map(); // Stores last used tab per session
+const defaultTab = 'execution'; // Default tab when no session-specific state exists
+
+// Session-specific state management - COMPLETELY REWRITTEN FOR LOG ISOLATION
+const sessionStates = new Map(); // Complete state per session including logs, settings, etc.
+
+// Initialize session state
+function initializeSessionState(sessionId) {
+  if (!sessionStates.has(sessionId)) {
+    sessionStates.set(sessionId, {
+      logs: [], // Session-specific log messages
+      isStreaming: false, // Session-specific streaming state
+      lastUsedTab: defaultTab, // Session-specific last used tab
+      settings: {}, // Session-specific settings data
+      lastDisplayedLogIndex: 0, // Track position where logs were last displayed
+      lastReadLogCount: 0 // Track how many logs have been read for this session
+    });
+  }
+  return sessionStates.get(sessionId);
+}
+
+// Get session state
+function getSessionState(sessionId) {
+  return sessionStates.get(sessionId) || initializeSessionState(sessionId);
+}
+
+// Update session state
+function updateSessionState(sessionId, updates) {
+  const state = getSessionState(sessionId);
+  Object.assign(state, updates);
+  sessionStates.set(sessionId, state);
+}
+
+// Function to get the last used tab for a session
+function getLastUsedTab(sessionId) {
+  const state = getSessionState(sessionId);
+  return state.lastUsedTab || defaultTab;
+}
+
+// Function to set the last used tab for a session
+function setLastUsedTab(sessionId, tabName) {
+  updateSessionState(sessionId, { lastUsedTab: tabName });
+}
+
+// Function to update settings sidebar when session changes
+function updateSettingsSidebarForNewSession(sessionId) {
+  if (!settingsOpen) return;
+  
+  // Get the last used tab for the new session
+  const targetTab = getLastUsedTab(sessionId);
+  console.log(`Session switched to ${sessionId}, switching to tab: ${targetTab}`);
+  
+  // Find the tab button for the target tab
+  const targetTabButton = document.querySelector(`[data-tab="${targetTab}"]`);
+  if (targetTabButton) {
+    // Remove active class from all tabs and contents
+    document.querySelectorAll('.settings-tab').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.settings-tab-content').forEach(content => content.classList.remove('active'));
+    
+    // Add active class to target tab and corresponding content
+    targetTabButton.classList.add('active');
+    const targetContent = document.getElementById(`${targetTab}-tab`);
+    if (targetContent) {
+      targetContent.classList.add('active');
+    }
+    
+    // CRITICAL FIX: Force complete logs tab reset when switching to logs
+    if (targetTab === 'logs') {
+      const logsTab = document.getElementById('logs-tab');
+      if (logsTab) {
+        // Clear all content immediately to prevent showing old session logs
+        logsTab.innerHTML = '';
+        // Force immediate DOM update
+        logsTab.offsetHeight; // Force reflow
+        
+        // CRITICAL FIX: Force complete refresh by resetting display session flag
+        // This ensures logs are completely isolated between sessions
+        logsTab.dataset.currentDisplayingSession = null;
+      }
+    }
+    
+    // Initialize the tab content for the new session
+    initializeTabContent(targetTab);
+  }
+}
+
+// Function to initialize tab content based on tab type
+function initializeTabContent(tabName) {
+  if (tabName === 'logs') {
+    // Initialize logs tab for current session
+    const currentSessionId = selectedSessionId;
+    if (currentSessionId) {
+      // Always clear logs display first to prevent cross-contamination
+      const logsPre = document.querySelector('.logs-content');
+      if (logsPre) {
+        logsPre.textContent = ''; // Clear immediately
+      }
+      
+      // CRITICAL FIX: Always update display to show current session's logs
+      // This ensures logs are displayed even when switching to logs tab for active session
+      updateLogsDisplayFromState();
+      
+      // Check if we need to start streaming for this session using new session state system
+      const sessionState = getSessionState(currentSessionId);
+      if (!sessionState.isStreaming) {
+        // CRITICAL FIX: Start streaming for current session if not already streaming
+        // This ensures logs start printing immediately for active sessions
+        console.log(`Starting log streaming for session ${currentSessionId} when switching to logs tab`);
+        startLogStreaming(); // This will set isStreaming to true and update display
+      }
+    }
+  }
+}
 
 // Function to select a session and apply wave animation
 function selectSession(sessionId) {
   console.log(`Attempting to select session: ${sessionId}`);
+  
+  // CRITICAL FIX: Clean logs tab immediately when switching sessions
+  // This ensures no cross-contamination between sessions
+  const logsTab = document.getElementById('logs-tab');
+  if (logsTab) {
+    // Clear logs tab completely
+    logsTab.innerHTML = '';
+    logsTab.dataset.currentDisplayingSession = null;
+  }
+  
+  // CRITICAL FIX: Stop ALL UI activity for previous session when switching
+  if (selectedSessionId && selectedSessionId !== sessionId) {
+    const previousSessionState = getSessionState(selectedSessionId);
+    
+    // Stop log streaming for previous session
+    if (previousSessionState.isStreaming) {
+      console.log(`Stopping log streaming for previous session: ${selectedSessionId}`);
+      updateSessionState(selectedSessionId, { isStreaming: false });
+    }
+    
+    // CRITICAL FIX: Reset log read count for previous session to ensure clean state
+    // This saves the current position and allows fast switching
+    updateSessionState(selectedSessionId, {
+      lastReadLogCount: previousSessionState.logs ? previousSessionState.logs.length : 0
+    });
+    
+    // CRITICAL FIX: Clear the logs display immediately to prevent any lingering content
+    const logsPre = document.querySelector('.logs-content');
+    if (logsPre) {
+      logsPre.textContent = '';
+    }
+  }
   
   // Remove selected class from all sessions
   document.querySelectorAll('.session-container').forEach(container => {
@@ -206,6 +352,21 @@ function selectSession(sessionId) {
     
     // Update the selected session IP display
     updateSelectedSessionIp(sessionId);
+    
+    // CRITICAL FIX: Force complete log refresh when switching sessions
+    // This ensures complete isolation between sessions
+    setTimeout(() => {
+      if (logsTab && logsTab.classList.contains('active')) {
+        // Force refresh by clearing the displaying session flag
+        logsTab.dataset.currentDisplayingSession = null;
+        updateLogsDisplayFromState();
+      }
+    }, 10); // Small delay to ensure DOM is updated
+    
+    // Update settings sidebar if it's open to reflect new session
+    if (settingsOpen) {
+      updateSettingsSidebarForNewSession(sessionId);
+    }
   } else {
     console.log(`Session not found or container missing for sessionId: ${sessionId}`);
     console.log(`Available sessions:`, Array.from(sessions.keys()));
@@ -529,7 +690,7 @@ function setupSessionWebSocket(session) {
       } else if (data.type === 'taskUpdate') {
         handleTaskUpdate(data);
       } else if (data.type === 'log') {
-        handleLogMessage(data.data);
+        handleLogMessage(data.data, session.id);
       }
     } catch (error) {
       console.log(`WebSocket message from ${session.ip} (non-JSON):`, event.data);
@@ -538,7 +699,7 @@ function setupSessionWebSocket(session) {
       try {
         const data = JSON.parse(event.data);
         if (data.type === 'log') {
-          handleLogMessage(data.data);
+          handleLogMessage(data.data, session.id);
         }
       } catch (jsonError) {
         // If it's not JSON, ignore
@@ -2210,7 +2371,7 @@ function toggleSessionMaximize(session) {
     });
     mainContent.setAttribute('data-session-count', sessions.size);
   } else {
-    // Maximize the session - hide all other sessions
+    // Maximize
     sessionContainer.classList.add('maximized');
     sessions.forEach((otherSession, sessionId) => {
       if (sessionId !== session.id) {
@@ -2245,7 +2406,7 @@ function toggleSessionMaximize(session) {
         imageSizeContainer.style.left = '50%';
         imageSizeContainer.style.transform = 'translate(-50%, -50%)';
         
-        // Force another reflow to ensure the container is properly sized
+        // Force another reflow to ensure that container is properly sized
         imageSizeContainer.offsetHeight;
       }
     }
@@ -2255,14 +2416,14 @@ function toggleSessionMaximize(session) {
     
     // Recreate and reinsert overlay after everything is properly resized
     if (overlayParent && screenshotOverlay) {
-      // Reinsert the overlay in its original position
+      // Reinsert overlay in its original position
       if (overlayNextSibling) {
         overlayParent.insertBefore(screenshotOverlay, overlayNextSibling);
       } else {
         overlayParent.appendChild(screenshotOverlay);
       }
       
-      // NOW set up the overlay timer and event listeners AFTER the overlay is back in the DOM
+      // NOW set up overlay timer and event listeners AFTER overlay is back in the DOM
       const screenshotContainer = session.screenshotContainer;
       const isFullscreen = document.fullscreenElement || 
                           document.webkitFullscreenElement || 
@@ -2374,7 +2535,7 @@ function toggleSessionMaximize(session) {
           timeout: overlayTimeout
         };
         
-        // Start the timer - EXACTLY like fullscreen
+        // Start to timer - EXACTLY like fullscreen
         resetMaximizedOverlayTimer();
         
         console.log('Maximized mode overlay timer setup completed - copied from fullscreen');
@@ -2427,7 +2588,7 @@ document.addEventListener('keydown', (event) => {
         document.activeElement.blur();
       }
       
-      // Maximize the selected session
+      // Maximize selected session
       const selectedSession = getSelectedSession();
         if (selectedSession) {
           toggleSessionMaximize(selectedSession);
@@ -2438,8 +2599,14 @@ document.addEventListener('keydown', (event) => {
     if (event.key === 's' || event.key === 'S') {
       event.preventDefault(); // Prevent default browser behavior
       
-      // Toggle the settings sidebar
-      toggleSettingsSidebar();
+      // Toggle settings sidebar with session-aware tab selection
+      if (settingsOpen) {
+        // Close settings sidebar if it's open
+        toggleSettingsSidebar();
+      } else {
+        // Open settings sidebar only if it's closed
+        toggleSettingsSidebar();
+      }
     }
     
     // Chat input focus shortcut (C key)
@@ -2499,7 +2666,7 @@ function testTaskCreation() {
   handleTaskCreation('Test task message for demonstration purposes');
 }
 
-// Uncomment the line below to test the task creation functionality
+// Uncomment line below to test task creation functionality
 // testTaskCreation();
 
 // Connection line functionality
@@ -2520,7 +2687,7 @@ function calculateConnectionPath(chatElement, sessionElement) {
   const sessionRect = sessionElement.getBoundingClientRect();
   const mainContentRect = mainContent.getBoundingClientRect();
   
-  // Get the textbox element inside the chat fieldset
+  // Get textbox element inside chat fieldset
   const chatInput = document.getElementById('llmChatInput');
   const inputRect = chatInput.getBoundingClientRect();
   
@@ -2549,7 +2716,7 @@ function calculateConnectionPath(chatElement, sessionElement) {
   }
   
   // Desktop mode: use original logic
-  // Start from right side of the textbox inside the chat fieldset
+  // Start from right side of textbox inside chat fieldset
   const chatStartX = inputRect.right;
   const chatStartY = inputRect.top + inputRect.height / 2;
   
@@ -2560,7 +2727,7 @@ function calculateConnectionPath(chatElement, sessionElement) {
   
   // Calculate midpoint between chatbox and main content (excluding invisible padding)
   const chatVisibleRight = chatRect.right;
-  const mainContentVisibleLeft = mainContentRect.left + 10; // Add back the 10px padding to get actual visible left edge
+  const mainContentVisibleLeft = mainContentRect.left + 10; // Add back 10px padding to get actual visible left edge
   const midPointX = chatVisibleRight + (mainContentVisibleLeft - chatVisibleRight) / 2;
   
   // Calculate LEFT path: go to middle point, then to session's Y level, then to middle of left edge
@@ -2589,7 +2756,7 @@ function calculateConnectionPath(chatElement, sessionElement) {
   }
 }
 
-// Helper function to check if a straight line path crosses the main content container
+// Helper function to check if a straight line path crosses main content container
 function doesPathCrossMainContent(x1, y1, x2, y2, mainContentRect) {
   // Adjust main content rect to exclude padding (padding is 10px on all sides)
   const paddedRect = {
@@ -2599,19 +2766,19 @@ function doesPathCrossMainContent(x1, y1, x2, y2, mainContentRect) {
     bottom: mainContentRect.bottom - 10
   };
   
-  // Check if the line segment from (x1,y1) to (x2,y2) intersects with the padded main content area
+  // Check if line segment from (x1,y1) to (x2,y2) intersects with padded main content area
   return lineIntersectsRect(x1, y1, x2, y2, paddedRect.left, paddedRect.top, paddedRect.right, paddedRect.bottom);
 }
 
 // Helper function to check if a line segment intersects with a rectangle
 function lineIntersectsRect(x1, y1, x2, y2, rectLeft, rectTop, rectRight, rectBottom) {
-  // Check if either endpoint is inside the rectangle
+  // Check if either endpoint is inside rectangle
   if ((x1 >= rectLeft && x1 <= rectRight && y1 >= rectTop && y1 <= rectBottom) ||
       (x2 >= rectLeft && x2 <= rectRight && y2 >= rectTop && y2 <= rectBottom)) {
     return true;
   }
   
-  // Check if line intersects with any of the rectangle edges
+  // Check if line intersects with any of rectangle edges
   return lineIntersectsLine(x1, y1, x2, y2, rectLeft, rectTop, rectRight, rectTop) || // Top edge
          lineIntersectsLine(x1, y1, x2, y2, rectLeft, rectBottom, rectRight, rectBottom) || // Bottom edge
          lineIntersectsLine(x1, y1, x2, y2, rectLeft, rectTop, rectLeft, rectBottom) || // Left edge
@@ -2629,7 +2796,7 @@ function lineIntersectsLine(x1, y1, x2, y2, x3, y3, x4, y4) {
   return t >= 0 && t <= 1 && u >= 0 && u <= 1;
 }
 
-// Helper function to calculate the actual distance of a path string
+// Helper function to calculate actual distance of a path string
 function calculatePathDistance(pathString) {
   const commands = pathString.match(/[ML]\s*[-+]?\d*\.?\d+\s*[-+]?\d*\.?\d+/g);
   if (!commands || commands.length < 2) return 0;
@@ -2738,7 +2905,7 @@ function stopSynchronizedAnimation() {
 // Function to calculate animation values based on phase
 function calculateAnimationValues(phase, isUserAssist = false) {
   // No brightness animation - always use consistent brightness across all segments
-  const opacity = 0.84; // Fixed consistent brightness (matches the CSS opacity)
+  const opacity = 0.84; // Fixed consistent brightness (matches CSS opacity)
   
   // No stroke width animation - always use fixed width
   const strokeWidth = 1;
@@ -2890,7 +3057,7 @@ function drawUserAssistConnectionLine(taskCardElement, chatElement) {
   
 }
 
-// Function to check if task card is visible in the tasks container
+// Function to check if task card is visible in tasks container
 function isTaskCardVisible(taskCard) {
   if (!taskCard) return false;
   
@@ -2900,14 +3067,14 @@ function isTaskCardVisible(taskCard) {
   const containerRect = tasksContainer.getBoundingClientRect();
   const taskRect = taskCard.getBoundingClientRect();
   
-  // Check if the BOTTOM of task card is vertically visible within the container
-  // The connection line connects to the bottom of the task card, so we need the bottom to be visible
+  // Check if BOTTOM of task card is vertically visible within container
+  // The connection line connects to bottom of task card, so we need bottom to be visible
   const taskTop = taskRect.top - containerRect.top;
   const taskBottom = taskRect.bottom - containerRect.top;
   const containerHeight = containerRect.height;
   
-  // Task card bottom is visible if it's within the visible area of the container
-  // We need some tolerance for the bottom edge to be visible
+  // Task card bottom is visible if it's within visible area of container
+  // We need some tolerance for bottom edge to be visible
   const bottomVisible = (taskBottom > 0 && taskBottom <= containerHeight);
   
   
@@ -2919,11 +3086,11 @@ function updateUserAssistConnectionLine() {
   if (userAssistActive && userAssistTaskCard) {
     const chatFieldset = document.getElementById('chatFieldset');
     
-    // Check if the task card is visible
+    // Check if task card is visible
     if (isTaskCardVisible(userAssistTaskCard)) {
       drawUserAssistConnectionLine(userAssistTaskCard, chatFieldset);
     } else {
-      // Task card is not visible, hide the connection line
+      // Task card is not visible, hide connection line
       clearUserAssistConnectionLine();
     }
   }
@@ -3057,15 +3224,23 @@ toggleSettingsSidebar = function() {
 
 // Settings button click event
 if (settingsBtn) {
-  settingsBtn.addEventListener('click', toggleSettingsSidebar);
+  settingsBtn.addEventListener('click', () => {
+    toggleSettingsSidebar();
+    // Remove focus from button to prevent outline
+    settingsBtn.blur();
+  });
 }
 
 // Settings close button click event
 if (settingsCloseBtn) {
-  settingsCloseBtn.addEventListener('click', toggleSettingsSidebar);
+  settingsCloseBtn.addEventListener('click', () => {
+    toggleSettingsSidebar();
+    // Remove focus from close button to prevent outline
+    settingsCloseBtn.blur();
+  });
 }
 
-// Settings tabs functionality
+// Settings tabs functionality with session-specific state
 function initSettingsTabs() {
   const tabButtons = document.querySelectorAll('.settings-tab');
   const tabContents = document.querySelectorAll('.settings-tab-content');
@@ -3074,6 +3249,11 @@ function initSettingsTabs() {
     button.addEventListener('click', () => {
       const targetTab = button.getAttribute('data-tab');
       
+      // Store selected tab for current session
+      if (selectedSessionId) {
+        setLastUsedTab(selectedSessionId, targetTab);
+      }
+      
       // Remove active class from all tabs and contents
       tabButtons.forEach(btn => btn.classList.remove('active'));
       tabContents.forEach(content => content.classList.remove('active'));
@@ -3081,6 +3261,9 @@ function initSettingsTabs() {
       // Add active class to clicked tab and corresponding content
       button.classList.add('active');
       document.getElementById(`${targetTab}-tab`).classList.add('active');
+      
+      // Initialize tab content
+      initializeTabContent(targetTab);
     });
   });
 }
@@ -3102,16 +3285,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const executionTab = document.querySelector('[data-tab="execution"]');
   if (executionTab) {
     executionTab.addEventListener('click', () => {
-      // Stop log streaming when switching away from logs tab
-      stopLogStreaming();
+      // Stop log streaming for current session when switching away from logs tab
+      const currentSessionId = selectedSessionId;
+      if (currentSessionId) {
+        const sessionState = getSessionState(currentSessionId);
+        if (sessionState.isStreaming) {
+          console.log(`Stopping log streaming for session ${currentSessionId} when switching to execution tab`);
+          updateSessionState(currentSessionId, { isStreaming: false });
+        }
+      }
     });
   }
   
-  // Add clear logs button functionality
-  const clearLogsBtn = document.getElementById('clearLogsBtn');
-  if (clearLogsBtn) {
-    clearLogsBtn.addEventListener('click', resetLogs);
-  }
+  // Settings button click event will be set up in DOMContentLoaded
+  // Settings close button click event will be set up in DOMContentLoaded
 });
 
 // Close settings sidebar when Escape key is pressed
@@ -3186,7 +3373,7 @@ function getSessionGridLayout() {
   const sessionCount = sessionContainers.length;
   let cols, rows;
   
-  // Use the same logic as CSS grid layout
+  // Use same logic as CSS grid layout
   if (sessionCount === 1) {
     cols = 1; rows = 1;
   } else if (sessionCount === 2) {
@@ -3279,7 +3466,7 @@ function findSessionInDirection(direction) {
   const layout = getSessionGridLayout();
   if (!layout) return null;
   
-  // Find current session in the grid
+  // Find current session in grid
   const currentSession = layout.grid.find(item => item.sessionId === selectedSessionId);
   if (!currentSession) return null;
   
@@ -3369,7 +3556,7 @@ function findClosestSessionInDirection(layout, currentSession, direction) {
 
 // Main navigation function
 function navigateSession(direction) {
-  // If no session is currently selected, select the first one
+  // If no session is currently selected, select first one
   if (!selectedSessionId && sessions.size > 0) {
     const firstSessionId = Array.from(sessions.keys())[0];
     selectSession(firstSessionId);
@@ -3381,7 +3568,7 @@ function navigateSession(direction) {
   if (targetSessionId) {
     selectSession(targetSessionId);
     
-    // Scroll the selected session into view if needed
+    // Scroll selected session into view if needed
     const targetSession = sessions.get(targetSessionId);
     if (targetSession && targetSession.container) {
       targetSession.container.scrollIntoView({
@@ -3390,164 +3577,126 @@ function navigateSession(direction) {
         inline: 'nearest'
       });
     }
+  }
+}
+
+// COMPLETELY REWRITTEN LOG HANDLING SYSTEM FOR PROPER SESSION ISOLATION
+
+// Function to handle log messages from WebSocket - COMPLETELY REWRITTEN
+function handleLogMessage(logData, sessionId) {
+  console.log(`Log message received for session ${sessionId}:`, logData);
+  
+  // CRITICAL FIX: Only process logs for valid sessions
+  if (!sessionId) {
+    console.warn('Log message received without session ID, ignoring');
+    return;
+  }
+  
+  // CRITICAL FIX: Always add logs to their respective session state FIRST
+  // This ensures we don't lose any logs even if session is not selected
+  const sessionState = getSessionState(sessionId);
+  const currentLogs = sessionState.logs || [];
+  currentLogs.push(logData);
+  updateSessionState(sessionId, { logs: currentLogs });
+  
+  // CRITICAL FIX: Only update display if this is the currently selected session AND logs tab is active
+  // This is the key to preventing log leakage between sessions
+  if (sessionId === selectedSessionId) {
+    const logsTab = document.getElementById('logs-tab');
+    const logsTabIsActive = logsTab && logsTab.classList.contains('active');
     
-    // Log streaming functions are now global
-    
-    // Function to handle log messages from WebSocket
-    function handleLogMessage(logData) {
-      if (!logStreamingActive) return;
-      
-      // Add to log messages array (server already adds timestamp)
-      logMessages.push(logData);
-      
-      // Update logs display if logs tab is active
-      updateLogsDisplay();
-    }
-    
-    // Function to update logs display
-    function updateLogsDisplay() {
-      const logsTab = document.getElementById('logs-tab');
-      if (!logsTab) return;
-      
-      // Check if logs container already exists
-      let logsContainer = logsTab.querySelector('.logs-container');
-      let logsPre = logsTab.querySelector('.logs-content');
-      
-      // Create container if it doesn't exist
-      if (!logsContainer) {
-        logsContainer = document.createElement('div');
-        logsContainer.className = 'logs-container';
-        
-        logsPre = document.createElement('pre');
-        logsPre.className = 'logs-content';
-        
-        logsContainer.appendChild(logsPre);
-        
-        // Clear existing content except for the header
-        const existingHeader = logsTab.querySelector('.logs-header');
-        logsTab.innerHTML = '';
-        if (existingHeader) {
-          logsTab.appendChild(existingHeader);
-        }
-        logsTab.appendChild(logsContainer);
-      }
-      
-      // Update the log content
-      logsPre.textContent = logMessages.join('');
-      
-      // Auto-scroll to bottom
-      logsPre.scrollTop = logsPre.scrollHeight;
-    }
-    
-    // Function to start log streaming
-    function startLogStreaming() {
-      logStreamingActive = true;
-      logMessages = []; // Clear existing messages
-      
-      const logsTab = document.getElementById('logs-tab');
-      if (logsTab) {
-        logsTab.innerHTML = '<div class="logs-status">Log streaming started...</div>';
-      }
-    }
-    
-    // Function to stop log streaming
-    function stopLogStreaming() {
-      logStreamingActive = false;
-      
-      const logsTab = document.getElementById('logs-tab');
-      if (logsTab) {
-        const statusDiv = logsTab.querySelector('.logs-status');
-        if (statusDiv) {
-          statusDiv.textContent = 'Log streaming stopped';
-        }
-      }
-    }
-    
-    // Function to clear logs
-    function clearLogs() {
-      logMessages = [];
-      
-      const logsPre = document.querySelector('.logs-content');
-      if (logsPre) {
-        logsPre.textContent = '';
-      }
+    if (logsTabIsActive) {
+      // CRITICAL FIX: Force complete refresh to prevent cross-contamination
+      // Always rebuild from scratch to ensure no cross-session contamination
+      updateLogsDisplayFromState();
     }
   }
 }
 
-// Log streaming functionality - Global scope
-  // End of navigateSession function
-let logStreamingActive = false;
-let logMessages = [];
-
-// Function to handle log messages from WebSocket
-function handleLogMessage(logData) {
-  if (!logStreamingActive) return;
-  
-  // Add to log messages array (server already adds timestamp)
-  logMessages.push(logData);
-  
-  // Update logs display if logs tab is active
-  updateLogsDisplay();
-}
-
-// Function to update logs display
-function updateLogsDisplay() {
+// Function to update logs display - COMPLETELY REWRITTEN FOR ISOLATION
+function updateLogsDisplayFromState() {
   const logsTab = document.getElementById('logs-tab');
   if (!logsTab) return;
   
-  // Check if logs container already exists
-  let logsContainer = logsTab.querySelector('.logs-container');
-  let logsPre = logsTab.querySelector('.logs-content');
-  
-  // Create container if it doesn't exist
-  if (!logsContainer) {
-    logsContainer = document.createElement('div');
-    logsContainer.className = 'logs-container';
-    
-    logsPre = document.createElement('pre');
-    logsPre.className = 'logs-content';
-    
-    logsContainer.appendChild(logsPre);
-    
-    // Clear existing content except for the header
-    const existingHeader = logsTab.querySelector('.logs-header');
-    logsTab.innerHTML = '';
-    if (existingHeader) {
-      logsTab.appendChild(existingHeader);
-    }
-    logsTab.appendChild(logsContainer);
+  // Get current session state FIRST to ensure we have the right session
+  const currentSessionId = selectedSessionId;
+  if (!currentSessionId) {
+    // CRITICAL FIX: If no session is selected, clear logs display
+    logsTab.innerHTML = '<div class="logs-status">No session selected</div>';
+    return;
   }
   
-  // Update log content
-  logsPre.textContent = logMessages.join('');
+  // CRITICAL FIX: ALWAYS clear and rebuild logs display when updating
+  // This prevents any possibility of cross-contamination between sessions
+  logsTab.innerHTML = '';
+  
+  // Create fresh logs container and content
+  const logsContainer = document.createElement('div');
+  logsContainer.className = 'logs-container';
+  
+  const logsPre = document.createElement('pre');
+  logsPre.className = 'logs-content';
+  
+  logsContainer.appendChild(logsPre);
+  logsTab.appendChild(logsContainer);
+  
+  // Get session state and logs
+  const sessionState = getSessionState(currentSessionId);
+  const sessionLogs = sessionState.logs || [];
+  
+  // CRITICAL FIX: Only display logs for the CURRENT session
+  // This is the absolute key to preventing log leakage
+  if (sessionLogs.length > 0) {
+    logsPre.textContent = sessionLogs.join('');
+  } else {
+    logsPre.textContent = '';
+  }
+  
+  // CRITICAL FIX: Set current displaying session to ensure consistency
+  logsTab.dataset.currentDisplayingSession = currentSessionId;
   
   // Auto-scroll to bottom
   logsPre.scrollTop = logsPre.scrollHeight;
+  
+  // Update read count to current position
+  updateSessionState(currentSessionId, {
+    lastReadLogCount: sessionLogs.length
+  });
 }
 
-// Function to start log streaming
+// Function to start log streaming - COMPLETELY REWRITTEN
 function startLogStreaming() {
-  logStreamingActive = true;
-  // Don't clear existing messages when switching tabs - only clear on explicit user action
+  const currentSessionId = selectedSessionId;
+  if (!currentSessionId) {
+    console.warn('Cannot start log streaming: no session selected');
+    return;
+  }
+  
+  // Set streaming state for current session only
+  updateSessionState(currentSessionId, { isStreaming: true });
   
   const logsTab = document.getElementById('logs-tab');
   if (logsTab) {
-    // Check if logs container already exists
-    let logsContainer = logsTab.querySelector('.logs-container');
-    if (!logsContainer) {
-      // Only create status message if container doesn't exist
-      logsTab.innerHTML = '<div class="logs-status">Log streaming started...</div>';
-    } else {
-      // If container exists, just update the display with existing messages
-      updateLogsDisplay();
-    }
+    // CRITICAL FIX: Always update display to show all existing logs for current session
+    // This ensures when opening logs tab for current session, all previous logs are displayed
+    updateLogsDisplayFromState();
+    
+    // CRITICAL FIX: Set current displaying session to prevent race conditions
+    // This ensures logs tab knows which session's logs to display
+    logsTab.dataset.currentDisplayingSession = currentSessionId;
   }
 }
 
-// Function to stop log streaming
+// Function to stop log streaming - COMPLETELY REWRITTEN
 function stopLogStreaming() {
-  logStreamingActive = false;
+  const currentSessionId = selectedSessionId;
+  if (!currentSessionId) {
+    console.warn('Cannot stop log streaming: no session selected');
+    return;
+  }
+  
+  // Stop streaming for current session only
+  updateSessionState(currentSessionId, { isStreaming: false });
   
   const logsTab = document.getElementById('logs-tab');
   if (logsTab) {
@@ -3558,19 +3707,31 @@ function stopLogStreaming() {
   }
 }
 
-// Function to clear logs
+// Function to clear logs for current session - COMPLETELY REWRITTEN
 function clearLogs() {
-  logMessages = [];
-  
-  const logsPre = document.querySelector('.logs-content');
-  if (logsPre) {
-    logsPre.textContent = '';
+  const currentSessionId = selectedSessionId;
+  if (!currentSessionId) {
+    console.warn('Cannot clear logs: no session selected');
+    return;
   }
+  
+  // Clear logs for current session only
+  updateSessionState(currentSessionId, { logs: [] });
+  
+  // CRITICAL FIX: Clear display immediately
+  updateLogsDisplayFromState();
 }
 
-// Function to completely reset logs (for fresh start)
+// Function to completely reset logs for current session (for fresh start) - COMPLETELY REWRITTEN
 function resetLogs() {
-  logMessages = [];
+  const currentSessionId = selectedSessionId;
+  if (!currentSessionId) {
+    console.warn('Cannot reset logs: no session selected');
+    return;
+  }
+  
+  // Reset logs for current session only
+  updateSessionState(currentSessionId, { logs: [] });
   
   const logsTab = document.getElementById('logs-tab');
   if (logsTab) {
