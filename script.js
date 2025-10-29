@@ -1274,6 +1274,81 @@ function deactivateUserAssist(restoreGreenOutline = true) {
   console.log('User-assist deactivated');
 }
 
+// Function to toggle user-assist mode for current session (Ctrl+U hotkey)
+function toggleUserAssistForCurrentSession() {
+  console.log('=== CTRL+U PRESSED ===');
+  console.log('toggleUserAssistForCurrentSession called', { userAssistActive, selectedSessionId });
+  
+  if (userAssistActive) {
+    // User-assist is active, deactivate it
+    console.log('✓ User-assist is active, deactivating...');
+    deactivateUserAssist();
+    console.log('✓ User-assist mode deactivated via Ctrl+U');
+    return;
+  }
+  
+  // User-assist is not active, try to activate it for current session's in-progress task
+  const selectedSession = getSelectedSession();
+  console.log('✓ Selected session:', selectedSession);
+  
+  if (!selectedSession) {
+    console.log('✗ No session selected');
+    showToast('No session selected', 'warning');
+    return;
+  }
+  
+  // Find all task cards
+  const tasksContainer = document.getElementById('tasksContainer');
+  if (!tasksContainer) {
+    console.log('✗ No tasks container found');
+    showToast('No tasks available', 'warning');
+    return;
+  }
+  
+  const taskCards = Array.from(tasksContainer.querySelectorAll('.task-card'));
+  console.log(`✓ Found ${taskCards.length} task cards`);
+  
+  // Find the first in-progress task for the selected session
+  let targetTaskCard = null;
+  for (const taskCard of taskCards) {
+    const taskSessionId = taskCard.dataset.sessionId;
+    const isInProgress = taskCard.classList.contains('in-progress');
+    
+    console.log(`  Checking task card:`, {
+      taskId: taskCard.dataset.taskId,
+      taskSessionId,
+      isInProgress,
+      selectedSessionId: selectedSession.id
+    });
+    
+    // Check if this task belongs to the selected session and is in progress
+    if (isInProgress && taskSessionId === selectedSession.id) {
+      targetTaskCard = taskCard;
+      console.log('✓ FOUND TARGET TASK CARD:', targetTaskCard);
+      break; // Found the target task
+    }
+  }
+  
+  if (targetTaskCard) {
+    // Scroll to the task card first, then activate user-assist
+    console.log('✓ Scrolling to target task card before activating user-assist');
+    smartScrollToTask(targetTaskCard);
+    
+    // Wait a bit for scroll to complete, then activate user-assist
+    setTimeout(() => {
+      console.log('✓ Activating user-assist for target task');
+      activateUserAssist(targetTaskCard);
+      console.log(`✓ User-assist mode activated via Ctrl+U for task in session ${selectedSession.id}`);
+    }, 300); // Small delay to ensure scroll animation completes
+  } else {
+    // No in-progress task found for this session
+    console.log('✗ No in-progress task found for this session');
+    showToast('No in-progress task found for selected session', 'warning');
+  }
+  
+  console.log('=== END CTRL+U HANDLING ===');
+}
+
 // Global task counter for sequence numbers
 let taskSequenceNumber = 1;
 
@@ -2011,6 +2086,9 @@ document.getElementById("llmChatInput").addEventListener("keydown", (event) => {
     event.stopPropagation(); // Prevent event from bubbling up to avoid closing settings sidebar
     document.getElementById('llmChatInput').blur();
   }
+  
+  // Ctrl+U - toggle user-assist mode (handled by global listener)
+  // Removed from here to avoid duplicate event handling
 });
 
 // Pop Out WS
@@ -3809,3 +3887,27 @@ function resetLogs() {
     logsTab.innerHTML = '<div class="logs-status">Log streaming started...</div>';
   }
 }
+
+// Global Ctrl+U hotkey listener for user-assist toggle
+document.addEventListener('keydown', (event) => {
+  // Check if chat input is focused OR if settings sidebar is open
+  const isChatInputFocused = document.activeElement === document.getElementById('llmChatInput');
+  const isIpInputFocused = document.activeElement === document.getElementById('ipv4');
+  
+  // Debug logging for all Ctrl+U presses
+  if (event.ctrlKey && event.key === "u") {
+    console.log('Ctrl+U detected globally:', {
+      isChatInputFocused,
+      isIpInputFocused,
+      activeElement: document.activeElement?.tagName + (document.activeElement?.id ? '#' + document.activeElement.id : '')
+    });
+  }
+  
+  // Process Ctrl+U when chat is focused and not in IP input
+  if (event.ctrlKey && event.key === "u" && isChatInputFocused && !isIpInputFocused) {
+    event.preventDefault();
+    event.stopPropagation();
+    console.log('✓ Global Ctrl+U conditions met, calling toggleUserAssistForCurrentSession');
+    toggleUserAssistForCurrentSession();
+  }
+});
