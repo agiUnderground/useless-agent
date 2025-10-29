@@ -3308,6 +3308,77 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
+// Settings tabs hotkey navigation with Spacebar + h/l
+let spacePressed = false;
+document.addEventListener('keydown', (event) => {
+  // Check if chat input or IP input is focused
+  const isChatInputFocused = document.activeElement === document.getElementById('llmChatInput');
+  const isIpInputFocused = document.activeElement === document.getElementById('ipv4');
+  
+  // Track spacebar press state (only when not in input fields)
+  if ((event.key === ' ' || event.code === 'Space') && !isChatInputFocused && !isIpInputFocused) {
+    // Prevent default spacebar behavior (scrolling)
+    event.preventDefault();
+    spacePressed = true;
+    return;
+  }
+  
+  // Only process h/l keys when spacebar is pressed, settings sidebar is open, and not in input fields
+  if (spacePressed && settingsOpen && !isChatInputFocused && !isIpInputFocused) {
+    const activeTab = document.querySelector('.settings-tab.active');
+    if (!activeTab) return;
+    
+    const allTabs = Array.from(document.querySelectorAll('.settings-tab'));
+    const currentIndex = allTabs.indexOf(activeTab);
+    
+    let targetIndex = currentIndex;
+    
+    // Handle vim-like navigation with no wraparound
+    if (event.key === 'h' || event.key === 'H') {
+      // Move left (no wraparound)
+      if (currentIndex > 0) {
+        targetIndex = currentIndex - 1;
+      }
+      event.preventDefault();
+    } else if (event.key === 'l' || event.key === 'L') {
+      // Move right (no wraparound)
+      if (currentIndex < allTabs.length - 1) {
+        targetIndex = currentIndex + 1;
+      }
+      event.preventDefault();
+    }
+    
+    // Only switch if we actually changed tabs
+    if (targetIndex !== currentIndex) {
+      const targetTab = allTabs[targetIndex];
+      const targetTabName = targetTab.getAttribute('data-tab');
+      
+      // Store selected tab for current session
+      if (selectedSessionId) {
+        setLastUsedTab(selectedSessionId, targetTabName);
+      }
+      
+      // Remove active class from all tabs and contents
+      allTabs.forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.settings-tab-content').forEach(content => content.classList.remove('active'));
+      
+      // Add active class to target tab and corresponding content
+      targetTab.classList.add('active');
+      document.getElementById(`${targetTabName}-tab`).classList.add('active');
+      
+      // Initialize tab content
+      initializeTabContent(targetTabName);
+    }
+  }
+});
+
+// Reset spacebar state when key is released
+document.addEventListener('keyup', (event) => {
+  if (event.key === ' ' || event.code === 'Space') {
+    spacePressed = false;
+  }
+});
+
 // Vim-style session navigation with Ctrl+hjkl
 document.addEventListener('keydown', (event) => {
   // Check if chat input or IP input is focused

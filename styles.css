@@ -1494,6 +1494,12 @@ fieldset legend {
   font-family: 'JetBrains Mono', monospace;
   margin-right: 15px;
   position: relative;
+  outline: none; /* Remove focus outline */
+}
+
+.settings-tab:focus {
+  outline: none; /* Remove focus outline when focused */
+  box-shadow: none; /* Remove any box-shadow that might appear on focus */
 }
 
 /* First tab (execution engine) positioning */
