@@ -683,7 +683,8 @@ function setupSessionWebSocket(session) {
   session.ws.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
-      console.log(`WebSocket message from ${session.ip}:`, data);
+      // Commented out to improve performance - logs were slowing down the system
+      // console.log(`WebSocket message from ${session.ip}:`, data);
       
       if (data.type === 'tokenUpdate') {
         document.getElementById('tokenCounter').textContent = data.total;
@@ -693,7 +694,8 @@ function setupSessionWebSocket(session) {
         handleLogMessage(data.data, session.id);
       }
     } catch (error) {
-      console.log(`WebSocket message from ${session.ip} (non-JSON):`, event.data);
+      // Commented out to improve performance - WebSocket error messages were slowing down system
+      // console.log(`WebSocket message from ${session.ip} (non-JSON):`, event.data);
       
       // Try to parse as JSON for non-JSON messages too (in case of parsing issues above)
       try {
@@ -3733,7 +3735,8 @@ function navigateSession(direction) {
 
 // Function to handle log messages from WebSocket - COMPLETELY REWRITTEN
 function handleLogMessage(logData, sessionId) {
-  console.log(`Log message received for session ${sessionId}:`, logData);
+  // Commented out to improve performance - log messages were slowing down the system
+  // console.log(`Log message received for session ${sessionId}:`, logData);
   
   // CRITICAL FIX: Only process logs for valid sessions
   if (!sessionId) {
