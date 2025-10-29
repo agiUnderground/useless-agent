@@ -1541,6 +1541,11 @@ fieldset legend {
   padding-left: 0;
 }
 
+/* Ensure notifications content aligns with tab text */
+#notifications-tab {
+  padding-left: 0;
+}
+
 /* Ensure logs content aligns with execution engine tab text */
 .logs-container {
   margin-left: 0;

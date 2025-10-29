@@ -276,6 +276,10 @@ function initializeTabContent(tabName) {
         startLogStreaming(); // This will set isStreaming to true and update display
       }
     }
+  } else if (tabName === 'notifications') {
+    // Initialize notifications tab
+    console.log('Notifications tab initialized');
+    // No special initialization needed for notifications tab at this time
   }
 }
 
@@ -3371,6 +3375,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const sessionState = getSessionState(currentSessionId);
         if (sessionState.isStreaming) {
           console.log(`Stopping log streaming for session ${currentSessionId} when switching to execution tab`);
+          updateSessionState(currentSessionId, { isStreaming: false });
+        }
+      }
+    });
+  }
+  
+  // Add event listener for notifications tab to stop log streaming
+  const notificationsTab = document.querySelector('[data-tab="notifications"]');
+  if (notificationsTab) {
+    notificationsTab.addEventListener('click', () => {
+      // Stop log streaming for current session when switching to notifications tab
+      const currentSessionId = selectedSessionId;
+      if (currentSessionId) {
+        const sessionState = getSessionState(currentSessionId);
+        if (sessionState.isStreaming) {
+          console.log(`Stopping log streaming for session ${currentSessionId} when switching to notifications tab`);
           updateSessionState(currentSessionId, { isStreaming: false });
         }
       }
