@@ -348,3 +348,20 @@ func GetX11WindowsData() (string, error) {
 	log.Printf("=== X11 WINDOWS DATA END ===")
 	return x11WindowsJSON, nil
 }
+
+// ExecutionStateHandler handles requests for current execution engine state
+func ExecutionStateHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	// Get current execution state
+	state := task.GetExecutionState()
+
+	jsonBytes, err := json.Marshal(state)
+	if err != nil {
+		http.Error(w, "Failed to encode JSON", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonBytes)
+}

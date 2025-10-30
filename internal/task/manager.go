@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	actionpkg "useless-agent/internal/action"
 	"useless-agent/internal/websocket"
 )
 
@@ -44,7 +45,7 @@ func CreateTask(message string) *Task {
 
 	task := &Task{
 		ID:         taskID,
-		Status:     "in-progress",
+		Status:     "in-the-queue", // Tasks start in queue
 		Message:    message,
 		CreatedAt:  time.Now(),
 		Context:    ctx,
@@ -52,6 +53,14 @@ func CreateTask(message string) *Task {
 	}
 
 	tasks[taskID] = task
+
+	// Send execution engine update for task creation
+	BroadcastExecutionEngineUpdate("taskUpdate", map[string]interface{}{
+		"taskId":  taskID,
+		"status":  task.Status,
+		"message": task.Message,
+	})
+
 	return task
 }
 
@@ -66,6 +75,14 @@ func UpdateTaskStatus(taskID, status, message string) {
 			task.Message = message
 		}
 		SendTaskUpdate(task)
+
+		// CRITICAL FIX: Send execution engine update for status changes
+		// This ensures broken state and other status changes are reported to execution engine
+		BroadcastExecutionEngineUpdate("taskUpdate", map[string]interface{}{
+			"taskId":  taskID,
+			"status":  status,
+			"message": message,
+		})
 	}
 }
 
@@ -92,9 +109,18 @@ func CancelTask(taskID string) bool {
 
 			task.Status = "canceled"
 			SendTaskUpdate(task)
+
+			// CRITICAL FIX: Send execution engine update for task completion
+			// This ensures pointer is updated when task is canceled
+			BroadcastExecutionEngineUpdate("taskUpdate", map[string]interface{}{
+				"taskId":  taskID,
+				"status":  "canceled",
+				"message": "Task canceled by user",
+			})
+
 			return true
 		} else if task.Status == "in-the-queue" {
-			// For queued tasks, we can cancel them immediately by removing from queue
+			// For queued tasks, we can Cancel them immediately by removing from queue
 			// Remove from queue if it's there
 			queueMutex.Lock()
 			for i, queuedTask := range taskQueue {
@@ -113,6 +139,15 @@ func CancelTask(taskID string) bool {
 
 			task.Status = "canceled"
 			SendTaskUpdate(task)
+
+			// CRITICAL FIX: Send execution engine update for queued task cancellation
+			// This ensures execution engine squares are updated when queued task is canceled
+			BroadcastExecutionEngineUpdate("taskUpdate", map[string]interface{}{
+				"taskId":  taskID,
+				"status":  "canceled",
+				"message": "Task canceled by user",
+			})
+
 			return true
 		}
 	}
@@ -229,8 +264,12 @@ func ProcessNextTask() {
 
 			log.Printf("Task %s completed, processing next task", taskRef.ID)
 
-			// Process the next task in the queue
-			go ProcessNextTask()
+			// CRITICAL FIX: Add small delay before processing next task
+			// This prevents race condition where completion events interfere with next task status
+			go func() {
+				time.Sleep(100 * time.Millisecond) // 100ms delay to allow completion event to be processed
+				ProcessNextTask()
+			}()
 		}()
 
 		ExecuteTask(taskRef)
@@ -310,4 +349,79 @@ func CleanupUserAssistMessages(taskID string) {
 
 	delete(userAssistMessages, taskID)
 	log.Printf("Cleaned up user-assist messages for task %s", taskID)
+}
+
+// GetExecutionState returns the current execution engine state
+func GetExecutionState() *ExecutionState {
+	taskMutex.Lock()
+	defer taskMutex.Unlock()
+
+	// Create a slice of tasks for the execution state
+	tasks := make([]Task, 0, len(tasks))
+	i := 0
+	for _, task := range tasks {
+		tasks[i] = task
+		i++
+	}
+
+	// Get selected and running tasks
+	var selectedTask string
+	var runningTaskID string
+	var queuedTasks []string
+
+	queueMutex.RLock()
+	if runningTask != nil {
+		runningTaskID = runningTask.ID
+	}
+
+	// Add queued tasks to execution state
+	for _, queuedTask := range taskQueue {
+		queuedTasks = append(queuedTasks, queuedTask.ID)
+	}
+	queueMutex.RUnlock()
+
+	return &ExecutionState{
+		Tasks:        tasks,
+		SelectedTask: selectedTask,
+		RunningTask:  runningTaskID,
+		QueuedTasks:  queuedTasks,
+	}
+}
+
+// UpdateSubtask sends a subtask update via WebSocket
+func UpdateSubtask(taskID string, subtaskID int, description string, isActive bool, actions []actionpkg.Action) {
+	// Convert actions to a more serializable format
+	serializableActions := make([]interface{}, len(actions))
+	for i, action := range actions {
+		serializableActions[i] = action
+	}
+
+	websocket.SendSubtaskUpdate(taskID, subtaskID, description, isActive, serializableActions)
+}
+
+// UpdateAction sends an action update via WebSocket
+func UpdateAction(taskID string, subtaskID int, actionIndex int, action actionpkg.Action) {
+	// Convert action to a more serializable format
+	var serializableAction map[string]interface{}
+
+	serializableAction = map[string]interface{}{
+		"action":           action.Action,
+		"actionSequenceId": action.ActionSequenceID,
+		"coordinates":      action.Coordinates,
+		"duration":         action.Duration,
+		"inputString":      action.InputString,
+		"keyTapString":     action.KeyTapString,
+		"keyString":        action.KeyString,
+		"actionsRange":     action.ActionsRange,
+		"repeatTimes":      action.RepeatTimes,
+		"parameters":       action.Parameters,
+		"description":      action.Description,
+	}
+
+	websocket.SendActionUpdate(taskID, subtaskID, actionIndex, serializableAction)
+}
+
+// BroadcastExecutionEngineUpdate broadcasts execution engine updates via WebSocket
+func BroadcastExecutionEngineUpdate(updateType string, data interface{}) {
+	websocket.SendExecutionEngineUpdate(updateType, data)
 }

@@ -190,6 +190,12 @@ func (s *ZAIStream) Recv() (*ChatCompletionStreamResponse, error) {
 	}
 
 	for _, choice := range resp.Choices {
+		// Handle both delta content and finish_reason for proper stream termination
+		if choice.FinishReason != "" {
+			// Stream is finished
+			return result, io.EOF
+		}
+
 		result.Choices = append(result.Choices, struct {
 			Delta struct {
 				Content string `json:"content"`

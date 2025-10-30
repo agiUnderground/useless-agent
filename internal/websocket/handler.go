@@ -255,3 +255,113 @@ func SendLogMessage(logData string) {
 		}
 	}()
 }
+
+// SendExecutionEngineUpdate sends execution engine state updates to all WebSocket clients
+func SendExecutionEngineUpdate(updateType string, data interface{}) {
+	wsmutex.Lock()
+	defer wsmutex.Unlock()
+
+	update := map[string]interface{}{
+		"type":       "executionEngineUpdate",
+		"updateType": updateType,
+		"data":       data,
+	}
+
+	updateJSON, err := json.Marshal(update)
+	if err != nil {
+		log.Println("Error marshaling execution engine update:", err)
+		return
+	}
+
+	// Use a goroutine to send updates without blocking
+	go func() {
+		// Create a copy of connections to avoid holding mutex for too long
+		wsmutex.Lock()
+		connections := make([]*WebSocketConnection, len(websocketConnections))
+		copy(connections, websocketConnections)
+		wsmutex.Unlock()
+
+		for _, wsConn := range connections {
+			err := safeWrite(wsConn, websocket.TextMessage, updateJSON)
+			if err != nil {
+				log.Println("Error sending execution engine update:", err)
+			}
+		}
+	}()
+}
+
+// SendSubtaskUpdate sends subtask updates to all WebSocket clients
+func SendSubtaskUpdate(taskID string, subtaskID int, description string, isActive bool, actions []interface{}) {
+	wsmutex.Lock()
+	defer wsmutex.Unlock()
+
+	update := map[string]interface{}{
+		"type":      "subtaskUpdate",
+		"taskId":    taskID,
+		"subtaskId": subtaskID,
+		"subtask": map[string]interface{}{
+			"id":          subtaskID,
+			"description": description,
+			"isActive":    isActive,
+			"actions":     actions,
+		},
+	}
+
+	updateJSON, err := json.Marshal(update)
+	if err != nil {
+		log.Println("Error marshaling subtask update:", err)
+		return
+	}
+
+	// Use a goroutine to send updates without blocking
+	go func() {
+		// Create a copy of connections to avoid holding mutex for too long
+		wsmutex.Lock()
+		connections := make([]*WebSocketConnection, len(websocketConnections))
+		copy(connections, websocketConnections)
+		wsmutex.Unlock()
+
+		for _, wsConn := range connections {
+			err := safeWrite(wsConn, websocket.TextMessage, updateJSON)
+			if err != nil {
+				log.Println("Error sending subtask update:", err)
+			}
+		}
+	}()
+}
+
+// SendActionUpdate sends action updates to all WebSocket clients
+func SendActionUpdate(taskID string, subtaskID int, actionIndex int, action interface{}) {
+	wsmutex.Lock()
+	defer wsmutex.Unlock()
+
+	update := map[string]interface{}{
+		"type":        "actionUpdate",
+		"taskId":      taskID,
+		"subtaskId":   subtaskID,
+		"actionIndex": actionIndex,
+		"action":      action,
+	}
+
+	updateJSON, err := json.Marshal(update)
+	if err != nil {
+		log.Println("Error marshaling action update:", err)
+		return
+	}
+
+	// Use a goroutine to send updates without blocking
+	go func() {
+		// Create a copy of connections to avoid holding mutex for too long
+		wsmutex.Lock()
+		connections := make([]*WebSocketConnection, len(websocketConnections))
+		copy(connections, websocketConnections)
+		wsmutex.Unlock()
+
+		for _, wsConn := range connections {
+			err := safeWrite(wsConn, websocket.TextMessage, updateJSON)
+			if err != nil {
+				log.Println("Error sending action update:", err)
+			}
+		}
+	}()
+}

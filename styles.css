@@ -1684,6 +1684,7 @@ fieldset legend {
   scrollbar-color: #444 #212121;
 }
 
+
 /* Add text selection styling for logs */
 .logs-content::selection {
   background-color: rgba(30, 64, 124, 0.7); /* Beautiful dark blue highlight */
@@ -1717,3 +1718,323 @@ fieldset legend {
     border-color: rgba(255, 0, 0, 0.8);
   }
 }
+
+/* Clean Minimal Execution Engine Styles */
+.execution-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 16px;
+  padding: 0;
+}
+
+.task-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.2s ease;
+}
+
+.task-selector:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.selector-triangle {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.6);
+  transition: transform 0.2s ease;
+}
+
+.selector-text {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tasks-rectangle {
+  background: transparent;
+  border-radius: 4px;
+  padding: 6px;
+  margin-bottom: 16px;
+  overflow-y: auto;
+  /* border: 1px solid rgba(255, 255, 255, 0.08); */
+  position: relative;
+}
+
+.tasks-horizontal-line {
+  position: relative;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(to right,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0) 90%,
+    rgba(255, 255, 255, 0) 100%);
+  margin-bottom: 6px;
+  width: 100%;
+}
+
+.task-pointer {
+  position: relative;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid rgba(255, 255, 255, 0.1);
+  transform: translateX(-50%);
+  z-index: 10;
+  transition: left 0.3s ease, top 0.3s ease;
+  display: none; /* Initially hidden, will be shown when there's an in-progress task */
+  top: -6px !important; /* Position above the horizontal line */
+}
+
+.tasks-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.task-square {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.task-square:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.task-square.selected {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* Better colors */
+.task-square.in-progress {
+  background-color: rgba(255, 193, 7, 0.8);
+  border-color: rgba(255, 193, 7, 0.6);
+}
+
+.task-square.completed {
+  background-color: rgba(76, 175, 80, 0.8);
+  border-color: rgba(76, 175, 80, 0.6);
+}
+
+.task-square.broken {
+  background-color: rgba(244, 67, 54, 0.8);
+  border-color: rgba(244, 67, 54, 0.6);
+}
+
+.task-square.canceled {
+  background-color: rgba(158, 158, 158, 0.8);
+  border-color: rgba(158, 158, 158, 0.6);
+}
+
+.task-square.in-the-queue {
+  background-color: rgba(33, 150, 243, 0.8);
+  border-color: rgba(33, 150, 243, 0.6);
+}
+
+.user-prompt-section {
+  background: transparent;
+  border: none;
+  padding: 12px 0;
+  margin-bottom: 16px;
+}
+
+.prompt-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 500;
+}
+
+.prompt-content {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.4;
+  word-wrap: break-word;
+  font-weight: 400;
+}
+
+.timeline-container {
+  background: transparent;
+  border: none;
+  padding: 12px 0;
+  max-height: calc(100vh - 400px);
+  overflow-y: auto;
+}
+
+.timeline-content {
+  position: relative;
+  padding-left: 8px;
+}
+
+.timeline-line {
+  position: absolute;
+  left: 7px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(to bottom,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0) 90%,
+    rgba(255, 255, 255, 0) 100%);
+  /* CRITICAL FIX: Ensure timeline line expands with content */
+  height: 100%;
+}
+
+/* CRITICAL FIX: Revert timeline line styling changes */
+/* Removed the ::after pseudo-element to restore original timeline line appearance */
+
+.timeline-item {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.timeline-item-container {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+}
+
+.timeline-dot {
+  position: absolute;
+  left: -3px;
+  top: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.8);
+  border: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+  z-index: 2;
+}
+
+.timeline-item.active .timeline-dot {
+  background: #4CAF50;
+  box-shadow: 0 0 12px rgba(76, 175, 80, 0.8);
+}
+
+.timeline-content-wrapper {
+  background: transparent;
+  border: none;
+  padding: 0px;
+  margin-left: 15px;
+  flex: 1;
+}
+
+.timeline-subtask {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 8px;
+  margin-top: 3px;
+  line-height: 1.4;
+  font-weight: 400;
+}
+
+.timeline-actions {
+  margin-top: 8px;
+  padding-left: 12px;
+}
+
+.action-item {
+  background: transparent;
+  border: none;
+  padding: 4px 8px;
+  margin-bottom: 6px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.action-item:last-child {
+  margin-bottom: 0;
+}
+
+.action-type {
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  margin-right: 6px;
+}
+
+.action-params {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 9px;
+}
+
+/* Nested subtasks indentation */
+.timeline-item.nested .timeline-item-container {
+  padding-left: 40px;
+}
+
+.timeline-item.nested .timeline-dot {
+  left: -18px; /* Adjust for the 40px padding to keep dots on main line */
+}
+
+/* Scrollbar for timeline */
+.timeline-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.timeline-container::-webkit-scrollbar-track {
+  background: #212121;
+  border-radius: 3px;
+}
+
+.timeline-container::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 3px;
+}
+
+.timeline-container::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}
+
+/* Firefox scrollbar */
+.timeline-container {
+  scrollbar-width: thin;
+  scrollbar-color: #444 #212121;
+}
+
+/* Pulse animation for active timeline dots */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(76, 175, 80, 0.6);
+    transform: scale(1.1);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4);
+    transform: scale(1);
+  }
+}
+

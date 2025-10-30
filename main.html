@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Screenshot App</title>
+  <title>Useless-agent</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -110,7 +110,27 @@
       </div>
       <div class="settings-content">
         <div class="settings-tab-content active" id="execution-tab">
-          <p>Execution engine settings will be displayed here.</p>
+          <!-- Task visualization rectangle -->
+          <div class="tasks-horizontal-line"></div>
+          <div class="task-pointer" id="taskPointer"></div>
+          <div class="tasks-rectangle" id="tasksRectangle">
+            <div class="tasks-container" id="executionTasksContainer">
+              <!-- Task squares will be dynamically added here -->
+            </div>
+          </div>
+          
+          <!-- Initial user prompt -->
+          <div class="user-prompt-section" id="userPromptSection">
+            <div class="prompt-label">TASK DESCRIPTION:</div>
+            <div class="prompt-content" id="promptContent">No task selected</div>
+          </div>
+          
+          <!-- Vertical timeline -->
+          <div class="timeline-container" id="timelineContainer">
+            <div class="timeline-content" id="timelineContent">
+              <!-- Timeline items will be dynamically added here -->
+            </div>
+          </div>
         </div>
         <div class="settings-tab-content" id="logs-tab">
           <p>Logs will be displayed here.</p>

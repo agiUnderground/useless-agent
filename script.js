@@ -367,6 +367,14 @@ function selectSession(sessionId) {
       }
     }, 10); // Small delay to ensure DOM is updated
     
+    // CRITICAL FIX: Only initialize execution engine if execution tab is active AND not in user-assist mode
+    // This prevents breaking execution engine when user-assist mode activates
+    const executionTab = document.getElementById('execution-tab');
+    if (executionTab && executionTab.classList.contains('active') && !userAssistActive) {
+      console.log('[DEBUG] Session changed, reinitializing execution engine');
+      initializeExecutionEngine();
+    }
+    
     // Update settings sidebar if it's open to reflect new session
     if (settingsOpen) {
       updateSettingsSidebarForNewSession(sessionId);
@@ -687,8 +695,10 @@ function setupSessionWebSocket(session) {
   session.ws.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
-      // Commented out to improve performance - logs were slowing down the system
-      // console.log(`WebSocket message from ${session.ip}:`, data);
+      // DEBUG: Add logging for all execution engine related updates
+      if (data.type === 'executionEngineUpdate' || data.type === 'subtaskUpdate' || data.type === 'actionUpdate') {
+        console.log(`[DEBUG] Execution engine update received from ${session.ip}:`, data);
+      }
       
       if (data.type === 'tokenUpdate') {
         document.getElementById('tokenCounter').textContent = data.total;
@@ -696,16 +706,67 @@ function setupSessionWebSocket(session) {
         handleTaskUpdate(data);
       } else if (data.type === 'log') {
         handleLogMessage(data.data, session.id);
+      } else if (data.type === 'executionEngineUpdate') {
+        handleExecutionEngineUpdate(data);
+      } else if (data.type === 'subtaskUpdate') {
+        // Convert subtaskUpdate to executionEngineUpdate format for consistency
+        const executionUpdate = {
+          updateType: 'subtaskUpdate',
+          data: {
+            taskId: data.taskId,
+            subtaskId: data.subtaskId,
+            description: data.subtask.description,
+            isActive: data.subtask.isActive
+          }
+        };
+        handleExecutionEngineUpdate(executionUpdate);
+      } else if (data.type === 'actionUpdate') {
+        // Convert actionUpdate to executionEngineUpdate format for consistency
+        const executionUpdate = {
+          updateType: 'actionUpdate',
+          data: {
+            taskId: data.taskId,
+            subtaskId: data.subtaskId,
+            actionId: data.actionIndex,
+            action: data.action
+          }
+        };
+        handleExecutionEngineUpdate(executionUpdate);
       }
     } catch (error) {
-      // Commented out to improve performance - WebSocket error messages were slowing down system
-      // console.log(`WebSocket message from ${session.ip} (non-JSON):`, event.data);
+      // DEBUG: Add logging for WebSocket errors
+      console.log(`[DEBUG] WebSocket message from ${session.ip} (non-JSON):`, event.data);
       
       // Try to parse as JSON for non-JSON messages too (in case of parsing issues above)
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'log') {
-          handleLogMessage(data.data, session.id);
+        if (data.type === 'executionEngineUpdate') {
+          console.log(`[DEBUG] Execution engine update received (from catch block) from ${session.ip}:`, data);
+          handleExecutionEngineUpdate(data);
+        } else if (data.type === 'subtaskUpdate') {
+          console.log(`[DEBUG] Subtask update received (from catch block) from ${session.ip}:`, data);
+          const executionUpdate = {
+            updateType: 'subtaskUpdate',
+            data: {
+              taskId: data.taskId,
+              subtaskId: data.subtaskId,
+              description: data.subtask.description,
+              isActive: data.subtask.isActive
+            }
+          };
+          handleExecutionEngineUpdate(executionUpdate);
+        } else if (data.type === 'actionUpdate') {
+          console.log(`[DEBUG] Action update received (from catch block) from ${session.ip}:`, data);
+          const executionUpdate = {
+            updateType: 'actionUpdate',
+            data: {
+              taskId: data.taskId,
+              subtaskId: data.subtaskId,
+              actionId: data.actionIndex,
+              action: data.action
+            }
+          };
+          handleExecutionEngineUpdate(executionUpdate);
         }
       } catch (jsonError) {
         // If it's not JSON, ignore
@@ -1205,10 +1266,14 @@ function activateUserAssist(taskCard) {
   userAssistActive = true;
   userAssistTaskCard = taskCard;
   
-  // Get the session ID from the task card and switch session focus
+  // CRITICAL FIX: Get the session ID from the task card but DON'T switch session
+  // This prevents user-assist from interfering with execution engine
   const sessionId = taskCard.dataset.sessionId;
   if (sessionId && sessionId !== 'null' && sessionId !== 'undefined') {
-    selectSession(sessionId);
+    // Only switch session if it's different from current session
+    if (selectedSessionId !== sessionId) {
+      selectSession(sessionId);
+    }
   }
   
   // Draw connection line
@@ -1609,9 +1674,20 @@ function cancelTask(taskCard) {
     return;
   }
 
+  // Check if session is connected before attempting to cancel
+  if (!targetSession.isConnected) {
+    showToast(`Cannot cancel task - server ${targetSession.ip} is offline. Please wait for server to reconnect.`, 'error');
+    return;
+  }
+
   // Send cancellation request to the appropriate session
   fetch(`http://${targetSession.ip}:8080/task-cancel?taskId=${taskId}`)
-    .then(response => response.json())
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`Server responded with status: ${response.status}`);
+      }
+      return response.json();
+    })
     .then(data => {
       console.log('Task cancellation response:', data);
       
@@ -1641,6 +1717,16 @@ function cancelTask(taskCard) {
     })
     .catch(error => {
       console.error('Error canceling task:', error);
+      
+      // Check if it's a network/connection error (server offline)
+      if (error.message.includes('Failed to fetch') ||
+          error.message.includes('NetworkError') ||
+          error.message.includes('ECONNREFUSED') ||
+          error.message.includes('Server responded with status')) {
+        showToast(`Cannot cancel task - server ${targetSession.ip} is offline or not responding.`, 'error');
+      } else {
+        showToast('Failed to cancel task. Please try again.', 'error');
+      }
     });
 }
 
@@ -1788,6 +1874,73 @@ function handleTaskUpdate(data) {
   
   // Scroll to bottom to show the updated/created task
   setTimeout(scrollTasksToBottom, 0);
+}
+
+// Function to update execution engine state when tasks change
+function updateExecutionEngineState() {
+  // Get currently selected session
+  const selectedSession = getSelectedSession();
+  if (!selectedSession) {
+    console.log('No session selected, skipping execution engine update');
+    return;
+  }
+  
+  // Fetch current execution state from backend
+  fetch(`http://${selectedSession.ip}:8080/execution-state`)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`Failed to fetch execution state: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('Updated execution engine state from backend:', data);
+      
+      // Update execution engine state with fresh data
+      if (data.tasks && Array.isArray(data.tasks)) {
+        executionEngineState.tasks = data.tasks;
+      } else {
+        executionEngineState.tasks = [];
+      }
+      
+      // Update queued tasks
+      if (data.queuedTasks && Array.isArray(data.queuedTasks)) {
+        executionEngineState.queuedTasks = data.queuedTasks;
+      } else {
+        executionEngineState.queuedTasks = [];
+      }
+      
+      // Update running task
+      if (data.runningTask) {
+        executionEngineState.runningTask = data.runningTask;
+      } else {
+        executionEngineState.runningTask = null;
+      }
+      
+      // Auto-select first in-progress task, or first task if none are in progress
+      if (executionEngineState.tasks.length > 0 && !executionEngineState.selectedTask) {
+        const inProgressTask = executionEngineState.tasks.find(t => t.status === 'in-progress');
+        const targetTask = inProgressTask || executionEngineState.tasks[0];
+        selectTask(targetTask.id);
+      } else if (executionEngineState.tasks.length === 0) {
+        // No tasks, clear UI
+        updateTaskVisualization(null);
+        updateUserPrompt(null);
+        updateTimeline(null);
+      }
+      
+      // Update task visualization to reflect current state
+      updateTaskVisualization(executionEngineState.selectedTask);
+      updateUserPrompt(executionEngineState.selectedTask);
+      updateTimeline(executionEngineState.selectedTask);
+      
+      
+      // Update pointer position
+      updateTaskPointer();
+    })
+    .catch(error => {
+      console.error('Error fetching execution state:', error);
+    });
 }
 
 function scrollTasksToBottom() {
@@ -3378,6 +3531,11 @@ document.addEventListener('DOMContentLoaded', () => {
           updateSessionState(currentSessionId, { isStreaming: false });
         }
       }
+      
+      // Update pointer when switching to execution tab
+      setTimeout(() => {
+        updateTaskPointer();
+      }, 100);
     });
   }
   
@@ -3934,3 +4092,750 @@ document.addEventListener('keydown', (event) => {
     toggleUserAssistForCurrentSession();
   }
 });
+
+// Execution Engine Management
+let executionEngineState = {
+  tasks: [],
+  selectedTask: null,
+  subtasks: [],
+  actions: [],
+  isExpanded: false,
+  queuedTasks: []
+};
+
+
+// Function to initialize execution engine
+function initializeExecutionEngine() {
+  console.log('[DEBUG] Initializing execution engine');
+  
+  // CRITICAL FIX: Check if we already have tasks before requesting fresh data
+  // This preserves existing state when switching tabs
+  const selectedSession = getSelectedSession();
+  if (selectedSession && executionEngineState.tasks.length > 0) {
+    console.log('[DEBUG] Execution engine already has state, updating UI instead of reinitializing');
+    
+    // Update UI with existing state
+    updateTaskVisualization(executionEngineState.selectedTask);
+    updateUserPrompt(executionEngineState.selectedTask);
+    updateTimeline(executionEngineState.selectedTask);
+    updateTaskPointer();
+    
+    // Set up event listeners
+    setupExecutionEngineListeners();
+    return;
+  }
+  
+  // Request initial data from backend
+  requestExecutionData();
+  
+  // Set up event listeners
+  setupExecutionEngineListeners();
+}
+
+// Function to set up event listeners for execution engine
+function setupExecutionEngineListeners() {
+  const selectorTriangle = document.getElementById('selectorTriangle');
+  const taskSelector = document.querySelector('.task-selector');
+  
+  if (selectorTriangle) {
+    selectorTriangle.addEventListener('click', cycleThroughTasks);
+  }
+  
+  if (taskSelector) {
+    taskSelector.addEventListener('click', cycleThroughTasks);
+  }
+}
+
+// Function to cycle through tasks instead of dropdown
+function cycleThroughTasks() {
+  if (executionEngineState.tasks.length === 0) return;
+  
+  const currentIndex = executionEngineState.selectedTask ?
+    executionEngineState.tasks.findIndex(t => t.id === executionEngineState.selectedTask) : -1;
+  
+  const nextIndex = (currentIndex + 1) % executionEngineState.tasks.length;
+  selectTask(executionEngineState.tasks[nextIndex].id);
+}
+
+// Function to select a task
+function selectTask(taskId) {
+  executionEngineState.selectedTask = taskId;
+  
+  // Update selector text
+  const selectorText = document.getElementById('selectorText');
+  const task = executionEngineState.tasks.find(t => t.id === taskId);
+  if (task && selectorText) {
+    selectorText.textContent = `Task ${task.id}`;
+  }
+  
+  // CRITICAL FIX: Clear execution engine state when switching tasks
+  // This ensures iterations and actions from previous task are not displayed
+  // and prevents accumulation of duplicate content when switching between tasks
+  const timelineContent = document.getElementById('timelineContent');
+  if (timelineContent) {
+    timelineContent.innerHTML = '';
+  }
+  
+  // Update task visualization
+  updateTaskVisualization(taskId);
+  
+  // Update user prompt
+  updateUserPrompt(taskId);
+  
+  // CRITICAL FIX: Force timeline update when task is selected
+  // This ensures subtasks and actions are displayed for the selected task
+  updateTimeline(taskId);
+  
+  // Update pointer position when task is selected
+  setTimeout(() => {
+    updateTaskPointer();
+  }, 100);
+}
+
+// Function to update task visualization
+function updateTaskVisualization(taskId) {
+  const container = document.getElementById('executionTasksContainer');
+  if (!container) return;
+  
+  container.innerHTML = '';
+  
+  executionEngineState.tasks.forEach(task => {
+    const taskSquare = document.createElement('div');
+    taskSquare.className = `task-square ${task.status}`;
+    taskSquare.textContent = ''; // Remove numbers from task squares
+    taskSquare.title = `${task.status}: ${task.message}`;
+    
+    if (task.id === taskId) {
+      taskSquare.classList.add('selected');
+    }
+    
+    taskSquare.addEventListener('click', () => {
+      selectTask(task.id);
+    });
+    
+    container.appendChild(taskSquare);
+  });
+  
+  // Update pointer position to point to the in-progress task
+  updateTaskPointer();
+}
+
+// Function to update user prompt
+function updateUserPrompt(taskId) {
+  const promptContent = document.getElementById('promptContent');
+  if (!promptContent) return;
+  
+  const task = executionEngineState.tasks.find(t => t.id === taskId);
+  if (task) {
+    // CRITICAL FIX: Always show original task message, not status updates
+    // This prevents "Task Description" from being changed to status messages
+    promptContent.textContent = task.message;
+  } else {
+    promptContent.textContent = 'No task selected';
+  }
+}
+
+// Function to update timeline
+function updateTimeline(taskId) {
+  const timelineContent = document.getElementById('timelineContent');
+  if (!timelineContent) return;
+  
+  // CRITICAL FIX: ALWAYS clear timeline completely when updating any task
+  // This ensures iterations and actions from previous task are not displayed
+  // and prevents accumulation of duplicate content
+  timelineContent.innerHTML = '';
+  
+  // Add timeline line if empty
+  if (timelineContent.children.length === 0) {
+    const timelineLine = document.createElement('div');
+    timelineLine.className = 'timeline-line';
+    timelineContent.appendChild(timelineLine);
+  }
+  
+  // Get task data
+  const task = executionEngineState.tasks.find(t => t.id === taskId);
+  if (!task) return;
+  
+  // CRITICAL FIX: Add ALL subtasks and actions to timeline
+  // This ensures all iterations are displayed for in-progress tasks
+  if (task.subtasks && task.subtasks.length > 0) {
+    // CRITICAL FIX: Sort subtasks by iteration number to ensure proper order
+    // This ensures iterations are created in order by iteration number, not by array order
+    const sortedSubtasks = [...task.subtasks].sort((a, b) => {
+      // Convert iteration to number for proper numeric sorting
+      const aIteration = parseInt(a.id) || 0;
+      const bIteration = parseInt(b.id) || 0;
+      return aIteration - bIteration;
+    });
+    
+    // CRITICAL FIX: Add ALL iterations to timeline, not just the first one
+    // This ensures all subtasks/iterations are displayed for in-progress tasks
+    sortedSubtasks.forEach((subtask, index) => {
+      addSubtaskToTimeline(subtask, false); // Use fixed version without duplicate check
+    });
+  }
+}
+
+// Function to add subtask to timeline
+function addSubtaskToTimeline(subtask, isFirst = false) {
+  const timelineContent = document.getElementById('timelineContent');
+  if (!timelineContent) return;
+  
+  // Check if this subtask already exists in the timeline
+  const existingItems = timelineContent.querySelectorAll('.timeline-item');
+  for (const existingItem of existingItems) {
+    const subtaskDiv = existingItem.querySelector('.timeline-subtask');
+    if (subtaskDiv && subtaskDiv.textContent === subtask.description) {
+      // Subtask already exists, update its active state instead of adding a duplicate
+      const dot = existingItem.querySelector('.timeline-dot');
+      if (dot) {
+        if (subtask.isActive) {
+          dot.classList.add('active');
+        } else {
+          dot.classList.remove('active');
+        }
+      }
+      
+      // Update actions if they exist
+      if (subtask.actions && subtask.actions.length > 0) {
+        const existingActionsDiv = existingItem.querySelector('.timeline-actions');
+        if (existingActionsDiv) {
+          existingActionsDiv.remove();
+        }
+        
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'timeline-actions';
+        
+        subtask.actions.forEach(action => {
+          const actionItem = document.createElement('div');
+          actionItem.className = 'action-item';
+          
+          const actionType = document.createElement('span');
+          actionType.className = 'action-type';
+          actionType.textContent = action.action;
+          
+          const actionParams = document.createElement('span');
+          actionParams.className = 'action-params';
+          
+          // Format parameters based on action type
+          let paramsText = '';
+          if (action.coordinates) {
+            paramsText = `(${action.coordinates.x}, ${action.coordinates.y})`;
+          } else if (action.inputString) {
+            paramsText = `"${action.inputString}"`;
+          } else if (action.keyTapString) {
+            paramsText = action.keyTapString;
+          } else if (action.duration) {
+            paramsText = `${action.duration}ms`;
+          }
+          
+          actionParams.textContent = paramsText;
+          
+          actionItem.appendChild(actionType);
+          actionItem.appendChild(actionParams);
+          actionsDiv.appendChild(actionItem);
+        });
+        
+        const contentWrapper = existingItem.querySelector('.timeline-content-wrapper');
+        if (contentWrapper) {
+          contentWrapper.appendChild(actionsDiv);
+        }
+      }
+      
+      return; // Exit early since we updated the existing item
+    }
+  }
+  
+  const timelineItem = document.createElement('div');
+  timelineItem.className = 'timeline-item';
+  if (subtask.parentId) {
+    timelineItem.classList.add('nested');
+  }
+  
+  // Create a container for the dot and content to ensure proper alignment
+  const itemContainer = document.createElement('div');
+  itemContainer.className = 'timeline-item-container';
+  itemContainer.style.display = 'flex';
+  itemContainer.style.alignItems = 'flex-start';
+  itemContainer.style.position = 'relative';
+  
+  // Add dot positioned absolutely to align with the text
+  const dot = document.createElement('div');
+  dot.className = 'timeline-dot';
+  if (subtask.isActive) {
+    dot.classList.add('active');
+  }
+  // Position the dot to align with the first line of text
+  dot.style.position = 'absolute';
+  dot.style.left = '0';
+  dot.style.top = '8px'; // Align with first line of text (roughly half line height)
+  dot.style.transform = 'translateX(-50%)'; // Center the dot on the line
+  dot.style.zIndex = '2';
+  
+  // Add content wrapper with proper left margin to avoid overlap with dot
+  const contentWrapper = document.createElement('div');
+  contentWrapper.className = 'timeline-content-wrapper';
+  contentWrapper.style.marginLeft = '15px'; // Space for the dot
+  contentWrapper.style.flex = '1';
+  
+  // Add subtask description
+  const subtaskDiv = document.createElement('div');
+  subtaskDiv.className = 'timeline-subtask';
+  subtaskDiv.textContent = subtask.description;
+  contentWrapper.appendChild(subtaskDiv);
+  
+  // Add actions if available
+  if (subtask.actions && subtask.actions.length > 0) {
+    console.log(`[DEBUG] Adding ${subtask.actions.length} actions for subtask ${subtask.id}:`, subtask.actions);
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'timeline-actions';
+    
+    subtask.actions.forEach(action => {
+      const actionItem = document.createElement('div');
+      actionItem.className = 'action-item';
+      
+      const actionType = document.createElement('span');
+      actionType.className = 'action-type';
+      actionType.textContent = action.action;
+      
+      const actionParams = document.createElement('span');
+      actionParams.className = 'action-params';
+      
+      // Format parameters based on action type
+      let paramsText = '';
+      if (action.coordinates) {
+        paramsText = `(${action.coordinates.x}, ${action.coordinates.y})`;
+      } else if (action.inputString) {
+        paramsText = `"${action.inputString}"`;
+      } else if (action.keyTapString) {
+        paramsText = action.keyTapString;
+      } else if (action.duration) {
+        paramsText = `${action.duration}ms`;
+      }
+      
+      actionParams.textContent = paramsText;
+      
+      actionItem.appendChild(actionType);
+      actionItem.appendChild(actionParams);
+      actionsDiv.appendChild(actionItem);
+    });
+    
+    contentWrapper.appendChild(actionsDiv);
+    console.log(`[DEBUG] Actions div created with ${actionsDiv.children.length} children for subtask ${subtask.id}`);
+  }
+  
+  // Assemble the components
+  itemContainer.appendChild(dot);
+  itemContainer.appendChild(contentWrapper);
+  timelineItem.appendChild(itemContainer);
+  timelineContent.appendChild(timelineItem);
+}
+// FIXED VERSION: Function to add subtask to timeline without duplicate check
+function addSubtaskToTimeline(subtask, isFirst = false) {
+  const timelineContent = document.getElementById('timelineContent');
+  if (!timelineContent) return;
+  
+  // CRITICAL FIX: Always add subtask to timeline, even if it might already exist
+  // This ensures all iterations are displayed properly for in-progress tasks
+  // The timeline is already cleared before adding subtasks, so duplicates won't occur
+  
+  const timelineItem = document.createElement('div');
+  timelineItem.className = 'timeline-item';
+  if (subtask.parentId) {
+    timelineItem.classList.add('nested');
+  }
+  
+  // Create a container for dot and content to ensure proper alignment
+  const itemContainer = document.createElement('div');
+  itemContainer.className = 'timeline-item-container';
+  itemContainer.style.display = 'flex';
+  itemContainer.style.alignItems = 'flex-start';
+  itemContainer.style.position = 'relative';
+  
+  // Add dot positioned absolutely to align with text
+  const dot = document.createElement('div');
+  dot.className = 'timeline-dot';
+  if (subtask.isActive) {
+    dot.classList.add('active');
+  }
+  // Position dot to align with first line of text
+  dot.style.position = 'absolute';
+  dot.style.left = '0';
+  dot.style.top = '8px'; // Align with first line of text (roughly half line height)
+  dot.style.transform = 'translateX(-50%)'; // Center dot on line
+  dot.style.zIndex = '2';
+  
+  // Add content wrapper with proper left margin to avoid overlap with dot
+  const contentWrapper = document.createElement('div');
+  contentWrapper.className = 'timeline-content-wrapper';
+  contentWrapper.style.marginLeft = '15px'; // Space for dot
+  contentWrapper.style.flex = '1';
+  
+  // Add subtask description
+  const subtaskDiv = document.createElement('div');
+  subtaskDiv.className = 'timeline-subtask';
+  subtaskDiv.textContent = subtask.description;
+  contentWrapper.appendChild(subtaskDiv);
+  
+  // Add actions if available
+  if (subtask.actions && subtask.actions.length > 0) {
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'timeline-actions';
+    
+    subtask.actions.forEach(action => {
+      const actionItem = document.createElement('div');
+      actionItem.className = 'action-item';
+      
+      const actionType = document.createElement('span');
+      actionType.className = 'action-type';
+      actionType.textContent = action.action;
+      
+      const actionParams = document.createElement('span');
+      actionParams.className = 'action-params';
+      
+      // Format parameters based on action type
+      let paramsText = '';
+      if (action.coordinates) {
+        paramsText = `(${action.coordinates.x}, ${action.coordinates.y})`;
+      } else if (action.inputString) {
+        paramsText = `"${action.inputString}"`;
+      } else if (action.keyTapString) {
+        paramsText = action.keyTapString;
+      } else if (action.duration) {
+        paramsText = `${action.duration}ms`;
+      }
+      
+      actionParams.textContent = paramsText;
+      
+      actionItem.appendChild(actionType);
+      actionItem.appendChild(actionParams);
+      actionsDiv.appendChild(actionItem);
+    });
+    
+    contentWrapper.appendChild(actionsDiv);
+  }
+  
+  // Assemble components
+  itemContainer.appendChild(dot);
+  itemContainer.appendChild(contentWrapper);
+  timelineItem.appendChild(itemContainer);
+  timelineContent.appendChild(timelineItem);
+}
+
+// Function to request execution data from backend
+function requestExecutionData() {
+  // Start with empty state
+  executionEngineState.tasks = [];
+  executionEngineState.selectedTask = null;
+  executionEngineState.queuedTasks = [];
+  
+  // Get the currently selected session
+  const selectedSession = getSelectedSession();
+  if (!selectedSession) {
+    console.log('No session selected, execution engine will remain empty');
+    updateTaskVisualization(null);
+    updateUserPrompt(null);
+    updateTimeline(null);
+    updateTaskPointer();
+    return;
+  }
+  
+  // Fetch execution state from backend
+  fetch(`http://${selectedSession.ip}:8080/execution-state`)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`Failed to fetch execution state: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('Received execution state from backend:', data);
+      
+      // Update our state with backend data
+      if (data.tasks && Array.isArray(data.tasks)) {
+        executionEngineState.tasks = data.tasks;
+      } else {
+        executionEngineState.tasks = [];
+      }
+      
+      // Auto-select first in-progress task, or first task if none are in progress
+      if (executionEngineState.tasks.length > 0 && !executionEngineState.selectedTask) {
+        const inProgressTask = executionEngineState.tasks.find(t => t.status === 'in-progress');
+        const targetTask = inProgressTask || executionEngineState.tasks[0];
+        selectTask(targetTask.id);
+      } else if (executionEngineState.tasks.length === 0) {
+        // No tasks, clear the UI
+        updateTaskVisualization(null);
+        updateUserPrompt(null);
+        updateTimeline(null);
+      }
+      
+      // Initialize pointer position
+      updateTaskPointer();
+    })
+    .catch(error => {
+      console.error('Error fetching execution state:', error);
+      // Keep empty state on error
+      updateTaskVisualization(null);
+      updateUserPrompt(null);
+      updateTimeline(null);
+      updateTaskPointer();
+      
+    });
+}
+
+// Function to handle execution engine WebSocket updates
+function handleExecutionEngineUpdate(data) {
+  console.log('[DEBUG] handleExecutionEngineUpdate called with:', data);
+  
+  if (data.updateType === 'taskUpdate') {
+    // Update task in our state
+    const taskData = data.data;
+    console.log('[DEBUG] Processing taskUpdate:', taskData);
+    const taskIndex = executionEngineState.tasks.findIndex(t => t.id === taskData.taskId);
+    
+    if (taskIndex !== -1) {
+      // Update existing task
+      executionEngineState.tasks[taskIndex].status = taskData.status;
+      if (taskData.message) {
+        executionEngineState.tasks[taskIndex].message = taskData.message;
+      }
+      console.log('[DEBUG] Updated existing task:', executionEngineState.tasks[taskIndex]);
+    } else {
+      // Add new task
+      const newTask = {
+        id: taskData.taskId,
+        status: taskData.status,
+        message: taskData.message,
+        subtasks: []
+      };
+      executionEngineState.tasks.push(newTask);
+      console.log('[DEBUG] Added new task:', newTask);
+    }
+    
+    // Auto-select in-progress task if no task is selected or if current selected task is not in-progress
+    const inProgressTask = executionEngineState.tasks.find(t => t.status === 'in-progress');
+    if (inProgressTask && (!executionEngineState.selectedTask ||
+        executionEngineState.tasks.find(t => t.id === executionEngineState.selectedTask)?.status !== 'in-progress')) {
+      console.log('[DEBUG] Auto-selecting in-progress task:', inProgressTask.id);
+      selectTask(inProgressTask.id);
+    }
+    
+    // Update UI if this is the selected task
+    if (executionEngineState.selectedTask === data.taskId) {
+      updateTaskVisualization(data.taskId);
+      updateUserPrompt(data.taskId);
+    }
+    
+    // Always update task visualization and pointer when tasks change
+    updateTaskVisualization(executionEngineState.selectedTask);
+    updateTaskPointer();
+    
+  } else if (data.updateType === 'subtaskUpdate') {
+    // Handle subtask update
+    const subtaskData = data.data;
+    console.log('[DEBUG] Processing subtaskUpdate:', subtaskData);
+    const taskIndex = executionEngineState.tasks.findIndex(t => t.id === subtaskData.taskId);
+    
+    if (taskIndex !== -1) {
+      // Ensure subtasks array exists
+      if (!executionEngineState.tasks[taskIndex].subtasks) {
+        executionEngineState.tasks[taskIndex].subtasks = [];
+      }
+      
+      // Find existing subtask
+      const subtaskIndex = executionEngineState.tasks[taskIndex].subtasks.findIndex(st => st.id === subtaskData.subtaskId);
+      
+      if (subtaskIndex !== -1) {
+        // Update existing subtask
+        executionEngineState.tasks[taskIndex].subtasks[subtaskIndex] = {
+          id: subtaskData.subtaskId,
+          description: subtaskData.description,
+          isActive: subtaskData.isActive,
+          actions: executionEngineState.tasks[taskIndex].subtasks[subtaskIndex].actions || []
+        };
+        console.log('[DEBUG] Updated existing subtask:', executionEngineState.tasks[taskIndex].subtasks[subtaskIndex]);
+      } else {
+        // Add new subtask
+        const newSubtask = {
+          id: subtaskData.subtaskId,
+          description: subtaskData.description,
+          isActive: subtaskData.isActive,
+          actions: []
+        };
+        executionEngineState.tasks[taskIndex].subtasks.push(newSubtask);
+        console.log('[DEBUG] Added new subtask:', newSubtask);
+      }
+      
+      // Update timeline if this is the selected task
+      if (executionEngineState.selectedTask === subtaskData.taskId) {
+        updateTimeline(subtaskData.taskId);
+      }
+    }
+    
+    // Always update task visualization and pointer when subtasks change
+    if (executionEngineState.selectedTask === subtaskData.taskId) {
+      updateTaskVisualization(executionEngineState.selectedTask);
+    }
+    updateTaskPointer();
+    
+  } else if (data.updateType === 'actionUpdate') {
+    // Handle action update
+    const actionData = data.data;
+    console.log('[DEBUG] Processing actionUpdate:', actionData);
+    const taskIndex = executionEngineState.tasks.findIndex(t => t.id === actionData.taskId);
+    
+    if (taskIndex !== -1) {
+      const task = executionEngineState.tasks[taskIndex];
+      
+      // Ensure subtasks array exists
+      if (!task.subtasks) {
+        task.subtasks = [];
+      }
+      
+      // Find subtask
+      const subtaskIndex = task.subtasks.findIndex(st => st.id === actionData.subtaskId);
+      
+      if (subtaskIndex !== -1) {
+        // Ensure actions array exists
+        if (!task.subtasks[subtaskIndex].actions) {
+          task.subtasks[subtaskIndex].actions = [];
+        }
+        
+        // Find existing action
+        const actionIndex = task.subtasks[subtaskIndex].actions.findIndex(a => a.id === actionData.actionId);
+        
+        const action = {
+          id: actionData.actionId,
+          action: actionData.action.action,
+          description: actionData.action.description
+        };
+        
+        // Add action-specific parameters
+        if (actionData.action.coordinates) {
+          action.coordinates = actionData.action.coordinates;
+        }
+        if (actionData.action.inputString) {
+          action.inputString = actionData.action.inputString;
+        }
+        if (actionData.action.keyTapString) {
+          action.keyTapString = actionData.action.keyTapString;
+        }
+        if (actionData.action.duration) {
+          action.duration = actionData.action.duration;
+        }
+        
+        if (actionIndex !== -1) {
+          // Update existing action
+          task.subtasks[subtaskIndex].actions[actionIndex] = action;
+          console.log('[DEBUG] Updated existing action:', action);
+        } else {
+          // Add new action
+          task.subtasks[subtaskIndex].actions.push(action);
+          console.log('[DEBUG] Added new action:', action);
+        }
+        
+        // Update timeline if this is the selected task
+        if (executionEngineState.selectedTask === actionData.taskId) {
+          updateTimeline(actionData.taskId);
+        }
+      }
+    }
+    
+    // Always update task visualization and pointer when actions change
+    if (executionEngineState.selectedTask === actionData.taskId) {
+      updateTaskVisualization(executionEngineState.selectedTask);
+    }
+    updateTaskPointer();
+    
+  } else if (data.updateType === 'completionEvent') {
+    // CRITICAL FIX: Handle task completion events
+    // This ensures pointer is updated when task is completed
+    const completionData = data.data;
+    console.log('[DEBUG] Processing completionEvent:', completionData);
+    
+    if (completionData.event === 'completed') {
+      // Update pointer position when task is completed
+      updateTaskPointer();
+    }
+  } else {
+    console.log('[DEBUG] Unknown execution engine update type:', data.updateType);
+  }
+}
+
+// Function to update task pointer position
+function updateTaskPointer() {
+  const pointer = document.getElementById('taskPointer');
+  const container = document.getElementById('executionTasksContainer');
+  if (!pointer || !container) return;
+  
+  // Find the in-progress task
+  const inProgressTask = executionEngineState.tasks.find(task => task.status === 'in-progress');
+  
+  if (inProgressTask) {
+    // Find the index of the in-progress task
+    const taskIndex = executionEngineState.tasks.findIndex(task => task.status === 'in-progress');
+    
+    // Get the corresponding task square
+    const taskSquares = container.querySelectorAll('.task-square');
+    const targetSquare = taskSquares[taskIndex];
+    
+    if (targetSquare) {
+      // Get position of the target task square
+      const squareRect = targetSquare.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      
+      // Calculate position relative to container, accounting for 6px padding
+      const relativeLeft = squareRect.left - containerRect.left + (squareRect.width / 2) + 6; // Add 6px padding
+      const relativeTop = squareRect.top - containerRect.top - 6; // Subtract 6px padding
+      
+      // Position the pointer above the task square
+      pointer.style.position = 'relative';
+      pointer.style.left = `${relativeLeft}px`;
+      pointer.style.top = `${relativeTop - 10}px`; // 10px above the task
+      pointer.style.display = 'block';
+      pointer.style.transform = 'translateX(-50%)'; // Center the pointer
+      console.log('Pointer positioned at:', { relativeLeft, relativeTop });
+    } else {
+      // Hide pointer if no target square found
+      pointer.style.display = 'none';
+      console.log('Target square not found');
+    }
+  } else {
+    // Hide pointer if no in-progress task
+    pointer.style.display = 'none';
+    console.log('No in-progress task found');
+  }
+}
+
+// Initialize execution engine when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  // Check if we're on execution tab
+  const executionTab = document.getElementById('execution-tab');
+  if (executionTab && executionTab.classList.contains('active')) {
+    initializeExecutionEngine();
+  }
+});
+
+// Handle tab changes to initialize execution engine when needed
+const originalInitializeTabContent = initializeTabContent;
+initializeTabContent = function(tabName) {
+  originalInitializeTabContent(tabName);
+  
+  if (tabName === 'execution') {
+    console.log('[DEBUG] Execution tab activated, initializing execution engine');
+    
+    // CRITICAL FIX: Only reinitialize execution engine if we have a selected session
+    // This prevents breaking the execution engine state when switching tabs
+    const selectedSession = getSelectedSession();
+    if (selectedSession) {
+      initializeExecutionEngine();
+      // Also update pointer after a short delay to ensure DOM is ready
+      setTimeout(() => {
+        updateTaskPointer();
+      }, 100);
+    } else {
+      console.log('[DEBUG] No session selected, skipping execution engine initialization');
+    }
+  }
+};

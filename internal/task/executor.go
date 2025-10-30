@@ -50,6 +50,45 @@ func ExecuteTask(task *Task) {
 		subtasks = append(subtasks, SubTask{Id: 0, Description: goal})
 	}
 
+	// Send initial subtasks to frontend
+	for _, subtask := range subtasks {
+		UpdateSubtask(task.ID, subtask.Id, subtask.Description, false, []actionpkg.Action{})
+	}
+
+	// Send task update to execution engine
+	BroadcastExecutionEngineUpdate("taskUpdate", map[string]interface{}{
+		"taskId":  task.ID,
+		"status":  task.Status,
+		"message": task.Message,
+	})
+
+	// CRITICAL FIX: Check if task has no subtasks and complete immediately
+	// This handles cases where tasks complete too fast without going through normal execution loop
+	if len(subtasks) == 0 {
+		log.Printf("Task %s has no subtasks, completing immediately", task.ID)
+
+		// Update task status to completed
+		UpdateTaskStatus(task.ID, "completed", "Task completed successfully - no actions needed")
+
+		// Send task completion to execution engine
+		BroadcastExecutionEngineUpdate("taskUpdate", map[string]interface{}{
+			"taskId":  task.ID,
+			"status":  "completed",
+			"message": "Task completed successfully - no actions needed",
+		})
+
+		// CRITICAL FIX: Send completion event to frontend
+		// This ensures pointer is updated when task completes immediately
+		BroadcastExecutionEngineUpdate("completionEvent", map[string]interface{}{
+			"taskId": task.ID,
+			"event":  "completed",
+		})
+
+		// Clean up user-assist messages for this task
+		CleanupUserAssistMessages(task.ID)
+		return
+	}
+
 	for _, subtask := range subtasks {
 	SubTaskLoop:
 		for {
@@ -263,6 +302,17 @@ func ExecuteTask(task *Task) {
 
 			actions, actionsJSONString, err := sendMessageToLLM(task.Context, enhancedSubtaskDescription, boundingBoxesJSON, ocrResultsJSON, textChangesSummary, promptLogJSONString, iteration, prevCursorPositionJSONString, detectedWindowsJSON, x11WindowsData, colorsDistribution)
 
+			// Send subtask update with actions
+			UpdateSubtask(task.ID, subtask.Id, subtask.Description, true, actions)
+
+			// Send subtask update to execution engine
+			BroadcastExecutionEngineUpdate("subtaskUpdate", map[string]interface{}{
+				"taskId":      task.ID,
+				"subtaskId":   subtask.Id,
+				"description": subtask.Description,
+				"isActive":    true,
+			})
+
 			if err != nil {
 				log.Println("failed to send message to LLM:", err)
 				// Check if the error is due to task cancellation
@@ -278,7 +328,37 @@ func ExecuteTask(task *Task) {
 				log.Println("successfully sent a message to LLM. Iteration:", iteration)
 			}
 
-			for i := range actions {
+			for i, action := range actions {
+				// Send action update
+				UpdateAction(task.ID, subtask.Id, i, action)
+
+				// Send action update to execution engine
+				actionData := map[string]interface{}{
+					"actionId":    i,
+					"action":      action.Action,
+					"description": action.Description,
+				}
+
+				// Add action-specific parameters
+				if action.Coordinates.X != 0 || action.Coordinates.Y != 0 {
+					actionData["coordinates"] = action.Coordinates
+				}
+				if action.InputString != "" {
+					actionData["inputString"] = action.InputString
+				}
+				if action.KeyTapString != "" {
+					actionData["keyTapString"] = action.KeyTapString
+				}
+				if action.Duration != 0 {
+					actionData["duration"] = action.Duration
+				}
+
+				BroadcastExecutionEngineUpdate("actionUpdate", map[string]interface{}{
+					"taskId":      task.ID,
+					"subtaskId":   subtask.Id,
+					"actionIndex": i,
+					"action":      actionData,
+				})
 				// Check for task cancellation before executing each action
 				select {
 				case <-task.Context.Done():
@@ -554,7 +634,21 @@ func ExecuteTask(task *Task) {
 	log.Println("GOAL ACHIEVED! breaking AGIloop...")
 
 	// Update task status to completed
-	UpdateTaskStatus(task.ID, "completed", "Task completed successfully")
+	UpdateTaskStatus(task.ID, "completed", task.Message) // Keep original message, don't override with status text
+
+	// Send task completion to execution engine
+	BroadcastExecutionEngineUpdate("taskUpdate", map[string]interface{}{
+		"taskId":  task.ID,
+		"status":  "completed",
+		"message": task.Message, // Keep original message
+	})
+
+	// CRITICAL FIX: Send completion event to frontend
+	// This ensures pointer is updated when task is completed
+	BroadcastExecutionEngineUpdate("completionEvent", map[string]interface{}{
+		"taskId": task.ID,
+		"event":  "completed",
+	})
 
 	// Clean up user-assist messages for this task
 	CleanupUserAssistMessages(task.ID)
