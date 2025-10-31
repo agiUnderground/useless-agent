@@ -338,6 +338,7 @@ function selectSession(sessionId) {
       if (taskSessionId === sessionId) {
         // This is the user-assist session - apply golden yellow/orange styling
         session.container.classList.add('user-assist-selected');
+        session.container.classList.remove('selected'); // Ensure green outline is removed
         console.log(`Applied user-assist styling to session: ${sessionId}`);
       } else {
         // User manually selected a different session while user-assist is active
@@ -349,6 +350,7 @@ function selectSession(sessionId) {
     } else {
       // Normal selection - apply green styling
       session.container.classList.add('selected');
+      session.container.classList.remove('user-assist-selected'); // Ensure golden outline is removed
     }
     
     selectedSessionId = sessionId;
@@ -1273,6 +1275,15 @@ function activateUserAssist(taskCard) {
     // Only switch session if it's different from current session
     if (selectedSessionId !== sessionId) {
       selectSession(sessionId);
+    } else {
+      // CRITICAL FIX: If already on the correct session, just update the styling
+      // This ensures the gold border is applied when activating user-assist on already selected session
+      const session = sessions.get(sessionId);
+      if (session && session.container) {
+        session.container.classList.add('user-assist-selected');
+        session.container.classList.remove('selected');
+        console.log(`Applied user-assist styling to already selected session: ${sessionId}`);
+      }
     }
   }
   
@@ -1317,7 +1328,7 @@ function deactivateUserAssist(restoreGreenOutline = true) {
       if (restoreGreenOutline) {
         session.container.classList.add('selected');
       }
-      console.log('User-assist activated');
+      console.log('User-assist deactivated');
     }
   }
   
@@ -2781,6 +2792,44 @@ function toggleSessionMaximize(session) {
   }, 0);
 }
 
+// T hotkey functionality to toggle Connection/Status sections and maximize Tasks
+let tasksToggleState = false; // false = normal state, true = maximized state
+
+function toggleTasksMaximize() {
+  const tasksSection = document.getElementById('tasksSection');
+  const tasksContainer = document.getElementById('tasksContainer');
+  const connectionFieldset = document.querySelector('.connection-fieldset');
+  const statusFieldset = document.querySelector('.status-fieldset');
+  
+  // Check if there are any tasks in the tasks section
+  const hasTasks = tasksContainer && tasksContainer.children.length > 0;
+  
+  if (!hasTasks) {
+    // No tasks, don't allow toggle
+    return;
+  }
+  
+  if (!tasksToggleState) {
+    // Maximize Tasks section, hide Connection and Status
+    tasksToggleState = true;
+    tasksSection.classList.add('maximized');
+    tasksSection.classList.remove('visible');
+    tasksSection.classList.add('visible'); // Ensure it's visible
+    
+    // Hide Connection and Status sections
+    connectionFieldset.classList.add('connection-hidden');
+    statusFieldset.classList.add('status-hidden');
+  } else {
+    // Restore normal layout
+    tasksToggleState = false;
+    tasksSection.classList.remove('maximized');
+    
+    // Show Connection and Status sections
+    connectionFieldset.classList.remove('connection-hidden');
+    statusFieldset.classList.remove('status-hidden');
+  }
+}
+
 // Global keyboard shortcut for fullscreen (F key) and maximize (M key) - applies to selected session
 document.addEventListener('keydown', (event) => {
   // Check if chat input or IP input is focused
@@ -2855,6 +2904,14 @@ document.addEventListener('keydown', (event) => {
       if (chatInput) {
         chatInput.focus();
       }
+    }
+    
+    // Tasks maximize toggle (T key)
+    if (event.key === 't' || event.key === 'T') {
+      event.preventDefault(); // Prevent default browser behavior
+      
+      // Toggle tasks maximize state
+      toggleTasksMaximize();
     }
   }
 });

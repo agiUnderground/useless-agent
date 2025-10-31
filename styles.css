@@ -645,6 +645,21 @@ fieldset legend {
   transform: translateY(0);
 }
 
+/* Tasks section maximized state */
+.tasks-section.maximized {
+  display: flex;
+  flex: 3;
+  max-height: 100%;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Connection and Status sections hidden state */
+.toolbar fieldset.connection-hidden,
+.toolbar fieldset.status-hidden {
+  display: none;
+}
+
 .tasks-section fieldset {
   flex: 1;
   display: flex;
