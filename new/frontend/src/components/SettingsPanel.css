@@ -1,0 +1,642 @@
+/* Settings Sidebar Styles */
+.settings-sidebar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 100%;
+  height: 100vh;
+  background-color: #000;
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-container.open .settings-sidebar {
+  transform: translateX(0);
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 30px 0;
+  height: 45px;
+  padding-left: 34px;
+}
+
+.settings-close-btn {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: all 0.2s ease;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.settings-close-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.settings-content {
+  padding: 0 30px 30px;
+  padding-right: 0px;
+  color: #fff;
+  overflow-y: hidden;
+  flex: 1;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Special padding for logs tab to extend scrollbar to right edge */
+#logs-tab {
+  padding-right: 0;
+  margin-right: 0;
+}
+
+.settings-content span {
+  margin: 0;
+  color: #fff;
+  font-size: 12px !important;
+  font-weight: normal !important;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Settings Tabs Styles */
+.settings-tabs {
+  display: flex;
+  padding: 0 30px;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #333;
+}
+
+.settings-tab {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 8px 4px;
+  border-radius: 3px;
+  opacity: 0.7;
+  transition: opacity 0.3s ease, color 0.3s ease;
+  font-family: 'JetBrains Mono', monospace;
+  margin-right: 15px;
+  position: relative;
+  outline: none; /* Remove focus outline */
+}
+
+.settings-tab:focus {
+  outline: none; /* Remove focus outline when focused */
+  box-shadow: none; /* Remove any box-shadow that might appear on focus */
+}
+
+/* First tab (execution engine) positioning */
+.settings-tab:first-child {
+  margin-left: 0;
+}
+
+.settings-tab:hover {
+  opacity: 1;
+  color: #aaa;
+}
+
+.settings-tab.active {
+  opacity: 1;
+  color: #fff;
+}
+
+.settings-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background-color: #fff;
+}
+
+.settings-tab-content {
+  display: none;
+  color: #fff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  padding: 15px 0;
+  padding-top: 0px;
+  line-height: 1.4;
+}
+
+/* Align logs content with tab text */
+#logs-tab {
+  padding-left: 0;
+}
+
+/* Ensure notifications content aligns with tab text */
+#notifications-tab {
+  padding-left: 0;
+}
+
+/* Ensure logs content aligns with execution engine tab text */
+.logs-container {
+  margin-left: 0;
+}
+
+/* Fix logs content alignment to match execution engine tab text */
+.logs-content {
+  margin-left: 0;
+  padding-left: 4px !important;
+}
+
+.settings-tab-content.active {
+  display: block;
+}
+
+/* Mobile mode for main content when settings sidebar is open */
+.main-content.mobile-mode {
+  display: flex !important;
+  flex-direction: column !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 10px !important;
+  width: calc(50vw - 340px) !important; /* Half viewport minus toolbar and padding */
+  margin-right: 0 !important;
+
+  padding-top: 0px !important;
+  padding-bottom: 0px !important;
+}
+
+.main-content.mobile-mode .session-container {
+  min-height: 300px;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+/* Fix vertical centering for maximized sessions when settings sidebar is open */
+.main-wrapper.settings-open .session-container.maximized {
+  position: relative !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  margin: 0 auto !important;
+}
+
+/* Override all grid-based layouts for mobile */
+.main-content.mobile-mode[data-session-count="1"],
+.main-content.mobile-mode[data-session-count="2"],
+.main-content.mobile-mode[data-session-count="3"],
+.main-content.mobile-mode[data-session-count="4"],
+.main-content.mobile-mode[data-session-count="5"],
+.main-content.mobile-mode[data-session-count="6"] {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* When settings sidebar is open, adjust main-wrapper layout */
+.main-wrapper.settings-open {
+  width: 50% !important; /* Shrink main-wrapper to left half when settings open */
+}
+
+.main-wrapper.settings-open .main-content {
+  width: calc(100% - 340px) !important; /* Full width of shrunken wrapper minus toolbar width */
+  flex: 0 0 auto;
+  margin-right: 0 !important;
+  position: relative;
+  z-index: 1;
+}
+
+/* Fix vertical centering for maximized sessions when settings sidebar is open */
+.main-wrapper.settings-open .session-container.maximized {
+  position: relative !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  margin: 0 auto !important;
+}
+
+/* Override all grid-based layouts for mobile */
+.main-content.mobile-mode[data-session-count="1"],
+.main-content.mobile-mode[data-session-count="2"],
+.main-content.mobile-mode[data-session-count="3"],
+.main-content.mobile-mode[data-session-count="4"],
+.main-content.mobile-mode[data-session-count="5"],
+.main-content.mobile-mode[data-session-count="6"] {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Logs Tab Styles */
+.logs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #444; /* Medium gray to match scrollbar */
+}
+
+.logs-container {
+  height: calc(100vh - 150px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-right: 0; /* Ensure no padding on the right to keep scrollbar at edge */
+  margin-right: 0; /* Remove margin to extend to the right edge */
+}
+
+.logs-content {
+  background-color: #000; /* Black background */
+  color: #e0e0e0; /* Soft, pleasant light gray text instead of harsh green */
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 10px;
+  padding-right: 6px; /* Add small padding to prevent text from touching scrollbar */
+  margin: 0;
+  margin-right: 0; /* Ensure no margin on the right */
+  overflow-y: auto;
+  overflow-x: hidden;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  height: 100%;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 0;
+  /* Removed box shadow for cleaner appearance */
+}
+
+.logs-status {
+  text-align: center;
+}
+
+/* Custom scrollbar for logs content - matching tasks scrollbar */
+.logs-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.logs-content::-webkit-scrollbar-track {
+  background: #212121;
+  border-radius: 3px;
+}
+
+.logs-content::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 3px;
+}
+
+.logs-content::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}
+
+/* Firefox scrollbar for logs content - matching tasks scrollbar */
+.logs-content {
+  scrollbar-width: thin;
+  scrollbar-color: #444 #212121;
+}
+
+/* Add text selection styling for logs */
+.logs-content::selection {
+  background-color: rgba(30, 64, 124, 0.7); /* Beautiful dark blue highlight */
+  color: #e0e0e0;
+}
+
+.logs-content::-moz-selection {
+  background-color: rgba(30, 64, 124, 0.7);
+  color: #e0e0e0;
+}
+
+/* Log entry styling */
+.log-entry {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  word-wrap: break-word;
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+/* Clean Minimal Execution Engine Styles */
+.execution-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 16px;
+  padding: 0;
+}
+
+.task-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.2s ease;
+}
+
+.task-selector:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.selector-triangle {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.6);
+  transition: transform 0.2s ease;
+}
+
+.selector-text {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tasks-rectangle {
+  background: transparent;
+  border-radius: 4px;
+  padding: 6px;
+  margin-bottom: 16px;
+  overflow-y: auto;
+  /* border: 1px solid rgba(255, 255, 255, 0.08); */
+  position: relative;
+}
+
+.tasks-horizontal-line {
+  position: relative;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(to right,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0) 90%,
+    rgba(255, 255, 255, 0) 90%,
+    rgba(255, 255, 255, 0) 100%);
+  margin-bottom: 6px;
+  width: 100%;
+}
+
+.task-pointer {
+  position: relative;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid rgba(255, 255, 255, 0.1);
+  transform: translateX(-50%);
+  z-index: 10;
+  transition: left 0.3s ease, top 0.3s ease;
+  display: none; /* Initially hidden, will be shown when there's an in-progress task */
+  top: -6px !important; /* Position above the horizontal line */
+}
+
+.tasks-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.task-square {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.task-square:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.task-square.selected {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* Better colors */
+.task-square.in-progress {
+  background-color: rgba(255, 193, 7, 0.8);
+  border-color: rgba(255, 193, 7, 0.6);
+}
+
+.task-square.completed {
+  background-color: rgba(76, 175, 80, 0.8);
+  border-color: rgba(76, 175, 80, 0.6);
+}
+
+.task-square.broken {
+  background-color: rgba(244, 67, 54, 0.8);
+  border-color: rgba(244, 67, 54, 0.6);
+}
+
+.task-square.canceled {
+  background-color: rgba(158, 158, 158, 0.8);
+  border-color: rgba(158, 158, 158, 0.6);
+}
+
+.task-square.in-the-queue {
+  background-color: rgba(33, 150, 243, 0.8);
+  border-color: rgba(33, 150, 243, 0.6);
+}
+
+.user-prompt-section {
+  background: transparent;
+  border: none;
+  padding: 12px 0;
+  margin-bottom: 16px;
+}
+
+.prompt-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 500;
+}
+
+.prompt-content {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.4;
+  word-wrap: break-word;
+  font-weight: 400;
+}
+
+.timeline-container {
+  background: transparent;
+  border: none;
+  padding: 12px 0;
+  max-height: calc(100vh - 400px);
+  overflow-y: auto;
+}
+
+.timeline-content {
+  position: relative;
+  padding-left: 8px;
+}
+
+.timeline-line {
+  position: absolute;
+  left: 7px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(to bottom,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0) 90%,
+    rgba(255, 255, 255, 0) 90%,
+    rgba(255, 255, 255, 0) 100%);
+  /* CRITICAL FIX: Ensure timeline line expands with content */
+  height: 100%;
+}
+
+/* CRITICAL FIX: Revert timeline line styling changes */
+/* Removed: ::after pseudo-element to restore original timeline line appearance */
+
+.timeline-item {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.timeline-item-container {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+}
+
+.timeline-dot {
+  position: absolute;
+  left: -3px;
+  top: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.8);
+  border: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+  z-index: 2;
+}
+
+.timeline-item.active .timeline-dot {
+  background: #4CAF50;
+  box-shadow: 0 0 12px rgba(76, 175, 80, 0.8);
+}
+
+.timeline-content-wrapper {
+  background: transparent;
+  border: none;
+  padding: 0px;
+  margin-left: 15px;
+  flex: 1;
+}
+
+.timeline-subtask {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 8px;
+  margin-top: 3px;
+  line-height: 1.4;
+  font-weight: 400;
+}
+
+.timeline-actions {
+  margin-top: 8px;
+  padding-left: 12px;
+}
+
+.action-item {
+  background: transparent;
+  border: none;
+  padding: 4px 8px;
+  margin-bottom: 6px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.action-item:last-child {
+  margin-bottom: 0;
+}
+
+.action-type {
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  margin-right: 6px;
+}
+
+.action-params {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 9px;
+}
+
+/* Nested subtasks indentation */
+.timeline-item.nested .timeline-item-container {
+  padding-left: 40px;
+}
+
+.timeline-item.nested .timeline-dot {
+  left: -18px; /* Adjust for 40px padding to keep dots on main line */
+}
+
+/* Scrollbar for timeline */
+.timeline-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.timeline-container::-webkit-scrollbar-track {
+  background: #212121;
+  border-radius: 3px;
+}
+
+.timeline-container::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 3px;
+}
+
+.timeline-container::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}
+
+/* Firefox scrollbar */
+.timeline-container {
+  scrollbar-width: thin;
+  scrollbar-color: #444 #212121;
+}
+
+/* Pulse animation for active timeline dots */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(76, 175, 80, 0.6);
+    transform: scale(1.1);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4);
+    transform: scale(1);
+  }
+}

@@ -1,0 +1,582 @@
+.session-container {
+  position: relative;
+  background-color: rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border-color);
+  /* border-radius: 8px; */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.3s ease;
+  -webkit-user-select: none; /* Safari */
+  -moz-user-select: none; /* Firefox */
+  -ms-user-select: none; /* IE10+/Edge */
+  user-select: none; /* Standard */
+  outline: none !important; /* Remove any focus outline */
+  box-shadow: none !important; /* Remove any focus box-shadow */
+}
+
+.session-container * {
+  -webkit-user-select: none; /* Safari */
+  -moz-user-select: none; /* Firefox */
+  -ms-user-select: none; /* IE10+/Edge */
+  user-select: none; /* Standard */
+}
+
+.session-container.selected {
+  position: relative;
+  border-color: #4CAF50;
+}
+
+/* Apply golden border when user-assist is active - higher specificity to override selected */
+.session-container.user-assist-active,
+.session-container.selected.user-assist-active {
+  border-color: #FFC107 !important;
+  box-shadow: 0 0 2px rgba(255, 193, 7, 0.5) !important;
+}
+
+.session-container.maximized {
+  position: relative;
+  z-index: 10;
+  /* Override fixed positioning from App.css for desktop mode only */
+}
+
+/* Desktop maximize styles */
+@media (min-width: 1100px) {
+  .session-container.maximized {
+    position: fixed !important;
+    top: 30px !important;
+    left: 360px !important;
+    right: 20px !important;
+    bottom: 20px !important;
+    z-index: 50 !important; /* Lower than connection overlay */
+    width: auto !important;
+    height: auto !important;
+    background-color: var(--primary-bg);
+    border: 1px solid var(--border-color);
+  }
+}
+
+.session-container.maximized .screenshot-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  z-index: 1000;
+}
+
+/* Ensure maximized session content fills the container */
+.session-container.maximized .session-content {
+  width: 100%;
+  height: calc(100% - 40px); /* Account for header height */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.session-container.maximized .screenshot-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.session-container.maximized .screenshot-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+/* Removed conflicting rule - using .session-container.selected.user-assist-active instead */
+
+.session-container.selected::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: waveBorder 2s ease-in-out infinite;
+  z-index: 1;
+}
+
+.session-container.user-assist-active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: userAssistWaveBorder 2s ease-in-out infinite;
+  z-index: 1;
+}
+
+@keyframes waveBorder {
+  0% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 2px rgba(76, 175, 80, 0.2),
+      inset 0 0 4px rgba(76, 175, 80, 0.1);
+  }
+  25% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 3px rgba(76, 175, 80, 0.3),
+      inset 0 0 6px rgba(76, 175, 80, 0.15);
+  }
+  50% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 4px rgba(76, 175, 80, 0.4),
+      inset 0 0 8px rgba(76, 175, 80, 0.2);
+  }
+  75% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 3px rgba(76, 175, 80, 0.3),
+      inset 0 0 6px rgba(76, 175, 80, 0.15);
+  }
+  100% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 2px rgba(76, 175, 80, 0.2),
+      inset 0 0 4px rgba(76, 175, 80, 0.1);
+  }
+}
+
+@keyframes userAssistWaveBorder {
+  0% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 2px rgba(255, 193, 7, 0.3),
+      inset 0 0 4px rgba(255, 193, 7, 0.2);
+  }
+  25% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 3px rgba(255, 193, 7, 0.4),
+      inset 0 0 6px rgba(255, 193, 7, 0.25);
+  }
+  50% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 4px rgba(255, 193, 7, 0.5),
+      inset 0 0 8px rgba(255, 193, 7, 0.3);
+  }
+  75% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 3px rgba(255, 193, 7, 0.4),
+      inset 0 0 6px rgba(255, 193, 7, 0.25);
+  }
+  100% {
+    border-width: 1px;
+    box-shadow: 
+      inset 0 0 2px rgba(255, 193, 7, 0.3),
+      inset 0 0 4px rgba(255, 193, 7, 0.2);
+  }
+}
+
+.session-header {
+  background-color: var(--primary-bg);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #6f6f6f;
+}
+
+.session-close {
+  background: none;
+  border: none;
+  color: #ff6b6b;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.session-close:hover {
+  background-color: rgba(255, 107, 107, 0.1);
+}
+
+.session-content {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  min-height: 0;
+  overflow: hidden; /* Prevent content from overflowing */
+}
+
+.screenshot-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-width: 100%;
+  max-height: 100%;
+  /* width: 100%; */
+  height: 100%;
+}
+
+/* Invisible container that matches image size exactly */
+.image-size-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none; /* Allow clicks to pass through to image */
+}
+
+.screenshot-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 30px;
+  background-color: rgba(0, 0, 0, 0.3); /* More transparent (30% instead of 85%) */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 10px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none; /* Allow clicks to pass through to image */
+  width: 100%; /* Use full width of invisible container */
+  z-index: 1000; /* Ensure it's above image */
+}
+
+/* Fullscreen mode - overlay should span full width */
+.screenshot-container:fullscreen .screenshot-overlay,
+.screenshot-container:-webkit-full-screen .screenshot-overlay,
+.screenshot-container:-moz-full-screen .screenshot-overlay,
+.screenshot-container:-ms-fullscreen .screenshot-overlay {
+  position: fixed !important; /* Make overlay fixed to viewport in fullscreen */
+  width: 100vw !important; /* Force full screen width */
+  left: 0 !important;
+  bottom: 0 !important;
+  transform: none !important;
+  justify-content: flex-end;
+  padding-right: 20px;
+  z-index: 9999; /* Ensure it's above everything */
+}
+
+/* Fullscreen mode - make image-size-container span full width */
+.screenshot-container:fullscreen .image-size-container,
+.screenshot-container:-webkit-full-screen .image-size-container,
+.screenshot-container:-moz-full-screen .image-size-container,
+.screenshot-container:-ms-fullscreen .image-size-container {
+  width: 100% !important; /* Use percentage instead of viewport units */
+  height: 100% !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  transform: none !important; /* Reset transform for fullscreen */
+}
+
+.screenshot-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  flex-shrink: 0;
+  display: block; /* Ensure image is treated as a block element */
+}
+
+.fullscreen-button {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+
+.fullscreen-button:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.fullscreen-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.screenshot-container.focused .screenshot-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Remove focus outline from screenshot container */
+.screenshot-container:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.screenshot-container.focused {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Remove focus outline from session container */
+.session-container:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.session-container:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.session-container:focus-within {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Fullscreen styling - center image and make it fit content */
+.screenshot-container:fullscreen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: black;
+  width: 100vw;
+  height: 100vh;
+}
+
+.screenshot-container:fullscreen .screenshot-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+/* Vendor prefixes for fullscreen */
+.screenshot-container:-webkit-full-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: black;
+  width: 100vw;
+  height: 100vh;
+}
+
+.screenshot-container:-webkit-full-screen .screenshot-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.screenshot-container:-moz-full-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: black;
+  width: 100vw;
+  height: 100vh;
+}
+
+.screenshot-container:-moz-full-screen .screenshot-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.screenshot-container:-ms-fullscreen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: black;
+  width: 100vw;
+  height: 100vh;
+}
+
+.screenshot-container:-ms-fullscreen .screenshot-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.session-control-btn {
+  width: 24px;
+  height: 24px;
+  background-color: #1a1a1a;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: #aaa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.session-control-btn:hover {
+  background-color: #252525;
+  color: #e0e0e0;
+}
+
+.session-control-btn.active {
+  background-color: #333;
+  color: #FFC107;
+  border-color: #FFC107;
+}
+
+.session-control-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.session-control-btn.user-assist-btn {
+  background-color: rgba(255, 193, 7, 0.2);
+  border-color: rgba(255, 193, 7, 0.5);
+  color: #FFC107;
+}
+
+.session-control-btn.user-assist-btn:hover {
+  background-color: rgba(255, 193, 7, 0.5);
+  transform: scale(1.05);
+}
+
+.session-control-btn.user-assist-btn svg {
+  filter: drop-shadow(0 0 2px rgba(255, 193, 7, 0.7));
+}
+
+.session-control-btn.close-btn:hover {
+  background-color: #F44336;
+  color: #fff;
+}
+
+.session-control-btn.maximize-btn:hover {
+  background-color: #2196F3;
+  color: #fff;
+}
+
+.session-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.session-status {
+  display: flex;
+  align-items: center;
+  font-size: 10px;
+  color: #aaa;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.status-indicator.online {
+  background-color: #4CAF50;
+}
+
+.status-indicator.offline {
+  background-color: #F44336;
+}
+
+.status-text {
+  margin-left: 4px;
+}
+
+.session-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.screenshot-placeholder {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #6f6f6f;
+  font-size: 14px;
+  text-align: center;
+  width: 100%;
+  height: 100%;
+}
+
+.screenshot-btn {
+  background-color: #1a1a1a;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: #aaa;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.screenshot-btn:hover {
+  background-color: #252525;
+  color: #e0e0e0;
+  border-color: #444;
+}
+
+.screenshot-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.5);
+}
+
+/* Session selection animation */
+.session-container.selected {
+  animation: selectPulse 0.5s ease-out;
+}
+
+@keyframes selectPulse {
+  0% {
+    box-shadow: 0 0 0 rgba(76, 175, 80, 0);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(76, 175, 80, 0);
+  }
+}
+
+/* User assist selection animation */
+.session-container.user-assist-active {
+  animation: userAssistSelectPulse 0.5s ease-out;
+}
+
+@keyframes userAssistSelectPulse {
+  0% {
+    box-shadow: 0 0 0 rgba(255, 193, 7, 0);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(255, 193, 7, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(255, 193, 7, 0);
+  }
+}

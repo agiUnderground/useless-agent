@@ -48,11 +48,24 @@ coverage
 # nyc test coverage
 .nyc_output
 
-# Microbundle cache
-.rpt2_cache/
-.rts2_cache_cjs/
-.rts2_cache_es/
-.rts2_cache_umd/
+# Grunt intermediate storage (https://gruntjs.com/creating-plugins#storing-task-files)
+.grunt
+
+# Bower dependency directory (https://bower.io/)
+bower_components
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons (https://nodejs.org/api/addons)
+build/Release
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# TypeScript cache
+*.tsbuildinfo
 
 # Optional npm cache directory
 .npm
@@ -60,8 +73,11 @@ coverage
 # Optional eslint cache
 .eslintcache
 
-# TypeScript cache
-*.tsbuildinfo
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
 
 # Optional REPL history
 .node_repl_history
@@ -108,53 +124,3 @@ temp/
 *.njsproj
 *.sln
 *.sw?
-
-# Go specific
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-
-# Go vendor
-vendor/
-
-# Go build cache
-.cache
-
-# Go modules
-go.sum
-
-# Go workspace
-go.work
-
-# Frontend specific
-new/frontend/node_modules
-new/frontend/build
-new/frontend/.env
-new/frontend/.env.local
-new/frontend/.env.development.local
-new/frontend/.env.test.local
-new/frontend/.env.production.local
-new/frontend/npm-debug.log*
-new/frontend/yarn-debug.log*
-new/frontend/yarn-error.log*
-new/frontend/.cache
-new/frontend/.parcel-cache
-new/frontend/.nyc_output
-new/frontend/.rts2_cache_cjs/
-new/frontend/.rts2_cache_es/
-new/frontend/.rts2_cache_umd/
-new/frontend/.tsbuildinfo
-new/frontend/.next
-new/frontend/.nuxt
-new/frontend/.out
-new/frontend/.storybook-out
-new/frontend/.DS_Store
-new/frontend/Thumbs.db
-new/frontend/.vscode/
-new/frontend/.idea/
-new/frontend/*.swp
-new/frontend/*.swo

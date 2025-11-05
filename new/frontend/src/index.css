@@ -1,0 +1,249 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #121212;
+  color: #e0e0e0;
+  overflow-x: hidden;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+  font-size: 12px;
+}
+
+#root {
+  --primary-bg: #121212;
+  --secondary-bg: #1a1a1a;
+  --tertiary-bg: #252525;
+  --border-color: #333;
+  --text-color: #e0e0e0;
+  --primary-color: #FFC107;
+  --success-color: #4CAF50;
+  --error-color: #F44336;
+  --info-color: #2196F3;
+}
+
+/* Main content area */
+.main-content {
+  /* Dotted background removed */
+  overflow-y: auto; /* Make main content scrollable in mobile mode */
+}
+
+/* Toast notification styles */
+.toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toast {
+  background-color: var(--secondary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+  min-width: 250px;
+  max-width: 500px;
+}
+
+.toast.error {
+  border-left: 4px solid var(--error-color);
+}
+
+.toast.warning {
+  border-left: 4px solid var(--primary-color);
+}
+
+.toast.info {
+  border-left: 4px solid var(--info-color);
+}
+
+.toast.success {
+  border-left: 4px solid var(--success-color);
+}
+
+.toast-content {
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-color);
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  color: var(--text-color);
+  font-size: 16px;
+  cursor: pointer;
+  margin-left: 12px;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.toast-close:hover {
+  opacity: 1;
+}
+
+.toast.fade-out {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+/* Connection line styles */
+.connection-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1; /* Put behind other elements */
+}
+
+.connection-path {
+  fill: none;
+  stroke-width: 1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 5, 5;
+}
+
+.connection-path.pulsating {
+  stroke-dasharray: 5, 5;
+  transition: all 0.3s ease;
+}
+
+.pulse-dot {
+  fill: #4CAF50;
+  animation: pulseTravel 2.5s linear infinite;
+  opacity: 0;
+}
+
+@keyframes connectionPulse {
+  0% {
+    stroke: #4CAF50;
+    stroke-width: 1;
+    opacity: 0.84;
+  }
+  100% {
+    stroke: #4CAF50;
+    stroke-width: 1;
+    opacity: 0.84;
+  }
+  50% {
+    stroke: #66BB6A;
+    stroke-width: 1.5;
+    opacity: 1;
+  }
+}
+
+@keyframes pulseTravel {
+  0% {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+
+.connection-start {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #4CAF50;
+  animation: startPulse 2s ease-in-out infinite;
+  z-index: 101;
+  pointer-events: none;
+}
+
+.connection-end {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #4CAF50;
+  border: 2px solid #00ff88;
+  animation: endPulse 1.5s ease-in-out infinite;
+  z-index: 101;
+  pointer-events: none;
+}
+
+@keyframes startPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
+  }
+  50% {
+    transform: scale(1.2);
+    box-shadow: 0 0 0 8px rgba(76, 175, 80, 0);
+  }
+}
+
+@keyframes endPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7);
+  }
+  50% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 6px rgba(0, 255, 136, 0);
+  }
+}
+
+/* User-assist connection line styles */
+.connection-path.user-assist {
+  stroke-dasharray: 5, 5;
+}
+
+.pulse-dot.user-assist {
+  fill: #FFC107;
+  animation: userAssistPulseTravel 2.5s linear infinite;
+}
+
+@keyframes userAssistPulse {
+  0%, 100% {
+    stroke: #FFC107;
+    stroke-width: 1;
+    opacity: 0.6;
+  }
+  50% {
+    stroke: #FFD54F;
+    stroke-width: 1.5;
+    opacity: 0.8;
+  }
+}
+
+@keyframes userAssistPulseTravel {
+  0% {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}

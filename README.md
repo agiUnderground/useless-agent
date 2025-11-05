@@ -39,8 +39,6 @@ Currently supported models:
 
 **Environment**: Only works on - `Linux + xfce + X11`.  
 
-Version - `v0.0.3`.
-
 
 # Changelog
 

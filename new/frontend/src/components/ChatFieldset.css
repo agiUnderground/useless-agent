@@ -1,0 +1,172 @@
+.chat-fieldset {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 5px;
+}
+
+.selected-session-ip {
+  font-size: 10px;
+  color: #888;
+  margin-bottom: 5px;
+  text-align: right;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.selected-session-ip:hover {
+  opacity: 1;
+}
+
+.selected-session-ip #selectedIpText {
+  font-weight: normal;
+  color: #aaa;
+}
+
+.settings-button {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  opacity: 0.7;
+  transition: opacity 0.3s ease, color 0.3s ease;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.settings-button:hover {
+  opacity: 1;
+  color: #aaa;
+}
+
+.settings-button:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.dark-textarea {
+  background-color: var(--primary-bg);
+  color: white;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px;
+  resize: none;
+  width: 100%;
+  box-sizing: border-box;
+  outline: none; /* Explicitly remove outline in normal mode */
+}
+
+.dark-textarea.disabled {
+  background-color: rgba(128, 128, 128, 0.1);
+  color: #888;
+  cursor: not-allowed;
+  border-color: #444;
+}
+
+#llmChatInput {
+  height: 100%;
+  margin-top: 0px;
+}
+
+#llmChatInput:focus {
+  outline: none;
+}
+
+#llmChatInput:focus:not(.user-assist-active) {
+  outline: none;
+}
+
+#llmChatInput.user-assist-active:focus {
+  outline: none;
+}
+
+/* Server Offline Error Styling */
+.chat-fieldset.server-offline {
+  animation: blink-red-border-twice 1s ease-in-out;
+}
+
+@keyframes blink-red-border-twice {
+  0% {
+    border-color: rgba(255, 0, 0, 0.8);
+  }
+  25% {
+    border-color: rgba(255, 0, 0, 0.3);
+  }
+  50% {
+    border-color: rgba(255, 0, 0, 0.8);
+  }
+  75% {
+    border-color: rgba(255, 0, 0, 0.3);
+  }
+  100% {
+    border-color: rgba(255, 0, 0, 0.8);
+  }
+}
+
+/* User-assist badge styles - positioned on legend */
+.chat-fieldset.user-assist-active legend {
+  /* position: relative; REMOVED - legend should remain static for proper badge positioning */
+}
+
+.chat-fieldset.user-assist-active legend::after {
+  content: 'User Assist';
+  display: inline-block;
+  background-color: #FFC107;
+  color: #333;
+  font-size: 12px;
+  font-weight: bold;
+  padding: 2px 8px;
+  border-radius: 10px;
+  animation: badgePulse 2s ease-in-out infinite;
+  position: absolute;
+  top: 0px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+/* Restore original legend styling */
+.chat-fieldset legend {
+  position: static;
+}
+
+@keyframes badgePulse {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(255, 193, 7, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(255, 193, 7, 0.8);
+  }
+}
+
+/* User-assist chat input color */
+.chat-fieldset.user-assist-active legend {
+  color: #FFC107;
+}
+
+#llmChatInput.user-assist-active {
+  background-color: rgba(255, 193, 7, 0.1);
+  border-color: rgba(255, 193, 7, 0.3);
+}
+
+#llmChatInput.user-assist-active:focus {
+  border-color: rgba(255, 193, 7, 0.5);
+  box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.2);
+}
+
+/* Chat fieldset shrunk state */
+.chat-fieldset.shrunk {
+  flex: 1 !important;
+  transition: flex 0.3s ease;
+}
