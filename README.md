@@ -39,7 +39,6 @@ Currently supported models:
 
 **Environment**: Only works on - `Linux + xfce + X11`.  
 
-
 # Changelog
 
 ### v0.0.3
@@ -141,8 +140,6 @@ ssh -p 22 -fN -o IPQoS=ef USERNAME@REMOTE-HOST-PUBLIC-IP -L 127.0.0.1:8080:127.0
 
 > [!TIP]  
 > Like to burn money? Try more capable LLMs; using DeepSeek R1 instead of v3 would probably make the program more capable of doing nothing.
-
-How the project started: I just wanted to take a screenshot over the network.
 
 ### Todo list:  
 - [ ] Build a single fully static binary.  

@@ -1,18 +1,25 @@
 services:
-  useless-agent:
-    build: .
-    container_name: useless-agent-server
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - PROVIDER=${PROVIDER:-deepseek}
+      - API_KEY=${API_KEY}
+      - BASE_URL=${BASE_URL}
+      - MODEL=${MODEL}
+      - DISPLAY=:2
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /home/user/.Xauthority:/home/user/.Xauthority:ro
     ports:
       - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:80"
     environment:
-      # LLM Provider Configuration
-      - PROVIDER=deepseek  # or zai
-      - BASE_URL=https://api.deepseek.com/v1  # or https://api.z.ai/api/paas/v4
-      - API_KEY=YOUR_API_KEY_HERE  # Replace with your actual API key
-      - MODEL=deepseek-chat  # or glm-4.5-air, etc.
-      
-      # Server Configuration
-      - IP=0.0.0.0  # Listen on all interfaces
-      - PORT=8080
-      - DISPLAY=:1  # X11 display
-    restart: unless-stopped
+      - REACT_APP_API_URL=http://localhost:8080
