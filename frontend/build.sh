@@ -3,7 +3,7 @@
 echo "Building frontend..."
 
 # Install dependencies
-npm install
+npm install --legacy-peer-deps
 
 # Build the app
 npm run build

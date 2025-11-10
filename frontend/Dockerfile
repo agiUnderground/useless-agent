@@ -1,5 +1,5 @@
 # Build stage
-FROM node:18-alpine as builder
+FROM node:24-alpine as builder
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ RUN npm install --legacy-peer-deps
 COPY . .
 
 # Build the app with additional flags to handle potential issues
-RUN CI=false npm run build
+RUN npm run build
 
 # Production stage
 FROM nginx:stable-alpine
