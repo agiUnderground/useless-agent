@@ -1,7 +1,7 @@
 // Configuration file for frontend
 export const CONFIG = {
   // Backend API URL from environment variable or default to localhost:8081
-  BACKEND_URL: process.env.REACT_APP_API_URL || 'http://localhost:8080',
+  BACKEND_URL: import.meta.env.VITE_API_URL || 'http://localhost:8080',
   
   // Extract host and port from BACKEND_URL
   get BACKEND_HOST() {

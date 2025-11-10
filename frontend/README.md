@@ -1,14 +1,6 @@
 # Useless Agent Frontend
 
-This is the frontend for the Useless Agent application, a multi-session remote management tool.
-
-## Features
-
-- Multi-session management
-- Real-time task tracking
-- User-assist functionality
-- Connection overlay visualization
-- Responsive design for mobile and desktop
+This is the frontend for the Useless Agent application.
 
 ## Getting Started
 
@@ -26,10 +18,12 @@ This is the frontend for the Useless Agent application, a multi-session remote m
 
 2. Start the development server:
    ```bash
+   npm run dev
+   # or
    npm start
    ```
 
-3. Open [http://localhost:3000](http://localhost:3000) in your browser.
+3. Open [http://localhost:3000](http://localhost:3000) in your browser (Vite will use port 3001 if 3000 is occupied).
 
 ### Building for Production
 
@@ -71,7 +65,7 @@ src/
 The application can be configured through environment variables:
 
 - `NODE_ENV`: Set to 'production' for production builds
-- `REACT_APP_API_URL`: Backend API URL (default: http://localhost:8080)
+- `VITE_API_URL`: Backend API URL (default: http://localhost:8080) - Note: Changed from REACT_APP_API_URL after migration to Vite
 
 ## Usage
 
@@ -82,9 +76,8 @@ The application can be configured through environment variables:
 
 ## Keyboard Shortcuts
 
-- `Ctrl+N`: Create new session
 - `Ctrl+S`: Toggle settings panel
-- `Ctrl+Enter`: Submit task
+- `Enter`: Submit task
 - `Escape`: Close settings panel
 - `Ctrl+L`: Clear chat input
 - `F`: Toggle fullscreen for selected session
@@ -102,7 +95,3 @@ The application can be configured through environment variables:
 4. Commit your changes
 5. Push to the branch
 6. Create a Pull Request
-
-## License
-
-This project is licensed under the MIT License.
