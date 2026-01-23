@@ -2,8 +2,6 @@
 
 ![](/assets/img/demo2.png)
 
-## Vote for the useless-agent cloud! https://useless-agent.xyz 
-
 **What can this agent do?** Basically nothing, that’s why it is the useless-agent.  
 
 **Why is it interesting?**  
