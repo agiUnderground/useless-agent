@@ -32,6 +32,7 @@ Currently supported llm providers:
 Currently supported models:
 * `deepseek-chat`
 * `deepseek-reasoner`
+* `glm-5`
 * `glm-4.6`
 * `glm-4.5`
 * `glm-4.5-air`
