@@ -8,7 +8,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/otiai10/gosseract/v2 v2.4.1
 	github.com/trustsight-io/deepseek-go v0.1.1
-	golang.org/x/image v0.36.0 // indirect
+	golang.org/x/image v0.38.0 // indirect
 )
 
 require (
