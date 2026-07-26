@@ -13,7 +13,7 @@
     "@types/react-dom": "^19.2.3",
     "ajv": "^8.20.0",
     "nth-check": "^3.0.1",
-    "postcss": "^8.5.15",
+    "postcss": "^8.5.23",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "typescript": "^6.0.3",
