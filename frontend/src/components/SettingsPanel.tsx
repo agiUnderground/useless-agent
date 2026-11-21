@@ -10,6 +10,7 @@ interface SettingsPanelProps {
   activeTab?: string;
   onTabChange?: (tab: string) => void;
   selectedSessionId?: string | null;
+  selectedSessionIp?: string | null;
   tasks?: Array<{ id: string; status: string; message: string; sessionId?: string; sequenceNumber?: number }>;
 }
 
@@ -47,6 +48,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   activeTab: externalActiveTab,
   onTabChange: externalOnTabChange,
   selectedSessionId,
+  selectedSessionIp,
   tasks = []
 }) => {
   const [internalActiveTab, setInternalActiveTab] = useState('execution');
@@ -99,11 +101,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
   // Initialize execution engine
   const initializeExecutionEngine = async () => {
-    if (!selectedSessionId) return;
+    const targetHost = selectedSessionIp || selectedSessionId;
+    if (!targetHost) return;
     
     try {
       // Fetch execution state from backend
-      const response = await fetch(`http://${selectedSessionId}:${CONFIG.BACKEND_PORT}/execution-state`);
+      const response = await fetch(CONFIG.getHttpUrl(targetHost, '/execution-state'));
       if (!response.ok) {
         throw new Error(`Failed to fetch execution state: ${response.status}`);
       }

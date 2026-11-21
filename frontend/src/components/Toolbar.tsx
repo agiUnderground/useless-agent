@@ -137,25 +137,32 @@ const Toolbar: React.FC<ToolbarProps> = ({
     });
   };
   
-  // Validate IP address
-  const validateIpAddress = (ip: string) => {
-    // IPv4 validation
+  // Validate IP address (IPv4 or IPv6, with optional brackets for IPv6)
+  const validateIpAddress = (rawIp: string) => {
+    const trimmed = rawIp.trim();
+    const isBracketed = trimmed.startsWith('[') && trimmed.endsWith(']');
+    const ip = isBracketed ? trimmed.slice(1, -1) : trimmed;
+
+    // IPv4 validation (not allowed inside brackets)
     const ipv4Regex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
-    if (ipv4Regex.test(ip)) {
+    if (!isBracketed && ipv4Regex.test(ip)) {
       const parts = ip.split('.');
       return parts.every(part => {
         const num = parseInt(part, 10);
         return num >= 0 && num <= 255;
       });
     }
-    
-    // IPv6 validation (basic)
-    const ipv6Regex = /^[\da-fA-F:]+$/;
-    if (ipv6Regex.test(ip)) {
-      // Basic validation - ensure it has at least one colon
-      return ip.includes(':');
+
+    // IPv6 validation (supports full, compressed ::, and IPv4-mapped forms)
+    if (ip.includes(':')) {
+      try {
+        new URL(`http://[${ip}]`);
+        return true;
+      } catch {
+        return false;
+      }
     }
-    
+
     return false;
   };
 
@@ -163,9 +170,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const handleConnectClick = () => {
     const ipInput = document.getElementById('ipv4') as HTMLInputElement;
     if (ipInput && ipInput.value.trim()) {
-      const ip = ipInput.value.trim();
+      const rawIp = ipInput.value.trim();
       
-      if (!validateIpAddress(ip)) {
+      if (!validateIpAddress(rawIp)) {
         // Show error message
         ipInput.style.border = '1px solid #ff4444';
         ipInput.title = 'Invalid IP address format';
@@ -175,6 +182,10 @@ const Toolbar: React.FC<ToolbarProps> = ({
         }, 3000);
         return;
       }
+
+      const ip = rawIp.startsWith('[') && rawIp.endsWith(']')
+        ? rawIp.slice(1, -1)
+        : rawIp;
       
       // Dispatch custom event to notify parent component
       const event = new CustomEvent('connectSession', { detail: ip });
@@ -305,23 +316,20 @@ const Toolbar: React.FC<ToolbarProps> = ({
             type="text"
             id="ipv4"
             className="dark-textarea"
-            placeholder="IP Address"
-            pattern="^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^[\da-fA-F:]+$"
-            style={{ userSelect: 'none' }}
+            placeholder="IPv4 / IPv6 Address"
+            style={{ userSelect: 'none', minWidth: '150px' }}
             required
             onInput={(e) => {
               const input = e.target as HTMLInputElement;
-              // Only allow valid IP address characters
-              const ipv4Regex = /^[\d.]*$/;
-              const ipv6Regex = /^[\da-fA-F:]*$/;
-              
-              if (!ipv4Regex.test(input.value) && !ipv6Regex.test(input.value)) {
-                // Remove invalid characters
-                input.value = input.value.replace(/[^\d.a-fA-F:]/g, '');
+              // Allow IPv4, IPv6, IPv4-mapped IPv6, and optional surrounding brackets
+              const allowedCharsRegex = /^[\da-fA-F:.[\]]*$/;
+              if (!allowedCharsRegex.test(input.value)) {
+                input.value = input.value.replace(/[^\da-fA-F:.[\]]/g, '');
               }
               
-              // Validate IPv4 format as user types
-              if (ipv4Regex.test(input.value)) {
+              // Validate IPv4 format as user types (only when it doesn't look like IPv6)
+              const ipv4Regex = /^[\d.]*$/;
+              if (!input.value.includes(':') && !input.value.includes('[') && ipv4Regex.test(input.value)) {
                 const parts = input.value.split('.');
                 // Ensure each part is valid (0-255) and there are max 4 parts
                 const validParts = parts.map(part => {

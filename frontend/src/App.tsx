@@ -81,7 +81,7 @@ const App: React.FC = () => {
     }
 
     let cancelled = false;
-    fetch(`http://${selectedSession.ip}:${CONFIG.BACKEND_PORT}/models`)
+    fetch(CONFIG.getHttpUrl(selectedSession.ip, '/models'))
       .then(res => {
         if (!res.ok) throw new Error(`Failed to fetch models: ${res.statusText}`);
         return res.json();
@@ -334,7 +334,7 @@ const App: React.FC = () => {
           // Start new interval with updated FPS and network tracking
           const newInterval = setInterval(async () => {
             try {
-              const response = await fetch(`http://${session.ip}:${CONFIG.BACKEND_PORT}/screenshot`);
+              const response = await fetch(CONFIG.getHttpUrl(session.ip, '/screenshot'));
               if (!response.ok) throw new Error(`Failed to fetch screenshot from ${session.ip}`);
 
               const blob = await response.blob();
@@ -404,7 +404,7 @@ const App: React.FC = () => {
       
       try {
         // Send user-assist message to backend
-        const response = await fetch(`http://${userAssistTask.sessionIp}:${CONFIG.BACKEND_PORT}/user-assist`, {
+        const response = await fetch(CONFIG.getHttpUrl(userAssistTask.sessionIp, '/user-assist'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -476,7 +476,7 @@ const App: React.FC = () => {
       
       try {
         // Send the message to the backend to create a task
-        const response = await fetch(`http://${selectedSession.ip}:${CONFIG.BACKEND_PORT}/llm-input`, {
+        const response = await fetch(CONFIG.getHttpUrl(selectedSession.ip, '/llm-input'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -561,7 +561,7 @@ const App: React.FC = () => {
     if (taskToCancel && taskToCancel.sessionIp) {
       try {
         // Send cancellation request to backend
-        const response = await fetch(`http://${taskToCancel.sessionIp}:${CONFIG.BACKEND_PORT}/task-cancel?taskId=${taskId}`, {
+        const response = await fetch(CONFIG.getHttpUrl(taskToCancel.sessionIp, `/task-cancel?taskId=${taskId}`), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -679,7 +679,7 @@ const App: React.FC = () => {
     }
     
     // Create new WebSocket
-    const ws = new WebSocket(`${CONFIG.BACKEND_WS_URL}/ws`);
+    const ws = new WebSocket(CONFIG.getWsUrl(session.ip, '/ws'));
     
     ws.onopen = () => {
       console.log(`Connected to server ${session.ip}`);
@@ -842,7 +842,7 @@ const App: React.FC = () => {
   const startServerPing = (session: Session) => {
     const pingInterval = setInterval(async () => {
       try {
-        const response = await fetch(`http://${session.ip}:${CONFIG.BACKEND_PORT}/ping`, {
+        const response = await fetch(CONFIG.getHttpUrl(session.ip, '/ping'), {
           method: 'GET',
           signal: AbortSignal.timeout(3000)
         });
@@ -932,7 +932,7 @@ const App: React.FC = () => {
       setSelectedSessionId(sessionId);
       
       // Setup WebSocket connection with a callback to activate user-assist when connected
-      const ws = new WebSocket(`${CONFIG.BACKEND_WS_URL.replace(/localhost[^:]*/, sessionIp)}/ws`);
+      const ws = new WebSocket(CONFIG.getWsUrl(sessionIp, '/ws'));
       
       ws.onopen = () => {
         console.log(`Connected to server ${sessionIp}`);
@@ -1126,7 +1126,7 @@ const App: React.FC = () => {
         // Trigger screenshot for selected session
         const imgElement = document.querySelector(`[data-session-id="${selectedSession.id}"] .screenshot-img`) as HTMLImageElement;
         if (imgElement) {
-          fetch(`http://${selectedSession.ip}:${CONFIG.BACKEND_PORT}/screenshot`)
+          fetch(CONFIG.getHttpUrl(selectedSession.ip, '/screenshot'))
             .then(response => response.blob())
             .then(blob => {
               const imageUrl = URL.createObjectURL(blob);
@@ -1148,7 +1148,7 @@ const App: React.FC = () => {
           // Start video streaming
           const interval = setInterval(async () => {
             try {
-              const response = await fetch(`http://${selectedSession.ip}:${CONFIG.BACKEND_PORT}/screenshot`);
+              const response = await fetch(CONFIG.getHttpUrl(selectedSession.ip, '/screenshot'));
               if (!response.ok) throw new Error(`Failed to fetch screenshot from ${selectedSession.ip}`);
 
               const blob = await response.blob();
@@ -1185,7 +1185,7 @@ const App: React.FC = () => {
       }
       
       // Use HTTP request instead of WebSocket (matching original JavaScript)
-      fetch(`http://${selectedSession.ip}:${CONFIG.BACKEND_PORT}/mouse-input?x=${event.detail.x}&y=${event.detail.y}`)
+      fetch(CONFIG.getHttpUrl(selectedSession.ip, `/mouse-input?x=${event.detail.x}&y=${event.detail.y}`))
         .then(response => {
           if (!response.ok) {
             throw new Error(`Failed to send mouse move to ${selectedSession.ip}`);
@@ -1215,7 +1215,7 @@ const App: React.FC = () => {
       }
       
       // Use HTTP request instead of WebSocket (matching original JavaScript)
-      fetch(`http://${selectedSession.ip}:${CONFIG.BACKEND_PORT}/mouse-click`)
+      fetch(CONFIG.getHttpUrl(selectedSession.ip, '/mouse-click'))
         .then(response => {
           if (!response.ok) {
             throw new Error(`Failed to send mouse click to ${selectedSession.ip}`);
@@ -1682,6 +1682,7 @@ const App: React.FC = () => {
           }
         }}
         selectedSessionId={selectedSessionId}
+        selectedSessionIp={selectedSessionId ? (sessions.find(s => s.id === selectedSessionId)?.ip || null) : null}
         tasks={tasks}
       />
       

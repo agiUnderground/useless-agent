@@ -52,12 +52,19 @@ func getLocalIP() string {
 	if err != nil {
 		return "127-0-0-1"
 	}
+	var fallbackIPv6 string
 	for _, addr := range addrs {
 		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
 			if ip4 := ipnet.IP.To4(); ip4 != nil {
 				return sanitizeForFilename(ip4.String())
 			}
+			if fallbackIPv6 == "" && ipnet.IP.To16() != nil && !ipnet.IP.IsLinkLocalUnicast() {
+				fallbackIPv6 = sanitizeForFilename(ipnet.IP.String())
+			}
 		}
+	}
+	if fallbackIPv6 != "" {
+		return fallbackIPv6
 	}
 	return "127-0-0-1"
 }

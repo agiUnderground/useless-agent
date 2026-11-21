@@ -27,6 +27,10 @@ COPY --from=builder /app/build /usr/share/nginx/html
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+# Enable IPv6 listener only when IPv6 is available in the kernel
+RUN printf '#!/bin/sh\nset -e\nif [ -f /proc/net/if_inet6 ] && ! grep -q "listen \\[::\\]:80;" /etc/nginx/conf.d/default.conf; then\n    sed -i "s/listen 80;/listen 80;\\n    listen [::]:80;/" /etc/nginx/conf.d/default.conf\nfi\n' > /docker-entrypoint.d/15-enable-ipv6.sh && \
+    chmod +x /docker-entrypoint.d/15-enable-ipv6.sh
+
 # Expose port 80
 EXPOSE 80
 

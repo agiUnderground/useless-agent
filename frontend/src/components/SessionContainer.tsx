@@ -158,7 +158,7 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
   // Fetch image for a specific session (matching original JavaScript)
   const fetchSessionImage = async (endpoint: string) => {
     try {
-      const response = await fetch(`http://${session.ip}:${CONFIG.BACKEND_PORT}/${endpoint}`);
+      const response = await fetch(CONFIG.getHttpUrl(session.ip, endpoint));
       if (!response.ok) throw new Error(`Failed to fetch ${endpoint} from ${session.ip}`);
 
       // Get blob first and track network usage

@@ -114,7 +114,7 @@ trap cleanup SIGTERM SIGINT\n\
 \n\
 # Start the application with command-line arguments and persistent storage\n\
 ./main \\\n\
-  -ip=${BIND_IP:-0.0.0.0} \\\n\
+  -ip=${BIND_IP:-} \\\n\
   -port=${PORT:-8080} \\\n\
   -display=${DISPLAY:-:2} \\\n\
   -data-dir=${DATA_DIR:-/data} \\\n\

@@ -3,6 +3,7 @@
 ### v0.2.0
 
 #### Features
+* Added dual-stack IPv4 and IPv6 support across backend, frontend, and Docker (including mixed IPv4/IPv6 sessions and automatic IPv4 fallback when IPv6 is disabled).
 * Added LLM provider support for Google Gemini, OpenAI, Anthropic, Qwen, and MiniMax.
 * Added dynamic model and thinking level selection.
 * Added optional JSON configuration file support (`config.example.json`).

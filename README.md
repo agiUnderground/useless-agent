@@ -11,7 +11,7 @@
 * Single binary. *(almost, see todo list)*  
 * Easy to use: run the binary and copy the IP address.  
 * No telemetry, no bullshit.
-* IPv4 & IPv6(*should work, not tested yet)
+* IPv4 & IPv6
 
 **:star: Would you like me to work more on this project? Please consider giving this repository a star!**  
 
