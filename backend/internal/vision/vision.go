@@ -9,7 +9,15 @@ import (
     "encoding/json"
 )
 
-const debug = false
+const (
+    debug          = false
+    minButtons     = 2
+    maxButtons     = 4
+    minButtonWidth = 4
+    maxButtonWidth = 44
+    minButtonGap   = 2
+    maxButtonGap   = 48
+)
 
 type WindowInfo struct {
     Window Window `json:"window"`
@@ -43,8 +51,8 @@ func DetectWindow(img image.Image, textBBox image.Rectangle, title string) (stri
     logDebug("Final header: %v", header)
     logDebug("Border right position: %d", borderRight)
 
-    buttons := detectButtons(img, header, bgColor, borderRight)
-    if len(buttons) != 4 {
+    buttons := detectButtons(img, header, bgColor, borderRight, textBBox.Max.X)
+    if len(buttons) < minButtons || len(buttons) > maxButtons {
         return "", fmt.Errorf("button detection failed: found %d buttons", len(buttons))
     }
     logDebug("Detected buttons:")
@@ -87,9 +95,13 @@ func detectHeader(img image.Image, textBBox image.Rectangle, bgColor color.Color
     logDebug("Expanding to the left...")
     leftEdge := findLeftEdge(img, textBBox, bgColor)
 
-    titleMidX := (textBBox.Max.X - textBBox.Min.X) / 2
+    titleMidX := textBBox.Min.X + (textBBox.Max.X-textBBox.Min.X)/2
     headerTop := findHeaderTop(img, titleMidX, textBBox.Min.Y, bgColor)
-    finalHeader := image.Rect(leftEdge, headerTop, rightHeader.Max.X, textBBox.Max.Y + (textBBox.Min.Y - headerTop))
+    headerBottom := textBBox.Max.Y + (textBBox.Min.Y - headerTop)
+    if headerBottom > img.Bounds().Max.Y {
+        headerBottom = img.Bounds().Max.Y
+    }
+    finalHeader := image.Rect(leftEdge, headerTop, rightHeader.Max.X, headerBottom)
     
     logDebug("Final header boundaries - left: %d, right: %d", leftEdge, rightHeader.Max.X)
     return finalHeader, borderRight, nil
@@ -98,11 +110,15 @@ func detectHeader(img image.Image, textBBox image.Rectangle, bgColor color.Color
 func checkRightPattern(img image.Image, textBBox image.Rectangle, bgColor color.Color) (image.Rectangle, int, bool) {
     logDebug("Tracing right edge...")
     headerRight, borderRight := traceRightEdge(img, textBBox, bgColor)
+    if headerRight <= textBBox.Max.X {
+        logDebug("No space to the right of title")
+        return image.Rectangle{}, 0, false
+    }
     tempHeader := image.Rect(textBBox.Min.X, textBBox.Min.Y, headerRight, textBBox.Max.Y)
     
     logDebug("Temporary header: %v", tempHeader)
     logDebug("Checking button pattern...")
-    if valid := verifyButtonPattern(img, tempHeader, bgColor, borderRight); !valid {
+    if valid := verifyButtonPattern(img, tempHeader, bgColor, borderRight, textBBox.Max.X); !valid {
         logDebug("Button pattern verification failed")
         return image.Rectangle{}, 0, false
     }
@@ -113,12 +129,9 @@ func checkRightPattern(img image.Image, textBBox image.Rectangle, bgColor color.
 func traceRightEdge(img image.Image, textBBox image.Rectangle, bgColor color.Color) (int, int) {
     logDebug("Starting right edge tracing from %d", textBBox.Max.X)
     headerRight := textBBox.Max.X
-    borderRight := headerRight
+    borderRight := img.Bounds().Max.X
 
     for x := textBBox.Max.X; x < img.Bounds().Max.X; x++ {
-        // if !isBackgroundColumn(img, x, textBBox, bgColor) {
-
-        //if !isBackgroundPixel(img, x, textBBox, bgColor) { --------------------------
         if isNotBackgroundColumn(img, x, textBBox, bgColor) {
             borderRight = x
             logDebug("Found border at x=%d", x)
@@ -127,49 +140,69 @@ func traceRightEdge(img image.Image, textBBox image.Rectangle, bgColor color.Col
         headerRight = x
         logDebug("Background column at x=%d", x)
     }
+    if borderRight > headerRight+1 {
+        borderRight = headerRight + 1
+    }
     logDebug("Final header right: %d, border: %d", headerRight, borderRight)
     return headerRight, borderRight
 }
 
-func verifyButtonPattern(img image.Image, header image.Rectangle, bgColor color.Color, borderRight int) bool {
-    logDebug("Scanning for button pattern from %d", borderRight)
+type buttonSpan struct {
+    left  int
+    right int
+}
+
+func scanButtons(img image.Image, header image.Rectangle, bgColor color.Color, borderRight int, minX int) []buttonSpan {
+    logDebug("Scanning for buttons from %d (minX=%d)", borderRight, minX)
     currentX := borderRight - 1
-    foundButtons := 0
+    if currentX > header.Max.X {
+        currentX = header.Max.X
+    }
+    var spans []buttonSpan
     prevButtonLeftEdge := 0
 
-    for i := 0; i < 4; i++ {
+    for i := 0; i < maxButtons; i++ {
+        if currentX <= minX {
+            break
+        }
         logDebug("Checking for button %d at x=%d", i+1, currentX)
         rightEdge, btnWidth := findVerticalEdge(img, currentX, header, bgColor, true)
         if rightEdge == -1 {
             logDebug("No right edge found")
             break
         }
-        // horizontal distance check
+        leftEdge := rightEdge - btnWidth
+        if leftEdge < minX {
+            logDebug("Button overlaps title text")
+            break
+        }
         if i > 0 {
             xDelta := prevButtonLeftEdge - rightEdge
-            if (xDelta < 12) || (xDelta > 40) {
-              logDebug("Potential buttons distance is not correct.")
-              break
+            if xDelta < minButtonGap || xDelta > maxButtonGap {
+                logDebug("Potential buttons distance is not correct: %d", xDelta)
+                break
             }
         }
 
-        // btnWidth := rightEdge - leftEdge
-        logDebug("Potential button %d: left=%d, right=%d (width=%d)", 
-            i+1, rightEdge - btnWidth, rightEdge, btnWidth)
+        logDebug("Potential button %d: left=%d, right=%d (width=%d)",
+            i+1, leftEdge, rightEdge, btnWidth)
 
-        if btnWidth < 4 || btnWidth > 30 {
-            logDebug("Invalid button width")
+        if btnWidth < minButtonWidth || btnWidth > maxButtonWidth {
+            logDebug("Invalid button width: %d", btnWidth)
             break
         }
 
-        foundButtons++
-        // currentX = leftEdge - 5
-        prevButtonLeftEdge = rightEdge - btnWidth
-        currentX = rightEdge - btnWidth
+        spans = append(spans, buttonSpan{left: leftEdge, right: rightEdge})
+        prevButtonLeftEdge = leftEdge
+        currentX = leftEdge - 1
     }
-    // 15 40 x distance between buttons >=15 <=40
-    logDebug("Found %d valid buttons", foundButtons)
-    return foundButtons == 4
+    logDebug("Found %d valid buttons", len(spans))
+    return spans
+}
+
+func verifyButtonPattern(img image.Image, header image.Rectangle, bgColor color.Color, borderRight int, minX int) bool {
+    spans := scanButtons(img, header, bgColor, borderRight, minX)
+    return len(spans) >= minButtons && len(spans) <= maxButtons
 }
 
 func findLeftEdge(img image.Image, textBBox image.Rectangle, bgColor color.Color) int {
@@ -191,37 +224,30 @@ func findLeftEdge(img image.Image, textBBox image.Rectangle, bgColor color.Color
     return leftEdge
 }
 
-func detectButtons(img image.Image, header image.Rectangle, bgColor color.Color, borderRight int) []Button {
+func detectButtons(img image.Image, header image.Rectangle, bgColor color.Color, borderRight int, minX int) []Button {
     logDebug("\n=== Button Detection ===")
-    var buttons []Button
-    currentX := borderRight - 1
-    buttonNames := map[int]string{
-        1: "roll-up",
-        2: "minimize",
-        3: "maximize",
-        4: "close",
+    spans := scanButtons(img, header, bgColor, borderRight, minX)
+    // Right-to-left button names: rightmost is close, then maximize, minimize, roll-up
+    rightToLeftNames := []string{"close", "maximize", "minimize", "roll-up"}
+
+    padY := 5
+    if header.Dy() <= padY*2 {
+        padY = 0
     }
 
-    for i := 0; i < 4; i++ {
-        logDebug("Searching for button %d starting at x=%d", 4-i, currentX)
-        rightEdge, btnWidth := findVerticalEdge(img, currentX, header, bgColor, true)
-        if rightEdge == -1 {
-            logDebug("Right edge not found")
-            break
+    buttons := make([]Button, 0, len(spans))
+    for i, span := range spans {
+        name := "button"
+        if i < len(rightToLeftNames) {
+            name = rightToLeftNames[i]
         }
-
-        leftEdge := rightEdge - btnWidth
-
         btn := Button{
-            //Name: fmt.Sprintf("button%d", 4-i),
-            Name: buttonNames[4-i],
-            // BBox: image.Rect(leftEdge, header.Min.Y, rightEdge, header.Max.Y),
-            BBox: image.Rect(leftEdge, header.Min.Y + 5, rightEdge, header.Max.Y - 5),
+            Name: name,
+            BBox: image.Rect(span.left, header.Min.Y+padY, span.right, header.Max.Y-padY),
         }
         logDebug("Detected %s: %v", btn.Name, btn.BBox)
-        
+        // Prepend so buttons are ordered left-to-right
         buttons = append([]Button{btn}, buttons...)
-        currentX = leftEdge - 5
     }
 
     logDebug("Total detected buttons: %d", len(buttons))
@@ -311,23 +337,35 @@ func isBackgroundColumn(img image.Image, x int, textBBox image.Rectangle, bgColo
 }
 
 func isNotBackgroundColumn(img image.Image, x int, textBBox image.Rectangle, bgColor color.Color) bool {
-    for y := textBBox.Min.Y; y < textBBox.Max.Y; y++ {
-      // y := textBBox.Min.Y;
-      if colorsSimilar(img.At(x, y), bgColor) {
-          logDebug("background-like pixel at (%d,%d)", x, y)
-          return false
-      }
+    height := textBBox.Max.Y - textBBox.Min.Y
+    if height <= 0 {
+        return false
     }
-    return true
+    nonBg := 0
+    for y := textBBox.Min.Y; y < textBBox.Max.Y; y++ {
+        if !colorsSimilar(img.At(x, y), bgColor) {
+            nonBg++
+        }
+    }
+    // Treat column as border/outside if at least 85% of pixels differ from header background
+    return nonBg*100 >= height*85
 }
 
 func detectBackgroundColor(img image.Image, textBBox image.Rectangle) color.Color {
     logDebug("\n=== Background Color Detection ===")
+    midX := textBBox.Min.X + (textBBox.Max.X-textBBox.Min.X)/2
+    midY := textBBox.Min.Y + (textBBox.Max.Y-textBBox.Min.Y)/2
     samplePoints := []image.Point{
-        {textBBox.Min.X - 1, textBBox.Min.Y},
-        {textBBox.Max.X + 1, textBBox.Min.Y},
-        {textBBox.Min.X, textBBox.Min.Y - 1},
-        {textBBox.Min.X, textBBox.Max.Y + 1},
+        {textBBox.Min.X - 2, textBBox.Min.Y},
+        {textBBox.Min.X - 2, midY},
+        {textBBox.Max.X + 2, textBBox.Min.Y},
+        {textBBox.Max.X + 2, midY},
+        {textBBox.Min.X, textBBox.Min.Y - 2},
+        {midX, textBBox.Min.Y - 2},
+        {textBBox.Max.X, textBBox.Min.Y - 2},
+        {textBBox.Min.X, textBBox.Max.Y + 2},
+        {midX, textBBox.Max.Y + 2},
+        {textBBox.Max.X, textBBox.Max.Y + 2},
     }
 
     colorCount := make(map[string]int)

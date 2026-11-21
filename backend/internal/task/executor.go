@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/draw"
 	"log"
+	"strings"
 	"time"
 
 	"internal/vision"
@@ -160,44 +161,37 @@ func ExecuteTask(task *Task) {
 				// Continue with window detection
 			}
 
-			// Get X11 windows data
+			// Get X11 windows data (primary source via X11/EWMH API)
 			x11WindowsData, err := getX11WindowsData()
 			if err != nil {
-				log.Printf("Failed to get X11 windows data, continuing with empty data: %v", err)
+				log.Printf("Failed to get X11 windows data, falling back to visual window detection: %v", err)
 				x11WindowsData = "[]"
 			}
-			log.Printf("X11 windows data: %s", x11WindowsData)
-
-			var detectedWindowsJSON string = "["
-			for index, ocrElement := range ocrResults {
-				// Check for task cancellation during window detection loop
-				select {
-				case <-task.Context.Done():
-					log.Printf("Task %s canceled during window detection", task.ID)
-					UpdateTaskStatus(task.ID, "canceled", "Task canceled by user")
-					return
-				default:
-					// Continue with current window detection
-				}
-
-				ocrElementBB := image.Rect(ocrElement.BoundingBox.XMin, ocrElement.BoundingBox.YMin, ocrElement.BoundingBox.XMax, ocrElement.BoundingBox.YMax)
-				windowsJSONString, err := vision.DetectWindow(grayscaleScreenshot, ocrElementBB, ocrElement.Text)
-				if err != nil {
-					log.Println("Failed to detect windows:", err)
-					continue
-				}
-				detectedWindowsJSON += windowsJSONString
-				if index != (len(ocrResults) - 1) {
-					detectedWindowsJSON += ","
-				}
-			}
-			detectedWindowsJSON += "]"
-			log.Println("Detected windows json string data:", detectedWindowsJSON)
-
-			// Keep X11 windows data separate from OCR-detected windows
-			// They have different JSON formats and should be sent separately to LLM
-			log.Printf("OCR-detected windows data: %s", detectedWindowsJSON)
 			log.Printf("X11 API-detected windows data: %s", x11WindowsData)
+
+			// Only run visual OCR-based header detection as a fallback when X11 API fails
+			detectedWindowsJSON := "[]"
+			if err != nil {
+				var detectedWindows []string
+				for _, ocrElement := range ocrResults {
+					select {
+					case <-task.Context.Done():
+						log.Printf("Task %s canceled during window detection", task.ID)
+						UpdateTaskStatus(task.ID, "canceled", "Task canceled by user")
+						return
+					default:
+					}
+
+					ocrElementBB := image.Rect(ocrElement.BoundingBox.XMin, ocrElement.BoundingBox.YMin, ocrElement.BoundingBox.XMax, ocrElement.BoundingBox.YMax)
+					windowsJSONString, detectErr := vision.DetectWindow(grayscaleScreenshot, ocrElementBB, ocrElement.Text)
+					if detectErr != nil {
+						continue
+					}
+					detectedWindows = append(detectedWindows, windowsJSONString)
+				}
+				detectedWindowsJSON = "[" + strings.Join(detectedWindows, ",") + "]"
+				log.Printf("Fallback OCR-detected %d windows from %d OCR elements", len(detectedWindows), len(ocrResults))
+			}
 
 			// Check for task cancellation after window detection
 			select {
@@ -423,31 +417,32 @@ func ExecuteTask(task *Task) {
 				// Continue with window detection
 			}
 
-			detectedWindowsJSON = "["
-			for index, ocrElement := range ocrResults {
-				// Check for task cancellation during second window detection loop
-				select {
-				case <-task.Context.Done():
-					log.Printf("Task %s canceled during second window detection", task.ID)
-					UpdateTaskStatus(task.ID, "canceled", "Task canceled by user")
-					return
-				default:
-					// Continue with current window detection
-				}
+			// Refresh X11 windows data (primary source via X11/EWMH API)
+			x11WindowsData, err = getX11WindowsData()
+			if err != nil {
+				log.Printf("Failed to refresh X11 windows data, falling back to visual window detection: %v", err)
+				var detectedWindows []string
+				for _, ocrElement := range ocrResults {
+					select {
+					case <-task.Context.Done():
+						log.Printf("Task %s canceled during second window detection", task.ID)
+						UpdateTaskStatus(task.ID, "canceled", "Task canceled by user")
+						return
+					default:
+					}
 
-				ocrElementBB := image.Rect(ocrElement.BoundingBox.XMin, ocrElement.BoundingBox.YMin, ocrElement.BoundingBox.XMax, ocrElement.BoundingBox.YMax)
-				windowsJSONString, err := vision.DetectWindow(grayscaleScreenshot, ocrElementBB, ocrElement.Text)
-				if err != nil {
-					log.Println("Failed to detect windows:", err)
-					continue
+					ocrElementBB := image.Rect(ocrElement.BoundingBox.XMin, ocrElement.BoundingBox.YMin, ocrElement.BoundingBox.XMax, ocrElement.BoundingBox.YMax)
+					windowsJSONString, detectErr := vision.DetectWindow(grayscaleScreenshot, ocrElementBB, ocrElement.Text)
+					if detectErr != nil {
+						continue
+					}
+					detectedWindows = append(detectedWindows, windowsJSONString)
 				}
-				detectedWindowsJSON += windowsJSONString
-				if index != (len(ocrResults) - 1) {
-					detectedWindowsJSON += ","
-				}
+				detectedWindowsJSON = "[" + strings.Join(detectedWindows, ",") + "]"
+				log.Printf("Fallback OCR-detected %d windows from %d OCR elements", len(detectedWindows), len(ocrResults))
+			} else {
+				detectedWindowsJSON = x11WindowsData
 			}
-			detectedWindowsJSON += "]"
-			log.Println("Detected windows json string data:", detectedWindowsJSON)
 
 			// Check for task cancellation after second window detection
 			select {

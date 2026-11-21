@@ -26,6 +26,7 @@ type X11Window struct {
 	Size       WindowSize     `json:"size"`
 	Buttons    []WindowButton `json:"buttons"`
 	Visible    bool           `json:"visible"`
+	Active     bool           `json:"active"`
 	Desktop    int            `json:"desktop"`
 	State      []string       `json:"state"`
 	WindowType string         `json:"windowType"`
@@ -88,18 +89,24 @@ func GetX11WindowsWithDisplay(display string) (string, error) {
 	setup := xproto.Setup(conn)
 	screen := setup.DefaultScreen(conn)
 
-	// Get all windows
+	// Get all managed windows via EWMH (_NET_CLIENT_LIST_STACKING / _NET_CLIENT_LIST), falling back to QueryTree
 	root := screen.Root
-	tree, err := xproto.QueryTree(conn, root).Reply()
+	windowIDs, err := getClientWindowList(conn, root)
 	if err != nil {
-		return "", fmt.Errorf("failed to query window tree: %w", err)
+		tree, treeErr := xproto.QueryTree(conn, root).Reply()
+		if treeErr != nil {
+			return "", fmt.Errorf("failed to query window tree: %w", treeErr)
+		}
+		windowIDs = tree.Children
 	}
+
+	activeWindowID, _ := getActiveWindow(conn, root)
 
 	var windows []X11Window
 
-	// Iterate through all top-level windows
-	for _, windowID := range tree.Children {
-		window, err := getWindowInfo(conn, windowID)
+	// Iterate through all windows
+	for _, windowID := range windowIDs {
+		window, err := getWindowInfo(conn, root, windowID, activeWindowID)
 		if err != nil {
 			log.Printf("Error getting window info for %d: %v", windowID, err)
 			continue
@@ -124,11 +131,64 @@ func GetX11WindowsWithDisplay(display string) (string, error) {
 	return string(jsonData), nil
 }
 
+// getClientWindowList retrieves managed client windows using EWMH properties.
+func getClientWindowList(conn *xgb.Conn, root xproto.Window) ([]xproto.Window, error) {
+	for _, atomName := range []string{"_NET_CLIENT_LIST_STACKING", "_NET_CLIENT_LIST"} {
+		atom, err := xproto.InternAtom(conn, true, uint16(len(atomName)), atomName).Reply()
+		if err != nil || atom.Atom == 0 {
+			continue
+		}
+		prop, err := xproto.GetProperty(conn, false, root, atom.Atom, xproto.AtomWindow, 0, (1<<32)-1).Reply()
+		if err != nil || prop.ValueLen == 0 {
+			continue
+		}
+		count := int(prop.ValueLen)
+		windows := make([]xproto.Window, 0, count)
+		for i := 0; i < count && (i+1)*4 <= len(prop.Value); i++ {
+			windows = append(windows, xproto.Window(xgb.Get32(prop.Value[i*4:])))
+		}
+		if len(windows) > 0 {
+			return windows, nil
+		}
+	}
+	return nil, fmt.Errorf("no EWMH client list property found")
+}
+
+// getActiveWindow retrieves the currently focused window ID from _NET_ACTIVE_WINDOW.
+func getActiveWindow(conn *xgb.Conn, root xproto.Window) (xproto.Window, error) {
+	atom, err := xproto.InternAtom(conn, true, uint16(len("_NET_ACTIVE_WINDOW")), "_NET_ACTIVE_WINDOW").Reply()
+	if err != nil || atom.Atom == 0 {
+		return 0, err
+	}
+	prop, err := xproto.GetProperty(conn, false, root, atom.Atom, xproto.AtomWindow, 0, 1).Reply()
+	if err != nil || prop.ValueLen == 0 || len(prop.Value) < 4 {
+		return 0, fmt.Errorf("active window not found")
+	}
+	return xproto.Window(xgb.Get32(prop.Value)), nil
+}
+
+// getFrameExtents retrieves _NET_FRAME_EXTENTS (left, right, top, bottom) for a window.
+func getFrameExtents(conn *xgb.Conn, windowID xproto.Window) (left, right, top, bottom int) {
+	atom, err := xproto.InternAtom(conn, true, uint16(len("_NET_FRAME_EXTENTS")), "_NET_FRAME_EXTENTS").Reply()
+	if err != nil || atom.Atom == 0 {
+		return 0, 0, 0, 0
+	}
+	prop, err := xproto.GetProperty(conn, false, windowID, atom.Atom, xproto.AtomCardinal, 0, 4).Reply()
+	if err != nil || prop.ValueLen < 4 || len(prop.Value) < 16 {
+		return 0, 0, 0, 0
+	}
+	return int(xgb.Get32(prop.Value[0:])),
+		int(xgb.Get32(prop.Value[4:])),
+		int(xgb.Get32(prop.Value[8:])),
+		int(xgb.Get32(prop.Value[12:]))
+}
+
 // getWindowInfo retrieves detailed information about a single window
-func getWindowInfo(conn *xgb.Conn, windowID xproto.Window) (X11Window, error) {
+func getWindowInfo(conn *xgb.Conn, root xproto.Window, windowID xproto.Window, activeWindowID xproto.Window) (X11Window, error) {
 	window := X11Window{
 		ID:      uint32(windowID),
 		Visible: true,
+		Active:  windowID == activeWindowID && activeWindowID != 0,
 	}
 
 	// Get window geometry
@@ -137,13 +197,23 @@ func getWindowInfo(conn *xgb.Conn, windowID xproto.Window) (X11Window, error) {
 		return window, fmt.Errorf("failed to get window geometry: %w", err)
 	}
 
+	// Translate to absolute screen coordinates relative to root
+	absX := int(geom.X)
+	absY := int(geom.Y)
+	if coords, err := xproto.TranslateCoordinates(conn, windowID, root, 0, 0).Reply(); err == nil {
+		absX = int(coords.DstX)
+		absY = int(coords.DstY)
+	}
+
+	// Include WM frame extents if present so position/size cover the title bar and borders
+	frameLeft, frameRight, frameTop, frameBottom := getFrameExtents(conn, windowID)
 	window.Position = WindowPosition{
-		X: int(geom.X),
-		Y: int(geom.Y),
+		X: absX - frameLeft,
+		Y: absY - frameTop,
 	}
 	window.Size = WindowSize{
-		Width:  int(geom.Width),
-		Height: int(geom.Height),
+		Width:  int(geom.Width) + frameLeft + frameRight,
+		Height: int(geom.Height) + frameTop + frameBottom,
 	}
 
 	// Get window attributes
@@ -168,6 +238,12 @@ func getWindowInfo(conn *xgb.Conn, windowID xproto.Window) (X11Window, error) {
 	// Get window state
 	if states, err := getWindowState(conn, windowID); err == nil {
 		window.State = states
+		for _, s := range states {
+			if s == "_NET_WM_STATE_HIDDEN" {
+				window.Visible = false
+				break
+			}
+		}
 	}
 
 	// Get window type
@@ -185,8 +261,8 @@ func getWindowInfo(conn *xgb.Conn, windowID xproto.Window) (X11Window, error) {
 		window.PID = pid
 	}
 
-	// Detect window buttons (this is approximate since X11 doesn't expose button info directly)
-	window.Buttons = detectWindowButtons(window.Position, window.Size)
+	// Detect window buttons using actual WM frame top height when available
+	window.Buttons = detectWindowButtons(window.Position, window.Size, frameTop)
 
 	return window, nil
 }
@@ -254,8 +330,8 @@ func getWindowState(conn *xgb.Conn, windowID xproto.Window) ([]string, error) {
 	}
 
 	var states []string
-	for i := 0; i < int(prop.ValueLen); i++ {
-		atomID := xproto.Atom(uint32(prop.Value[i*4])<<24 | uint32(prop.Value[i*4+1])<<16 | uint32(prop.Value[i*4+2])<<8 | uint32(prop.Value[i*4+3]))
+	for i := 0; i < int(prop.ValueLen) && (i+1)*4 <= len(prop.Value); i++ {
+		atomID := xproto.Atom(xgb.Get32(prop.Value[i*4:]))
 
 		if atomName, err := getAtomName(conn, atomID); err == nil {
 			states = append(states, atomName)
@@ -273,12 +349,12 @@ func getWindowType(conn *xgb.Conn, windowID xproto.Window) (string, error) {
 	}
 
 	prop, err := xproto.GetProperty(conn, false, windowID, typeAtom.Atom, xproto.AtomAtom, 0, (1<<32)-1).Reply()
-	if err != nil || prop.ValueLen == 0 {
+	if err != nil || prop.ValueLen == 0 || len(prop.Value) < 4 {
 		return "NORMAL", nil // Default type
 	}
 
 	// Get the first window type atom
-	atomID := xproto.Atom(uint32(prop.Value[0])<<24 | uint32(prop.Value[1])<<16 | uint32(prop.Value[2])<<8 | uint32(prop.Value[3]))
+	atomID := xproto.Atom(xgb.Get32(prop.Value))
 
 	if atomName, err := getAtomName(conn, atomID); err == nil {
 		return atomName, nil
@@ -300,7 +376,7 @@ func getWindowDesktop(conn *xgb.Conn, windowID xproto.Window) (int, error) {
 	}
 
 	if len(prop.Value) >= 4 {
-		desktop := uint32(prop.Value[0])<<24 | uint32(prop.Value[1])<<16 | uint32(prop.Value[2])<<8 | uint32(prop.Value[3])
+		desktop := xgb.Get32(prop.Value)
 		return int(desktop), nil
 	}
 
@@ -320,7 +396,7 @@ func getWindowPID(conn *xgb.Conn, windowID xproto.Window) (int, error) {
 	}
 
 	if len(prop.Value) >= 4 {
-		pid := uint32(prop.Value[0])<<24 | uint32(prop.Value[1])<<16 | uint32(prop.Value[2])<<8 | uint32(prop.Value[3])
+		pid := xgb.Get32(prop.Value)
 		return int(pid), nil
 	}
 
@@ -337,14 +413,20 @@ func getAtomName(conn *xgb.Conn, atom xproto.Atom) (string, error) {
 }
 
 // detectWindowButtons approximates window button positions based on window geometry
-func detectWindowButtons(pos WindowPosition, size WindowSize) []WindowButton {
+func detectWindowButtons(pos WindowPosition, size WindowSize, frameTop int) []WindowButton {
 	var buttons []WindowButton
 
 	// Standard window button size and positioning
 	buttonWidth := 24
 	buttonHeight := 24
 	buttonSpacing := 8
-	headerHeight := 32
+	headerHeight := frameTop
+	if headerHeight <= 0 {
+		headerHeight = 32
+	}
+	if buttonHeight > headerHeight {
+		buttonHeight = headerHeight
+	}
 
 	// Only add buttons if window is large enough to have a title bar
 	if size.Height < headerHeight+50 || size.Width < buttonWidth*4 {
