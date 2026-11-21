@@ -318,7 +318,7 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
   // Update on window resize and scroll
   useEffect(() => {
     // Add debouncing for resize but not for scroll to ensure smooth updates during scrolling
-    let resizeTimeout: NodeJS.Timeout;
+    let resizeTimeout: ReturnType<typeof setTimeout>;
     const debouncedResize = () => {
       clearTimeout(resizeTimeout);
       resizeTimeout = setTimeout(recalculateConnectionLines, 100);

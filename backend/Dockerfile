@@ -1,20 +1,19 @@
-FROM ubuntu:22.04
+FROM ubuntu:26.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DISPLAY=:2
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     wget \
     gnupg \
-    software-properties-common \
     ca-certificates \
     build-essential \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Go 1.25.2 (matching go.mod requirement)
-RUN wget -O go.tar.gz https://go.dev/dl/go1.25.2.linux-amd64.tar.gz \
+# Install Go 1.27.4 (matching go.mod requirement)
+RUN wget -O go.tar.gz https://go.dev/dl/go1.27.4.linux-amd64.tar.gz \
     && tar -C /usr/local -xzf go.tar.gz \
     && rm go.tar.gz
 
@@ -23,12 +22,9 @@ ENV PATH=$PATH:/usr/local/go/bin
 ENV GOPATH=/go
 ENV PATH=$PATH:$GOPATH/bin
 
-# Add PPA for tesseract-ocr5 and install X11, XFCE, and other dependencies
-RUN apt-get update && apt-get install -y \
-    software-properties-common \
-    && add-apt-repository -y ppa:alex-p/tesseract-ocr5 \
-    && apt-get update \
-    && apt-get install -y \
+# Install X11, XFCE, Tesseract 5, and other dependencies from official Ubuntu repositories
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    dbus-x11 \
     xvfb \
     x11-utils \
     x11-xserver-utils \
@@ -45,8 +41,8 @@ RUN apt-get update && apt-get install -y \
     libxi-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Remove xfce4-screensaver
-RUN apt-get remove -y xfce4-screensaver && apt-get autoremove -y
+# Remove xfce4-screensaver if installed
+RUN apt-get remove -y xfce4-screensaver || true && apt-get autoremove -y
 
 # Create application directory
 WORKDIR /app

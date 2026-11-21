@@ -1,3 +1,3 @@
 module internal/vision
 
-go 1.25.2
+go 1.27.4

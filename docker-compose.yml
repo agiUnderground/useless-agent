@@ -5,13 +5,12 @@ services:
       dockerfile: Dockerfile
     environment:
       - PROVIDER=${PROVIDER:-deepseek}
-      - API_KEY=${API_KEY}
-      - BASE_URL=${BASE_URL}
-      - MODEL=${MODEL}
+      - API_KEY=${API_KEY:-}
+      - BASE_URL=${BASE_URL:-}
+      - MODEL=${MODEL:-}
       - DISPLAY=:2
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
-      - /home/user/.Xauthority:/home/user/.Xauthority:ro
     ports:
       - "8080:8080"
 
@@ -19,6 +18,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    depends_on:
+      - backend
     ports:
       - "3001:80"
     environment:
