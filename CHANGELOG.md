@@ -1,5 +1,23 @@
 # Changelog
 
+### v0.2.0
+
+#### Features
+* Added LLM provider support for Google Gemini, OpenAI, Anthropic, Qwen, and MiniMax.
+* Added dynamic model and thinking level selection.
+* Added optional JSON configuration file support (`config.example.json`).
+* Added persistent storage for settings and state.
+
+#### Bugfixes
+* Omitted unsupported `presence_penalty` parameter for the Gemini provider.
+* Removed fixed `max-height` on the frontend tasks container.
+
+#### Changes
+* Refactored action execution to a registry-based executor with a compact JSON action format to reduce token usage while keeping human-readable logs and UI updates.
+* Preferred X11/EWMH API for window detection and hardened the visual fallback.
+* Updated Go, npm, and Docker dependencies.
+* Cleaned up `README.md` and moved release notes into `CHANGELOG.md`.
+
 ### v0.0.3
 * User-assist feature works.
 * Faster task cancellation.
