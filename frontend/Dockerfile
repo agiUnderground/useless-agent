@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 # Build stage
 FROM node:26-alpine AS builder
 
@@ -6,8 +8,9 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies with BuildKit npm cache
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
 
 # Copy source code
 COPY . .

@@ -11,10 +11,12 @@
 #### Bugfixes
 * Omitted unsupported `presence_penalty` parameter for the Gemini provider.
 * Removed fixed `max-height` on the frontend tasks container.
+* Cleaned up stale `/tmp/.X2-lock` and `/tmp/.X11-unix/X2` files on container startup so `Xvfb` restarts reliably.
 
 #### Changes
 * Refactored action execution to a registry-based executor with a compact JSON action format to reduce token usage while keeping human-readable logs and UI updates.
 * Preferred X11/EWMH API for window detection and hardened the visual fallback.
+* Optimized Docker builds with multi-stage parallel backend builds, BuildKit cache mounts (`apt`, Go/CGO, `npm`), fixed Go module layer caching, and added `frontend/.dockerignore`.
 * Updated Go, npm, and Docker dependencies.
 * Cleaned up `README.md` and moved release notes into `CHANGELOG.md`.
 
