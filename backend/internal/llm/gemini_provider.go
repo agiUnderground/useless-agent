@@ -94,10 +94,7 @@ func (c *GeminiClient) CreateChatCompletion(ctx context.Context, req *ChatComple
 		MaxTokens:   openai.Int(int64(req.MaxTokens)),
 	}
 
-	if req.PresencePenalty != 0 {
-		oaiReq.PresencePenalty = openai.Float(req.PresencePenalty)
-	}
-
+	// Note: Gemini's OpenAI-compatible endpoint does not support presence_penalty on many models.
 	resp, err := c.client.Chat.Completions.New(ctx, oaiReq)
 	if err != nil {
 		return nil, err
@@ -138,10 +135,7 @@ func (c *GeminiClient) CreateChatCompletionStream(ctx context.Context, req *Chat
 		MaxTokens:   openai.Int(int64(req.MaxTokens)),
 	}
 
-	if req.PresencePenalty != 0 {
-		oaiReq.PresencePenalty = openai.Float(req.PresencePenalty)
-	}
-
+	// Note: Gemini's OpenAI-compatible endpoint does not support presence_penalty on many models.
 	stream := c.client.Chat.Completions.NewStreaming(ctx, oaiReq)
 	if stream == nil {
 		return nil, errors.New("failed to create streaming chat completion: stream is nil")
