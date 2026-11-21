@@ -3,7 +3,6 @@ package task
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"image"
 	"image/draw"
 	"log"
@@ -328,30 +327,19 @@ func ExecuteTask(task *Task) {
 				log.Println("successfully sent a message to LLM. Iteration:", iteration)
 			}
 
-			for i, action := range actions {
+			actionExecutor := actionpkg.DefaultExecutor()
+			execCtx := &actionpkg.ExecutionContext{
+				Actions:  actions,
+				Executor: actionExecutor,
+			}
+
+			for i, act := range actions {
 				// Send action update
-				UpdateAction(task.ID, subtask.Id, i, action)
+				UpdateAction(task.ID, subtask.Id, i, act)
 
-				// Send action update to execution engine
-				actionData := map[string]interface{}{
-					"actionId":    i,
-					"action":      action.Action,
-					"description": action.Description,
-				}
-
-				// Add action-specific parameters
-				if action.Coordinates.X != 0 || action.Coordinates.Y != 0 {
-					actionData["coordinates"] = action.Coordinates
-				}
-				if action.InputString != "" {
-					actionData["inputString"] = action.InputString
-				}
-				if action.KeyTapString != "" {
-					actionData["keyTapString"] = action.KeyTapString
-				}
-				if action.Duration != 0 {
-					actionData["duration"] = action.Duration
-				}
+				// Send verbose action update to execution engine
+				actionData := actionpkg.ToVerboseMap(act)
+				actionData["actionId"] = i
 
 				BroadcastExecutionEngineUpdate("actionUpdate", map[string]interface{}{
 					"taskId":      task.ID,
@@ -369,42 +357,18 @@ func ExecuteTask(task *Task) {
 					// Continue with action execution
 				}
 
-				// Debug: Log action details before execution
-				log.Printf("Preparing to execute action %d: %s", i, actions[i].Action)
-				log.Printf("Action details: %+v", actions[i])
-
-				setExecuteFunction(&actions[i])
+				log.Printf("Preparing to execute action %d: %s", i, actionpkg.FormatVerbose(act))
 				time.Sleep(100 * time.Millisecond)
 
-				// Check if Execute function is set
-				if actions[i].Execute == nil {
-					log.Printf("ERROR: Execute function is nil for action %d: %s", i, actions[i].Action)
-					continue
+				execCtx.Index = i
+				res, execErr := actionExecutor.Execute(execCtx, &actions[i])
+				if execErr != nil {
+					log.Printf("Error executing action %s: %v", actionpkg.FormatVerbose(act), execErr)
 				}
-
-				if actions[i].Action == "stopIteration" {
-					log.Printf("Executing stopIteration action")
-					actions[i].Execute(&actions[i])
-					// break SubTaskLoop
-					// stop executing actions but don't break a SubTaskLoop, because task completion needs to be verified.
+				if res.StopIteration {
+					// Stop executing actions but don't break SubTaskLoop, because task completion needs to be verified.
 					break
 				}
-				//if actions[i].Action == "stateUpdate" {
-				//	log.Printf("Executing stateUpdate action")
-				//	actions[i].Execute(&actions[i])
-				//	time.Sleep(1 * time.Second)
-				//	break
-				//}
-				if actions[i].Action == "repeat" {
-					log.Printf("Executing repeat action")
-					actions[i].Execute(&actions[i], &actions)
-					fmt.Println()
-					continue
-				}
-
-				log.Printf("Executing regular action: %s", actions[i].Action)
-				actions[i].Execute(&actions[i])
-				fmt.Println()
 			}
 
 			// Check for task cancellation before second screenshot
@@ -718,30 +682,7 @@ func boundingBoxArrayToJSONString(bbArray []imagepkg.BoundingBox) string {
 }
 
 func sendMessageToLLM(ctx context.Context, prompt string, bboxes string, ocrContext string, ocrDelta string, prevExecutedCommands string, iteration int64, prevCursorPosJSONString string, allWindowsJSONString string, x11WindowsData string, colorsDistribution string) ([]actionpkg.Action, string, error) {
-	llmActions, actionsJSONString, err := llm.SendMessageToLLM(ctx, prompt, bboxes, ocrContext, ocrDelta, prevExecutedCommands, iteration, prevCursorPosJSONString, allWindowsJSONString, x11WindowsData, colorsDistribution)
-	if err != nil {
-		return nil, "", err
-	}
-
-	// Convert llm.Action to actionpkg.Action
-	result := make([]actionpkg.Action, len(llmActions))
-	for i, llmAction := range llmActions {
-		// Create an actionpkg.Action with the same data
-		result[i] = actionpkg.Action{
-			Action:           llmAction.Action,
-			ActionSequenceID: llmAction.ActionSequenceID,
-			Coordinates:      llmAction.Coordinates,
-			Duration:         llmAction.Duration,
-			InputString:      llmAction.InputString,
-			KeyTapString:     llmAction.KeyTapString,
-			KeyString:        llmAction.KeyString,
-			ActionsRange:     llmAction.ActionsRange,
-			RepeatTimes:      llmAction.RepeatTimes,
-			Description:      llmAction.Description,
-		}
-	}
-
-	return result, actionsJSONString, nil
+	return llm.SendMessageToLLM(ctx, prompt, bboxes, ocrContext, ocrDelta, prevExecutedCommands, iteration, prevCursorPosJSONString, allWindowsJSONString, x11WindowsData, colorsDistribution)
 }
 
 func getOCRDeltaAbstractDescription(ocrDelta string) (string, error) {
@@ -750,15 +691,6 @@ func getOCRDeltaAbstractDescription(ocrDelta string) (string, error) {
 
 func isGoalAchieved(goal string, bboxes string, ocrJSONString string, ocrDelta string, ocrDeltaAbstract string, prevActionsJSONString string, iteration int64, prevCursorPositionJSONString string, allWindowsJSONString string, currentCursorPosition string, ocrDataNearTheCursor string, colorsDistributionBeforeAction string, colorsDistribution string) (bool, string, string) {
 	return llm.IsGoalAchieved(goal, bboxes, ocrJSONString, ocrDelta, ocrDeltaAbstract, prevActionsJSONString, iteration, prevCursorPositionJSONString, allWindowsJSONString, currentCursorPosition, ocrDataNearTheCursor, colorsDistributionBeforeAction, colorsDistribution, token.AddTokensAndSendUpdate)
-}
-
-func setExecuteFunction(action *actionpkg.Action) {
-	// Add debugging to see what we're working with
-	log.Printf("setExecuteFunction called for action: %s", action.Action)
-	log.Printf("Coordinates: %+v", action.Coordinates)
-
-	// Set the execute function using the action package
-	actionpkg.SetExecuteFunction(action)
 }
 
 func max(a, b int) int {

@@ -390,35 +390,18 @@ func GetExecutionState() *ExecutionState {
 
 // UpdateSubtask sends a subtask update via WebSocket
 func UpdateSubtask(taskID string, subtaskID int, description string, isActive bool, actions []actionpkg.Action) {
-	// Convert actions to a more serializable format
+	// Convert compact actions to verbose maps for the UI
 	serializableActions := make([]interface{}, len(actions))
-	for i, action := range actions {
-		serializableActions[i] = action
+	for i, act := range actions {
+		serializableActions[i] = actionpkg.ToVerboseMap(act)
 	}
 
 	websocket.SendSubtaskUpdate(taskID, subtaskID, description, isActive, serializableActions)
 }
 
 // UpdateAction sends an action update via WebSocket
-func UpdateAction(taskID string, subtaskID int, actionIndex int, action actionpkg.Action) {
-	// Convert action to a more serializable format
-	var serializableAction map[string]interface{}
-
-	serializableAction = map[string]interface{}{
-		"action":           action.Action,
-		"actionSequenceId": action.ActionSequenceID,
-		"coordinates":      action.Coordinates,
-		"duration":         action.Duration,
-		"inputString":      action.InputString,
-		"keyTapString":     action.KeyTapString,
-		"keyString":        action.KeyString,
-		"actionsRange":     action.ActionsRange,
-		"repeatTimes":      action.RepeatTimes,
-		"parameters":       action.Parameters,
-		"description":      action.Description,
-	}
-
-	websocket.SendActionUpdate(taskID, subtaskID, actionIndex, serializableAction)
+func UpdateAction(taskID string, subtaskID int, actionIndex int, act actionpkg.Action) {
+	websocket.SendActionUpdate(taskID, subtaskID, actionIndex, actionpkg.ToVerboseMap(act))
 }
 
 // BroadcastExecutionEngineUpdate broadcasts execution engine updates via WebSocket
