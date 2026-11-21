@@ -36,6 +36,10 @@ func defaultModelForProvider(provider string) (string, error) {
 		return "gpt-6.2-sol", nil
 	case "anthropic":
 		return "claude-sonnet-5-5", nil
+	case "qwen":
+		return "qwen4-max", nil
+	case "minimax":
+		return "MiniMax-M3.1-Flash", nil
 	default:
 		return "", fmt.Errorf("unknown LLM provider: %s", provider)
 	}
@@ -61,6 +65,8 @@ func InitializeLLM() error {
 	providerRegistry["gemini"] = NewGeminiProvider()
 	providerRegistry["openai"] = NewOpenAIProvider()
 	providerRegistry["anthropic"] = NewAnthropicProvider()
+	providerRegistry["qwen"] = NewQwenProvider()
+	providerRegistry["minimax"] = NewMiniMaxProvider()
 
 	// Get configuration
 	cfg := config.GetLLMConfig()
@@ -94,6 +100,10 @@ func InitializeLLM() error {
 			baseURL = "https://api.openai.com/v1"
 		case "anthropic":
 			baseURL = "https://api.anthropic.com/v1/"
+		case "qwen":
+			baseURL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+		case "minimax":
+			baseURL = "https://api.minimax.io/v1"
 		}
 	}
 

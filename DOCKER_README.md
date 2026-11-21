@@ -6,7 +6,7 @@ This document explains how to build and run the useless-agent application using 
 
 - Docker installed on your system
 - Docker Compose (optional, but recommended)
-- An API key for your preferred LLM provider (DeepSeek, Z.AI, Google Gemini, OpenAI, or Anthropic)
+- An API key for your preferred LLM provider (DeepSeek, Z.AI, Google Gemini, OpenAI, Anthropic, Qwen.AI, or MiniMax)
 
 ## Building the Docker Image
 
@@ -51,10 +51,10 @@ The container can be configured using the following environment variables:
 
 ### LLM Provider Configuration
 
-- `PROVIDER`: The LLM provider to use (`deepseek`, `zai`, `gemini`, `openai`, or `anthropic`)
+- `PROVIDER`: The LLM provider to use (`deepseek`, `zai`, `gemini`, `openai`, `anthropic`, `qwen`, or `minimax`)
 - `BASE_URL`: The API base URL for your provider
 - `API_KEY`: Your API key for the provider
-- `MODEL`: The model to use (e.g., `deepseek-flash`, `glm-5.3-flash`, `gemini-4-neon`, `gpt-6.2-sol`, `claude-sonnet-5-5`)
+- `MODEL`: The model to use (e.g., `deepseek-flash`, `glm-5.3-flash`, `gemini-4-neon`, `gpt-6.2-sol`, `claude-sonnet-5-5`, `qwen4-max`, `MiniMax-M3.1-Flash`)
 
 ### Server Configuration
 
@@ -152,6 +152,32 @@ docker run -d \
   -e BASE_URL=https://api.anthropic.com/v1/ \
   -e API_KEY=your_anthropic_api_key \
   -e MODEL=claude-sonnet-5-5 \
+  useless-agent
+```
+
+### Using Qwen.AI
+
+```bash
+docker run -d \
+  --name useless-agent-server \
+  -p 8080:8080 \
+  -e PROVIDER=qwen \
+  -e BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1 \
+  -e API_KEY=your_qwen_api_key \
+  -e MODEL=qwen4-max \
+  useless-agent
+```
+
+### Using MiniMax
+
+```bash
+docker run -d \
+  --name useless-agent-server \
+  -p 8080:8080 \
+  -e PROVIDER=minimax \
+  -e BASE_URL=https://api.minimax.io/v1 \
+  -e API_KEY=your_minimax_api_key \
+  -e MODEL=MiniMax-M3.1-Flash \
   useless-agent
 ```
 

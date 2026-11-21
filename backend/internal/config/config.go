@@ -20,7 +20,7 @@ var (
 	Wonb     = flag.Bool("whiteonblack", false, "white text on a black background")
 
 	// LLM Configuration
-	Provider = flag.String("provider", "deepseek", "LLM provider to use (deepseek, zai, gemini, openai, anthropic)")
+	Provider = flag.String("provider", "deepseek", "LLM provider to use (deepseek, zai, gemini, openai, anthropic, qwen, minimax)")
 	APIKey   = flag.String("key", "", "LLM API key")
 	Model    = flag.String("model", "", "LLM model name")
 	BaseURL  = flag.String("base-url", "", "LLM base URL (optional, uses provider default if not specified)")
