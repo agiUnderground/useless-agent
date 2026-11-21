@@ -32,6 +32,10 @@ func defaultModelForProvider(provider string) (string, error) {
 		return "glm-5.3", nil
 	case "gemini":
 		return "gemini-4-neon", nil
+	case "openai":
+		return "gpt-6.2-sol", nil
+	case "anthropic":
+		return "claude-sonnet-5-5", nil
 	default:
 		return "", fmt.Errorf("unknown LLM provider: %s", provider)
 	}
@@ -55,6 +59,8 @@ func InitializeLLM() error {
 	providerRegistry["deepseek"] = NewDeepSeekProvider()
 	providerRegistry["zai"] = NewZAIProvider()
 	providerRegistry["gemini"] = NewGeminiProvider()
+	providerRegistry["openai"] = NewOpenAIProvider()
+	providerRegistry["anthropic"] = NewAnthropicProvider()
 
 	// Get configuration
 	cfg := config.GetLLMConfig()
@@ -84,6 +90,10 @@ func InitializeLLM() error {
 			baseURL = "https://api.z.ai/api/paas/v4"
 		case "gemini":
 			baseURL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+		case "openai":
+			baseURL = "https://api.openai.com/v1"
+		case "anthropic":
+			baseURL = "https://api.anthropic.com/v1/"
 		}
 	}
 

@@ -29,11 +29,15 @@ Currently supported llm providers:
 * `DeepSeek` (`deepseek`)
 * `Z.AI` (`zai`)
 * `Google Gemini` (`gemini`)
+* `OpenAI` (`openai`)
+* `Anthropic` (`anthropic`)
 
 Currently supported models:
 * DeepSeek: `deepseek-flash`, `deepseek-v4-pro`
 * Z.AI: `glm-5.3`, `glm-5.3-flash`, `glm-5.3-flashx`, `glm-5.2`, `glm-4.7-flash`
 * Google Gemini: `gemini-4-carbon`, `gemini-4-neon`, `gemini-4-hydrogen`, `gemini-4-argon`
+* OpenAI: `gpt-6.2-astra`, `gpt-6.2-sol`, `gpt-6.1-terra`, `gpt-6-luna`
+* Anthropic: `claude-fable-5-2`, `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`
 
 **Environment**: Only works on - `Linux + xfce + X11`.  
 
@@ -128,6 +132,8 @@ ssh -p 22 -fN -o IPQoS=ef USERNAME@REMOTE-HOST-PUBLIC-IP -L 127.0.0.1:8080:127.0
 ./useless-agent --provider=deepseek --base-url="https://api.deepseek.com/v1" --key=YOUR-API-KEY --model='deepseek-flash' --display=:1 --ip=127.0.0.1 --port=8080
 ./useless-agent --provider=zai --base-url="https://api.z.ai/api/paas/v4" --key="YOUR-API-KEY" --model='glm-5.3-flash' --display=:1 --ip=127.0.0.1 --port=8080
 ./useless-agent --provider=gemini --base-url="https://generativelanguage.googleapis.com/v1beta/openai/" --key="YOUR-API-KEY" --model='gemini-4-neon' --display=:1 --ip=127.0.0.1 --port=8080
+./useless-agent --provider=openai --base-url="https://api.openai.com/v1" --key="YOUR-API-KEY" --model='gpt-6.2-sol' --display=:1 --ip=127.0.0.1 --port=8080
+./useless-agent --provider=anthropic --base-url="https://api.anthropic.com/v1/" --key="YOUR-API-KEY" --model='claude-sonnet-5-5' --display=:1 --ip=127.0.0.1 --port=8080
 ```
 `On client machine open main.html in the browser.`
 
