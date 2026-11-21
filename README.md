@@ -45,6 +45,16 @@ Currently supported models:
 
 **Environment**: Only works on - `Linux + xfce + X11`.  
 
+# Donations 
+
+Support the project.
+All tokens will be converted into LLM tokens.
+* Bitcoin Native Segwit `bc1q776stw2zg92yfuugtn82wmfxtfe69kyewgz2ne`
+* Ethereum `0x435d6c084df6Ad32371A59B994ACC11ab71Bc5Ed`
+* Solana `Hp1fPB1k551sNAhHzU2o18w54mQYSncC8wBWMLW868Y6`
+* BNB Chain `0x435d6c084df6Ad32371A59B994ACC11ab71Bc5Ed`
+* Bitcoin Taproot `bc1pua843feaphhlm6rsgrpynz235e3lg8nsqznwg00nfn5nt4fc5haqce725q`
+
 # Features
 
 ![](/assets/img/multi-session-feature.png)
@@ -146,5 +156,5 @@ CLI flags (`--provider`, `--key`, `--model`, `--base-url`) remain supported and 
 
 **Problems & Ideas:**  
 * LLMs' context window/input size is so limiting; I want to shuffle in 100M million tokens at each iteration.  
-* How to do reliable OCR? Don’t do it at all. The idea was to find a single point where Linux renders fonts for the whole system and intercept it, to set something like an eBPF hook and get all text for free. `Turns out there is no single point of font rendering in Linux!` Each X11 client app is allowed to render fonts itself. Nice.  
-* How hard could it be to write a single function to recognize windows? They have unified patterns, right? `Wrong. Each window is allowed to draw its own header however they like.` I’m looking at you, Firefox. Nice.  
+* How to do reliable OCR? Don’t do it at all. The idea was to find a single point where Linux renders fonts for the whole system and intercept it, to set something like an eBPF hook and get all text for free. `Turns out there is no single point of font rendering in Linux!` Each X11 client app is allowed to render fonts itself.  
+* How hard could it be to write a single function to recognize windows? They have unified patterns, right? `Wrong. Each window is allowed to draw its own header however they like.` I’m looking at you, Firefox. 
