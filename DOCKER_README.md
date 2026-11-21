@@ -6,7 +6,7 @@ This document explains how to build and run the useless-agent application using 
 
 - Docker installed on your system
 - Docker Compose (optional, but recommended)
-- An API key for your preferred LLM provider (DeepSeek or Z.AI)
+- An API key for your preferred LLM provider (DeepSeek, Z.AI, or Google Gemini)
 
 ## Building the Docker Image
 
@@ -38,7 +38,7 @@ This document explains how to build and run the useless-agent application using 
      -e PROVIDER=deepseek \
      -e BASE_URL=https://api.deepseek.com/v1 \
      -e API_KEY=your_actual_api_key_here \
-     -e MODEL=deepseek-chat \
+     -e MODEL=deepseek-flash \
      -e IP=0.0.0.0 \
      -e PORT=8080 \
      -e DISPLAY=:1 \
@@ -51,10 +51,10 @@ The container can be configured using the following environment variables:
 
 ### LLM Provider Configuration
 
-- `PROVIDER`: The LLM provider to use (`deepseek` or `zai`)
+- `PROVIDER`: The LLM provider to use (`deepseek`, `zai`, or `gemini`)
 - `BASE_URL`: The API base URL for your provider
 - `API_KEY`: Your API key for the provider
-- `MODEL`: The model to use (e.g., `deepseek-chat`, `glm-4.5-air`)
+- `MODEL`: The model to use (e.g., `deepseek-flash`, `glm-5.3-flash`, `gemini-4-neon`)
 
 ### Server Configuration
 
@@ -99,7 +99,7 @@ docker run -d \
   -e PROVIDER=deepseek \
   -e BASE_URL=https://api.deepseek.com/v1 \
   -e API_KEY=your_deepseek_api_key \
-  -e MODEL=deepseek-chat \
+  -e MODEL=deepseek-flash \
   useless-agent
 ```
 
@@ -112,7 +112,20 @@ docker run -d \
   -e PROVIDER=zai \
   -e BASE_URL=https://api.z.ai/api/paas/v4 \
   -e API_KEY=your_zai_api_key \
-  -e MODEL=glm-4.5-air \
+  -e MODEL=glm-5.3-flash \
+  useless-agent
+```
+
+### Using Google Gemini
+
+```bash
+docker run -d \
+  --name useless-agent-server \
+  -p 8080:8080 \
+  -e PROVIDER=gemini \
+  -e BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/ \
+  -e API_KEY=your_gemini_api_key \
+  -e MODEL=gemini-4-neon \
   useless-agent
 ```
 

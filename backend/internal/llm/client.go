@@ -23,6 +23,29 @@ var (
 	providerRegistry map[string]Provider
 )
 
+// defaultModelForProvider returns the default model ID for the given provider
+func defaultModelForProvider(provider string) (string, error) {
+	switch provider {
+	case "deepseek":
+		return "deepseek-flash", nil
+	case "zai":
+		return "glm-5.3", nil
+	case "gemini":
+		return "gemini-4-neon", nil
+	default:
+		return "", fmt.Errorf("unknown LLM provider: %s", provider)
+	}
+}
+
+// resolveModel returns the configured model or the provider's default model
+func resolveModel(cfg config.LLMConfig) string {
+	if cfg.Model != "" {
+		return cfg.Model
+	}
+	model, _ := defaultModelForProvider(cfg.Provider)
+	return model
+}
+
 // InitializeLLM initializes the LLM system with the configured provider
 func InitializeLLM() error {
 	// Initialize provider registry
@@ -31,6 +54,7 @@ func InitializeLLM() error {
 	// Register available providers
 	providerRegistry["deepseek"] = NewDeepSeekProvider()
 	providerRegistry["zai"] = NewZAIProvider()
+	providerRegistry["gemini"] = NewGeminiProvider()
 
 	// Get configuration
 	cfg := config.GetLLMConfig()
@@ -43,13 +67,10 @@ func InitializeLLM() error {
 	// Set default model if not specified
 	model := cfg.Model
 	if model == "" {
-		switch cfg.Provider {
-		case "deepseek":
-			model = "deepseek-chat"
-		case "zai":
-			model = "glm-4.6"
-		default:
-			return fmt.Errorf("unknown LLM provider: %s", cfg.Provider)
+		var err error
+		model, err = defaultModelForProvider(cfg.Provider)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -61,6 +82,8 @@ func InitializeLLM() error {
 			baseURL = "https://api.deepseek.com/v1"
 		case "zai":
 			baseURL = "https://api.z.ai/api/paas/v4"
+		case "gemini":
+			baseURL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 		}
 	}
 
@@ -128,15 +151,7 @@ func SendMessageToLLM(ctx context.Context, prompt string, bboxes string, ocrCont
 
 	// Get configuration for model
 	cfg := config.GetLLMConfig()
-	model := cfg.Model
-	if model == "" {
-		switch cfg.Provider {
-		case "deepseek":
-			model = "deepseek-chat"
-		case "zai":
-			model = "glm-4.6"
-		}
-	}
+	model := resolveModel(cfg)
 
 	// Create messages using our generic types
 	messages := []Message{

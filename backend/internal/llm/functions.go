@@ -106,15 +106,7 @@ func GetOCRDeltaAbstractDescription(ocrDelta string, addTokensAndSendUpdate func
 
 	// Get configuration for model
 	cfg := config.GetLLMConfig()
-	model := cfg.Model
-	if model == "" {
-		switch cfg.Provider {
-		case "deepseek":
-			model = "deepseek-chat"
-		case "zai":
-			model = "glm-4.6"
-		}
-	}
+	model := resolveModel(cfg)
 
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
@@ -168,15 +160,7 @@ func BreakGoalIntoSubtasks(goal string, addTokensAndSendUpdate func(int)) ([]Sub
 
 	// Get configuration for model
 	cfg := config.GetLLMConfig()
-	model := cfg.Model
-	if model == "" {
-		switch cfg.Provider {
-		case "deepseek":
-			model = "deepseek-chat"
-		case "zai":
-			model = "glm-4.6"
-		}
-	}
+	model := resolveModel(cfg)
 
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
@@ -276,15 +260,7 @@ func IsGoalAchieved(goal string, bboxes string, ocrJSONString string, ocrDelta s
 
 	// Get configuration for model
 	cfg := config.GetLLMConfig()
-	model := cfg.Model
-	if model == "" {
-		switch cfg.Provider {
-		case "deepseek":
-			model = "deepseek-chat"
-		case "zai":
-			model = "glm-4.6"
-		}
-	}
+	model := resolveModel(cfg)
 
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
