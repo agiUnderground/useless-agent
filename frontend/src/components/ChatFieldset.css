@@ -3,7 +3,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-height: 350px;
   height: 100%;
 }
 
@@ -130,9 +130,9 @@
   border-radius: 10px;
   animation: badgePulse 2s ease-in-out infinite;
   position: absolute;
-  top: 0px;
+  top: -10px;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   z-index: 10;
 }
 
@@ -169,4 +169,194 @@
 .chat-fieldset.shrunk {
   flex: 1 !important;
   transition: flex 0.3s ease;
+}
+
+/* Model selector positioned below Settings and Session */
+.model-selector-wrapper {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+  z-index: 30;
+}
+
+.model-selector-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background-color: var(--primary-bg, #1e1e1e);
+  color: #bbb;
+  border: 1px solid var(--border-color, #444);
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+  max-width: 170px;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.model-selector-button:hover {
+  color: #fff;
+  border-color: #777;
+}
+
+.model-selector-button:focus {
+  outline: none;
+}
+
+.model-selector-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-selector-caret {
+  font-size: 8px;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.model-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  width: 240px;
+  background-color: var(--primary-bg, #1e1e1e);
+  border: 1px solid var(--border-color, #444);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 50;
+}
+
+.model-dropdown-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.model-thinking-bar {
+  border-top: 1px solid var(--border-color, #444);
+  background-color: rgba(255, 255, 255, 0.03);
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.model-thinking-label {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.model-thinking-buttons {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.model-thinking-btn {
+  flex: 1;
+  min-width: 40px;
+  background: transparent;
+  border: 1px solid var(--border-color, #444);
+  border-radius: 3px;
+  color: #aaa;
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 2px 5px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.model-thinking-btn:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.model-thinking-btn.active {
+  background-color: rgba(76, 175, 80, 0.2);
+  border-color: rgba(76, 175, 80, 0.7);
+  color: #fff;
+}
+
+.model-dropdown-empty {
+  font-size: 10px;
+  color: #777;
+  padding: 8px;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.model-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 5px 7px;
+  color: #ddd;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.model-dropdown-item:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.model-dropdown-item.selected {
+  background-color: rgba(76, 175, 80, 0.16);
+  border-color: rgba(76, 175, 80, 0.5);
+  color: #fff;
+}
+
+.model-dropdown-item.no-creds,
+.model-dropdown-item:disabled {
+  color: #666;
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.model-item-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.model-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-item-provider {
+  font-size: 8px;
+  color: #777;
+}
+
+.model-no-creds-badge {
+  font-size: 8px;
+  color: #888;
+  border: 1px solid #555;
+  border-radius: 3px;
+  padding: 1px 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }

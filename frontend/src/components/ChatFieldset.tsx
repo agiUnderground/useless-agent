@@ -1,10 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './ChatFieldset.css';
 
+interface ModelOption {
+  id: string;
+  provider: string;
+  hasCredentials: boolean;
+  thinkingLevels?: string[];
+  defaultThinkingLevel?: string;
+}
+
 interface Task {
   id: string;
   status: string;
   message: string;
+  model?: string;
   sessionId?: string;
   sessionIp?: string; // Store the IP directly to preserve session info
   sequenceNumber?: number;
@@ -26,6 +35,11 @@ interface ChatFieldsetProps {
   tasks?: Task[];
   onActivateUserAssist?: (taskId: string, event?: React.MouseEvent) => void;
   onDeactivateUserAssist?: () => void;
+  availableModels?: ModelOption[];
+  selectedModel?: string;
+  onSelectModel?: (modelId: string, provider: string) => void;
+  selectedThinkingLevel?: string;
+  onSelectThinkingLevel?: (level: string) => void;
 }
 
 const ChatFieldset: React.FC<ChatFieldsetProps> = ({
@@ -38,10 +52,38 @@ const ChatFieldset: React.FC<ChatFieldsetProps> = ({
   selectedSessionId,
   tasks = [],
   onActivateUserAssist,
-  onDeactivateUserAssist
+  onDeactivateUserAssist,
+  availableModels = [],
+  selectedModel = '',
+  onSelectModel,
+  selectedThinkingLevel = '',
+  onSelectThinkingLevel
 }) => {
   const [message, setMessage] = useState('');
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const modelSelectorRef = useRef<HTMLDivElement>(null);
+
+  // Close model dropdown when clicking outside or pressing Escape
+  useEffect(() => {
+    if (!modelMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (modelSelectorRef.current && !modelSelectorRef.current.contains(e.target as Node)) {
+        setModelMenuOpen(false);
+      }
+    };
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setModelMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEsc);
+    };
+  }, [modelMenuOpen]);
 
   // Handle message submission
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -169,7 +211,113 @@ const ChatFieldset: React.FC<ChatFieldsetProps> = ({
           Session: <span id="selectedIpText">{selectedSessionIp}</span>
         </div>
       </div>
-      
+
+      {/* Model selector positioned below Settings and Session */}
+      <div className="model-selector-wrapper" ref={modelSelectorRef}>
+        {(() => {
+          const currentModelObj = availableModels.find(m => m.id === selectedModel);
+          const thinkingLevels = currentModelObj?.thinkingLevels || [];
+          const activeThinkingLevel =
+            selectedThinkingLevel ||
+            currentModelObj?.defaultThinkingLevel ||
+            thinkingLevels[0] ||
+            '';
+
+          return (
+            <>
+              <button
+                type="button"
+                className="model-selector-button"
+                id="modelSelectorBtn"
+                onClick={() => setModelMenuOpen(prev => !prev)}
+                title={
+                  selectedModel
+                    ? `Selected model: ${selectedModel}${activeThinkingLevel ? ` (${activeThinkingLevel})` : ''}`
+                    : 'Select model'
+                }
+              >
+                <span className="model-selector-label">
+                  {selectedModel
+                    ? `${selectedModel}${activeThinkingLevel ? ` · ${activeThinkingLevel}` : ''}`
+                    : 'Model'}
+                </span>
+                <span className="model-selector-caret">{modelMenuOpen ? '▲' : '▼'}</span>
+              </button>
+
+              {modelMenuOpen && (
+                <div className="model-dropdown-menu" role="listbox" aria-label="Available models">
+                  <div className="model-dropdown-list">
+                    {availableModels.length === 0 ? (
+                      <div className="model-dropdown-empty">No models available</div>
+                    ) : (
+                      [...availableModels]
+                        .sort((a, b) => Number(b.hasCredentials) - Number(a.hasCredentials))
+                        .map(m => {
+                          const isSelected = m.id === selectedModel;
+                          return (
+                            <button
+                              key={`${m.provider}:${m.id}`}
+                              type="button"
+                              role="option"
+                              aria-selected={isSelected}
+                              disabled={!m.hasCredentials}
+                              className={`model-dropdown-item ${isSelected ? 'selected' : ''} ${!m.hasCredentials ? 'no-creds' : ''}`}
+                              title={
+                                m.hasCredentials
+                                  ? `${m.provider} / ${m.id}`
+                                  : `No API credentials configured for ${m.provider}`
+                              }
+                              onClick={() => {
+                                if (!m.hasCredentials) return;
+                                if (onSelectModel) {
+                                  onSelectModel(m.id, m.provider);
+                                }
+                                if (!m.thinkingLevels || m.thinkingLevels.length === 0) {
+                                  setModelMenuOpen(false);
+                                }
+                              }}
+                            >
+                              <span className="model-item-main">
+                                <span className="model-item-name">{m.id}</span>
+                                <span className="model-item-provider">{m.provider}</span>
+                              </span>
+                              {!m.hasCredentials && (
+                                <span className="model-no-creds-badge">no creds</span>
+                              )}
+                            </button>
+                          );
+                        })
+                    )}
+                  </div>
+
+                  {thinkingLevels.length > 0 && (
+                    <div className="model-thinking-bar">
+                      <span className="model-thinking-label">Thinking</span>
+                      <div className="model-thinking-buttons">
+                        {thinkingLevels.map(level => (
+                          <button
+                            key={level}
+                            type="button"
+                            className={`model-thinking-btn ${activeThinkingLevel === level ? 'active' : ''}`}
+                            onClick={() => {
+                              if (onSelectThinkingLevel) {
+                                onSelectThinkingLevel(level);
+                              }
+                              setModelMenuOpen(false);
+                            }}
+                          >
+                            {level}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          );
+        })()}
+      </div>
       
       {/* Message textarea */}
       <textarea

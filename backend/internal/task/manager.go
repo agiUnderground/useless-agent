@@ -33,7 +33,7 @@ var (
 )
 
 // CreateTask creates a new task
-func CreateTask(message string) *Task {
+func CreateTask(message, provider, model, thinkingLevel, sessionID string) *Task {
 	taskMutex.Lock()
 	defer taskMutex.Unlock()
 
@@ -44,12 +44,16 @@ func CreateTask(message string) *Task {
 	ctx, cancelFunc := CreateContext()
 
 	task := &Task{
-		ID:         taskID,
-		Status:     "in-the-queue", // Tasks start in queue
-		Message:    message,
-		CreatedAt:  time.Now(),
-		Context:    ctx,
-		CancelFunc: cancelFunc,
+		ID:            taskID,
+		Status:        "in-the-queue", // Tasks start in queue
+		Message:       message,
+		Provider:      provider,
+		Model:         model,
+		ThinkingLevel: thinkingLevel,
+		SessionID:     sessionID,
+		CreatedAt:     time.Now(),
+		Context:       ctx,
+		CancelFunc:    cancelFunc,
 	}
 
 	tasks[taskID] = task
@@ -59,6 +63,7 @@ func CreateTask(message string) *Task {
 		"taskId":  taskID,
 		"status":  task.Status,
 		"message": task.Message,
+		"model":   task.Model,
 	})
 
 	return task
@@ -285,7 +290,7 @@ func CreateContext() (context.Context, context.CancelFunc) {
 
 // SendTaskUpdate sends a task update via WebSocket
 func SendTaskUpdate(task *Task) {
-	websocket.SendTaskUpdate(task.ID, task.Status, task.Message)
+	websocket.SendTaskUpdate(task.ID, task.Status, task.Message, task.Model)
 }
 
 // AddUserAssistMessage adds a user-assist message for a task

@@ -1,0 +1,5 @@
+# Never bake runtime data or real credentials into the backend image
+data/
+config.json
+*.local.json
+*.log

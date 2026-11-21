@@ -65,6 +65,7 @@ type ChatCompletionRequest struct {
 	Messages        []Message `json:"messages"`
 	Stream          bool      `json:"stream,omitempty"`
 	JSONMode        bool      `json:"json_mode,omitempty"`
+	ThinkingLevel   string    `json:"thinking_level,omitempty"`
 }
 
 // ChatCompletionResponse represents a chat completion response

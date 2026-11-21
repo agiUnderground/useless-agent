@@ -7,8 +7,6 @@ import (
 	"log"
 	"strconv"
 	"strings"
-
-	"useless-agent/internal/config"
 )
 
 // SubTask represents a subtask in the goal breakdown (local copy to avoid import cycle)
@@ -25,12 +23,12 @@ type Verdict struct {
 }
 
 // GetOCRDeltaAbstractDescription gets an abstract description of OCR changes
-func GetOCRDeltaAbstractDescription(ocrDelta string, addTokensAndSendUpdate func(int)) (abstractDescription string, err error) {
-	// Get LLM client
-	client := GetLLMClient()
-	if client == nil {
-		log.Printf("LLM client not initialized")
-		return "", fmt.Errorf("LLM client not initialized")
+func GetOCRDeltaAbstractDescription(providerName, modelName, thinkingLevel, ocrDelta string, addTokensAndSendUpdate func(int)) (abstractDescription string, err error) {
+	// Get LLM client for the task's provider/model
+	client, model, err := GetClientFor(providerName, modelName)
+	if err != nil {
+		log.Printf("LLM client not available (%s/%s): %v", providerName, modelName, err)
+		return "", err
 	}
 
 	messages := []Message{
@@ -104,19 +102,16 @@ func GetOCRDeltaAbstractDescription(ocrDelta string, addTokensAndSendUpdate func
 	fmt.Printf("Estimated total tokens[getOCRDeltaAbstractDescription][input]: %d\n", estimate.EstimatedTokens)
 	addTokensAndSendUpdate(estimate.EstimatedTokens)
 
-	// Get configuration for model
-	cfg := config.GetLLMConfig()
-	model := resolveModel(cfg)
-
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
 		&ChatCompletionRequest{
-			Model:       model,
-			Temperature: 1.0,
-			MaxTokens:   8192,
-			Messages:    messages,
-			Stream:      false,
-			JSONMode:    true,
+			Model:         model,
+			Temperature:   1.0,
+			MaxTokens:     8192,
+			Messages:      messages,
+			Stream:        false,
+			JSONMode:      true,
+			ThinkingLevel: thinkingLevel,
 		},
 	)
 	if err != nil {
@@ -135,12 +130,12 @@ func GetOCRDeltaAbstractDescription(ocrDelta string, addTokensAndSendUpdate func
 }
 
 // BreakGoalIntoSubtasks breaks down a goal into smaller subtasks
-func BreakGoalIntoSubtasks(goal string, addTokensAndSendUpdate func(int)) ([]SubTask, error) {
-	// Get LLM client
-	client := GetLLMClient()
-	if client == nil {
-		log.Printf("LLM client not initialized")
-		return nil, fmt.Errorf("LLM client not initialized")
+func BreakGoalIntoSubtasks(providerName, modelName, thinkingLevel, goal string, addTokensAndSendUpdate func(int)) ([]SubTask, error) {
+	// Get LLM client for the task's provider/model
+	client, model, err := GetClientFor(providerName, modelName)
+	if err != nil {
+		log.Printf("LLM client not available (%s/%s): %v", providerName, modelName, err)
+		return nil, err
 	}
 
 	messages := []Message{
@@ -158,19 +153,16 @@ func BreakGoalIntoSubtasks(goal string, addTokensAndSendUpdate func(int)) ([]Sub
 	fmt.Printf("Estimated total tokens[breakGoalIntoSubtasks][input]: %d\n", estimate.EstimatedTokens)
 	addTokensAndSendUpdate(estimate.EstimatedTokens)
 
-	// Get configuration for model
-	cfg := config.GetLLMConfig()
-	model := resolveModel(cfg)
-
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
 		&ChatCompletionRequest{
-			Model:       model,
-			Temperature: 0.5,
-			MaxTokens:   2000,
-			Messages:    messages,
-			Stream:      false,
-			JSONMode:    true,
+			Model:         model,
+			Temperature:   0.5,
+			MaxTokens:     2000,
+			Messages:      messages,
+			Stream:        false,
+			JSONMode:      true,
+			ThinkingLevel: thinkingLevel,
 		},
 	)
 	if err != nil {
@@ -235,12 +227,12 @@ func BreakGoalIntoSubtasks(goal string, addTokensAndSendUpdate func(int)) ([]Sub
 }
 
 // IsGoalAchieved checks if the goal has been achieved
-func IsGoalAchieved(goal string, bboxes string, ocrJSONString string, ocrDelta string, ocrDeltaAbstract string, prevActionsJSONString string, iteration int64, prevCursorPositionJSONString string, allWindowsJSONString string, currentCursorPosition string, ocrDataNearTheCursor string, colorsDistributionBeforeAction string, colorsDistribution string, addTokensAndSendUpdate func(int)) (bool, string, string) {
-	// Get LLM client
-	client := GetLLMClient()
-	if client == nil {
-		log.Printf("LLM client not initialized")
-		return false, "LLM client not initialized", ""
+func IsGoalAchieved(providerName, modelName, thinkingLevel, goal string, bboxes string, ocrJSONString string, ocrDelta string, ocrDeltaAbstract string, prevActionsJSONString string, iteration int64, prevCursorPositionJSONString string, allWindowsJSONString string, currentCursorPosition string, ocrDataNearTheCursor string, colorsDistributionBeforeAction string, colorsDistribution string, addTokensAndSendUpdate func(int)) (bool, string, string) {
+	// Get LLM client for the task's provider/model
+	client, model, err := GetClientFor(providerName, modelName)
+	if err != nil {
+		log.Printf("LLM client not available (%s/%s): %v", providerName, modelName, err)
+		return false, err.Error(), ""
 	}
 
 	messages := []Message{
@@ -258,19 +250,16 @@ func IsGoalAchieved(goal string, bboxes string, ocrJSONString string, ocrDelta s
 	fmt.Printf("Estimated total tokens[isGoalAchieved][input]: %d\n", estimate.EstimatedTokens)
 	addTokensAndSendUpdate(estimate.EstimatedTokens)
 
-	// Get configuration for model
-	cfg := config.GetLLMConfig()
-	model := resolveModel(cfg)
-
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
 		&ChatCompletionRequest{
-			Model:       model,
-			Temperature: 0.3,
-			MaxTokens:   2000,
-			Messages:    messages,
-			Stream:      false,
-			JSONMode:    true,
+			Model:         model,
+			Temperature:   0.3,
+			MaxTokens:     2000,
+			Messages:      messages,
+			Stream:        false,
+			JSONMode:      true,
+			ThinkingLevel: thinkingLevel,
 		},
 	)
 	if err != nil {

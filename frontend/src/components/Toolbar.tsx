@@ -3,10 +3,19 @@ import ChatFieldset from './ChatFieldset';
 import TasksSection from './TasksSection';
 import './Toolbar.css';
 
+interface ModelOption {
+  id: string;
+  provider: string;
+  hasCredentials: boolean;
+  thinkingLevels?: string[];
+  defaultThinkingLevel?: string;
+}
+
 interface Task {
   id: string;
   status: string;
   message: string;
+  model?: string;
   sessionId?: string;
   sessionIp?: string; // Store the IP directly to preserve session info
   sequenceNumber?: number;
@@ -35,6 +44,11 @@ interface ToolbarProps {
   onFpsChange?: (fps: number) => void;
   sessions?: Array<{ id: string; ip: string }>;
   selectedSessionId?: string | null;
+  availableModels?: ModelOption[];
+  selectedModel?: string;
+  onSelectModel?: (modelId: string, provider: string) => void;
+  selectedThinkingLevel?: string;
+  onSelectThinkingLevel?: (level: string) => void;
 }
 
 const Toolbar: React.FC<ToolbarProps> = ({
@@ -54,7 +68,12 @@ const Toolbar: React.FC<ToolbarProps> = ({
   tokenUsage,
   onFpsChange,
   sessions = [],
-  selectedSessionId
+  selectedSessionId,
+  availableModels = [],
+  selectedModel = '',
+  onSelectModel,
+  selectedThinkingLevel = '',
+  onSelectThinkingLevel
 }) => {
   const [selectedFps, setSelectedFps] = useState(5); // Default to 5 FPS
   
@@ -373,6 +392,11 @@ const Toolbar: React.FC<ToolbarProps> = ({
         tasks={tasks}
         onActivateUserAssist={onActivateUserAssist}
         onDeactivateUserAssist={onDeactivateUserAssist}
+        availableModels={availableModels}
+        selectedModel={selectedModel}
+        onSelectModel={onSelectModel}
+        selectedThinkingLevel={selectedThinkingLevel}
+        onSelectThinkingLevel={onSelectThinkingLevel}
       />
     </div>
   );

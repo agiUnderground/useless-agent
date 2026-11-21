@@ -50,6 +50,7 @@ interface Task {
   id: string;
   status: string;
   message: string;
+  model?: string;
   sessionId?: string;
   sequenceNumber?: number;
   createdAt?: number;

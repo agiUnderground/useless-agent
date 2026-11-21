@@ -29,3 +29,8 @@ tests/
 
 # Assets that are already copied during build
 assets/demos/
+
+# Persistent runtime data and real credentials (mounted at runtime, never baked into image)
+data/
+config.json
+*.local.json

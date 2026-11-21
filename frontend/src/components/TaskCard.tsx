@@ -5,6 +5,7 @@ interface Task {
   id: string;
   status: string;
   message: string;
+  model?: string;
   sessionId?: string;
   sessionIp?: string; // Store the IP directly to preserve session info
   sequenceNumber?: number;
@@ -210,6 +211,13 @@ const TaskCard: React.FC<TaskCardProps> = ({
       {showTimer && (
         <div className="task-timer">
           <span className="timer-text">{elapsedTime}</span>
+        </div>
+      )}
+
+      {/* Model info at the bottom of the task card */}
+      {task.model && (
+        <div className="task-model-info">
+          model: {task.model}
         </div>
       )}
     </div>

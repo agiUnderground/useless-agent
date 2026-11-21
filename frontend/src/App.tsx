@@ -26,10 +26,19 @@ interface Session {
   pingInterval?: number;
 }
 
+interface ModelOption {
+  id: string;
+  provider: string;
+  hasCredentials: boolean;
+  thinkingLevels?: string[];
+  defaultThinkingLevel?: string;
+}
+
 interface Task {
   id: string;
   status: string;
   message: string;
+  model?: string;
   sessionId?: string;
   sessionIp?: string; // Store the IP directly to preserve session info
   sequenceNumber?: number;
@@ -56,9 +65,77 @@ const App: React.FC = () => {
   const [tasksMaximized, setTasksMaximized] = useState(false);
   const [selectedFps, setSelectedFps] = useState(5); // Default to 5 FPS
   const [taskSequenceNumber, setTaskSequenceNumber] = useState(1); // Global task counter for sequence numbers
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [selectedProvider, setSelectedProvider] = useState<string>('');
+  const [selectedThinkingLevel, setSelectedThinkingLevel] = useState<string>('');
 
   const mainContentRef = useRef<HTMLDivElement>(null);
   const spaceKeyPressedRef = useRef<boolean>(false);
+
+  // Fetch available models from the currently selected connected session
+  useEffect(() => {
+    const selectedSession = sessions.find(s => s.id === selectedSessionId);
+    if (!selectedSession || !selectedSession.isConnected) {
+      return;
+    }
+
+    let cancelled = false;
+    fetch(`http://${selectedSession.ip}:${CONFIG.BACKEND_PORT}/models`)
+      .then(res => {
+        if (!res.ok) throw new Error(`Failed to fetch models: ${res.statusText}`);
+        return res.json();
+      })
+      .then(data => {
+        if (cancelled) return;
+        const models: ModelOption[] = Array.isArray(data.models) ? data.models : [];
+        setAvailableModels(models);
+
+        setSelectedModel(prev => {
+          // Keep current selection if still valid and has credentials
+          if (prev && models.some(m => m.id === prev && m.hasCredentials)) {
+            return prev;
+          }
+          // Prefer backend defaultModel if it has credentials
+          if (data.defaultModel && models.some(m => m.id === data.defaultModel && m.hasCredentials)) {
+            const def = models.find(m => m.id === data.defaultModel);
+            if (def) {
+              setSelectedProvider(def.provider);
+              setSelectedThinkingLevel(def.defaultThinkingLevel || def.thinkingLevels?.[0] || '');
+            }
+            return data.defaultModel;
+          }
+          // Otherwise pick first model with credentials
+          const firstValid = models.find(m => m.hasCredentials);
+          if (firstValid) {
+            setSelectedProvider(firstValid.provider);
+            setSelectedThinkingLevel(firstValid.defaultThinkingLevel || firstValid.thinkingLevels?.[0] || '');
+            return firstValid.id;
+          }
+          setSelectedProvider('');
+          setSelectedThinkingLevel('');
+          return '';
+        });
+      })
+      .catch(err => {
+        console.error('Error fetching available models:', err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSessionId, sessions]);
+
+  const handleSelectModel = (modelId: string, provider: string) => {
+    setSelectedModel(modelId);
+    setSelectedProvider(provider);
+    const modelObj = availableModels.find(m => m.id === modelId && m.provider === provider);
+    setSelectedThinkingLevel(modelObj?.defaultThinkingLevel || modelObj?.thinkingLevels?.[0] || '');
+  };
+
+  const handleSelectThinkingLevel = (level: string) => {
+    setSelectedThinkingLevel(level);
+  };
   
   // Monitor task status changes to deactivate user-assist
   useEffect(() => {
@@ -376,6 +453,7 @@ const App: React.FC = () => {
         id: tempId,
         status: 'in-the-queue',
         message: message,
+        model: selectedModel || undefined,
         sessionId: selectedSessionId,
         sessionIp: selectedSession?.ip, // Store the IP directly
         createdAt: Date.now(),
@@ -405,23 +483,33 @@ const App: React.FC = () => {
           },
           body: JSON.stringify({
             text: message,
-            sessionId: selectedSessionId
+            sessionId: selectedSessionId,
+            model: selectedModel || undefined,
+            provider: selectedProvider || undefined,
+            thinkingLevel: selectedThinkingLevel || undefined
           })
         });
         
         if (!response.ok) {
-          throw new Error(`Failed to send message to backend: ${response.statusText}`);
+          const errText = await response.text().catch(() => response.statusText);
+          throw new Error(errText || `Failed to send message to backend: ${response.statusText}`);
         }
         
         const responseData = await response.json();
         console.log('Task created successfully on backend:', responseData);
+        const firstEntry = Array.isArray(responseData) ? responseData[0] : responseData;
         
-        // Update placeholder task with real task ID from backend response
-        if (responseData.taskId) {
+        // Update placeholder task with real task ID and resolved model from backend response
+        if (firstEntry?.taskId) {
           setTasks(prevTasks =>
             prevTasks.map(task =>
               task.id === tempId
-                ? { ...task, id: responseData.taskId, isPlaceholder: false }
+                ? {
+                    ...task,
+                    id: firstEntry.taskId,
+                    model: firstEntry.model || task.model,
+                    isPlaceholder: false
+                  }
                 : task
             )
           );
@@ -625,6 +713,7 @@ const App: React.FC = () => {
           const taskId = taskData.taskId || data.taskId;
           const taskStatus = taskData.status || data.status;
           const taskMessage = taskData.message || data.message;
+          const taskModel = taskData.model || data.model;
           
           if (!taskId || !taskStatus) {
             console.error('Invalid task update received:', data);
@@ -657,7 +746,7 @@ const App: React.FC = () => {
               
               const updatedTasks = prevTasks.map(t =>
                 t.id === taskId
-                  ? { ...t, status: taskStatus, completedAt: completionTime }
+                  ? { ...t, status: taskStatus, completedAt: completionTime, model: taskModel || t.model }
                   : t
               );
               
@@ -680,7 +769,7 @@ const App: React.FC = () => {
                 console.log(`Updating placeholder task ${placeholderTask.id} to real ID ${taskId}`);
                 return prevTasks.map(t =>
                   t.id === placeholderTask.id
-                    ? { ...t, id: taskId, status: taskStatus, isPlaceholder: false }
+                    ? { ...t, id: taskId, status: taskStatus, model: taskModel || t.model, isPlaceholder: false }
                     : t
                 );
               } else {
@@ -690,6 +779,7 @@ const App: React.FC = () => {
                   id: taskId,
                   status: taskStatus,
                   message: taskMessage,
+                  model: taskModel,
                   sessionId: session.id,
                   sessionIp: session.ip, // Store the IP directly
                   createdAt: Date.now(),
@@ -1526,6 +1616,11 @@ const App: React.FC = () => {
           onFpsChange={handleFpsChange}
           sessions={sessions}
           selectedSessionId={selectedSessionId}
+          availableModels={availableModels}
+          selectedModel={selectedModel}
+          onSelectModel={handleSelectModel}
+          selectedThinkingLevel={selectedThinkingLevel}
+          onSelectThinkingLevel={handleSelectThinkingLevel}
         />
       </div>
       

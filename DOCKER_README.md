@@ -12,11 +12,14 @@ This document explains how to build and run the useless-agent application using 
 
 ### Option 1: Using Docker Compose (Recommended)
 
-1. Update the `docker-compose.yml` file with your API key:
-   ```yaml
-   environment:
-     - API_KEY=your_actual_api_key_here
-   ```
+1. Configure your LLM provider credentials using **either**:
+   - **`data/config.json` (recommended for multiple providers / model switching in the UI):**
+     Copy `config.example.json` to `data/config.json` and fill in your API key(s):
+     ```bash
+     cp config.example.json data/config.json
+     ```
+     *(If `data/config.json` does not exist on first run, the backend will automatically generate a starter `data/config.json` along with `data/logs/` and `data/artifacts/` without overwriting existing files.)*
+   - **Environment variables:** pass `PROVIDER`, `API_KEY`, `BASE_URL`, `MODEL` in `docker-compose.yml` or your shell (these override `data/config.json` for that provider).
 
 2. Build and run the container:
    ```bash
@@ -60,7 +63,15 @@ The container can be configured using the following environment variables:
 
 - `IP`: The IP address to bind to (default: `0.0.0.0`)
 - `PORT`: The port to listen on (default: `8080`)
-- `DISPLAY`: The X11 display (default: `:1`)
+- `DISPLAY`: The X11 display (default: `:2` in Docker Compose, `:1` standalone)
+
+### Persistent Storage & Config File
+
+Docker Compose mounts `./data:/data` into the backend container:
+- `DATA_DIR`: Persistent data root inside the container (default: `/data`)
+- `CONFIG_PATH`: Path to the JSON configuration file (default: `/data/config.json`)
+- `ARTIFACTS_DIR`: Directory for task artifacts (default: `/data/artifacts`)
+- Session logs are stored in `${DATA_DIR}/logs` (mapped to `./data/logs` on the host)
 
 ## Accessing the Application
 

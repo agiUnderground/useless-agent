@@ -4,13 +4,17 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      - PROVIDER=${PROVIDER:-deepseek}
+      - PROVIDER=${PROVIDER:-}
       - API_KEY=${API_KEY:-}
       - BASE_URL=${BASE_URL:-}
       - MODEL=${MODEL:-}
+      - DATA_DIR=/data
+      - CONFIG_PATH=/data/config.json
+      - ARTIFACTS_DIR=/data/artifacts
       - DISPLAY=:2
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
+      - ./data:/data
     ports:
       - "8080:8080"
 

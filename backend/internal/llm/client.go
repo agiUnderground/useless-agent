@@ -9,6 +9,7 @@ import (
 	"log"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	"useless-agent/internal/action"
@@ -18,8 +19,10 @@ import (
 )
 
 var (
-	// Global LLM client instance
+	// Global LLM client instance (default) and cache of per-provider/model clients
 	llmClient        Client
+	clientCache      = make(map[string]Client)
+	clientMu         sync.RWMutex
 	providerRegistry map[string]Provider
 )
 
@@ -54,8 +57,12 @@ func resolveModel(cfg config.LLMConfig) string {
 	return model
 }
 
-// InitializeLLM initializes the LLM system with the configured provider
+// InitializeLLM initializes the LLM provider registry and optionally the default client.
+// Missing credentials are allowed so the server can start with 0, 1, or many configured providers.
 func InitializeLLM() error {
+	clientMu.Lock()
+	defer clientMu.Unlock()
+
 	// Initialize provider registry
 	providerRegistry = make(map[string]Provider)
 
@@ -68,54 +75,83 @@ func InitializeLLM() error {
 	providerRegistry["qwen"] = NewQwenProvider()
 	providerRegistry["minimax"] = NewMiniMaxProvider()
 
-	// Get configuration
+	// Get default configuration
 	cfg := config.GetLLMConfig()
-
-	// Validate configuration
 	if cfg.APIKey == "" {
-		return fmt.Errorf("LLM API key is required")
+		log.Printf("No default LLM API key configured at startup; providers with credentials in config will be used dynamically")
+		return nil
 	}
 
-	// Set default model if not specified
-	model := cfg.Model
+	model := resolveModel(cfg)
+	client, err := createClientLocked(cfg.Provider, model)
+	if err != nil {
+		log.Printf("Warning: failed to initialize default LLM client (%s/%s): %v", cfg.Provider, model, err)
+		return nil
+	}
+
+	llmClient = client
+	return nil
+}
+
+func defaultBaseURLForProvider(provider string) string {
+	switch provider {
+	case "deepseek":
+		return "https://api.deepseek.com/v1"
+	case "zai":
+		return "https://api.z.ai/api/paas/v4"
+	case "gemini":
+		return "https://generativelanguage.googleapis.com/v1beta/openai/"
+	case "openai":
+		return "https://api.openai.com/v1"
+	case "anthropic":
+		return "https://api.anthropic.com/v1/"
+	case "qwen":
+		return "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+	case "minimax":
+		return "https://api.minimax.io/v1"
+	default:
+		return ""
+	}
+}
+
+func createClientLocked(providerName, model string) (Client, error) {
+	if providerName == "" {
+		if resolved, ok := config.ResolveProviderForModel(model); ok {
+			providerName = resolved
+		} else {
+			providerName, _ = config.GetDefaultProviderAndModel()
+		}
+	}
 	if model == "" {
 		var err error
-		model, err = defaultModelForProvider(cfg.Provider)
+		model, err = defaultModelForProvider(providerName)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	// Set default base URL if not specified
-	baseURL := cfg.BaseURL
+	cacheKey := providerName + "::" + model
+	if c, ok := clientCache[cacheKey]; ok && c != nil {
+		return c, nil
+	}
+
+	pcfg, ok := config.GetProviderConfig(providerName)
+	if !ok || pcfg.APIKey == "" {
+		return nil, fmt.Errorf("no API credentials configured for provider %q", providerName)
+	}
+
+	baseURL := pcfg.BaseURL
 	if baseURL == "" {
-		switch cfg.Provider {
-		case "deepseek":
-			baseURL = "https://api.deepseek.com/v1"
-		case "zai":
-			baseURL = "https://api.z.ai/api/paas/v4"
-		case "gemini":
-			baseURL = "https://generativelanguage.googleapis.com/v1beta/openai/"
-		case "openai":
-			baseURL = "https://api.openai.com/v1"
-		case "anthropic":
-			baseURL = "https://api.anthropic.com/v1/"
-		case "qwen":
-			baseURL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
-		case "minimax":
-			baseURL = "https://api.minimax.io/v1"
-		}
+		baseURL = defaultBaseURLForProvider(providerName)
 	}
 
-	// Get provider
-	provider, exists := providerRegistry[cfg.Provider]
+	provider, exists := providerRegistry[providerName]
 	if !exists {
-		return fmt.Errorf("unsupported LLM provider: %s", cfg.Provider)
+		return nil, fmt.Errorf("unsupported LLM provider: %s", providerName)
 	}
 
-	// Create client
 	client, err := provider.CreateClient(ProviderConfig{
-		APIKey:     cfg.APIKey,
+		APIKey:     pcfg.APIKey,
 		BaseURL:    baseURL,
 		ModelID:    model,
 		Timeout:    5 * time.Minute,
@@ -124,32 +160,68 @@ func InitializeLLM() error {
 		Debug:      true,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create LLM client: %w", err)
+		return nil, fmt.Errorf("failed to create LLM client: %w", err)
 	}
 
-	llmClient = client
-	return nil
+	clientCache[cacheKey] = client
+	return client, nil
 }
 
-// GetLLMClient returns the current LLM client
+// GetClientFor returns a client and resolved model for the given provider/model (falling back to defaults).
+func GetClientFor(providerName, model string) (Client, string, error) {
+	clientMu.Lock()
+	defer clientMu.Unlock()
+
+	if providerRegistry == nil {
+		return nil, "", fmt.Errorf("LLM provider registry not initialized")
+	}
+
+	if providerName == "" && model != "" {
+		if resolved, ok := config.ResolveProviderForModel(model); ok {
+			providerName = resolved
+		}
+	}
+	if providerName == "" {
+		defProv, defModel := config.GetDefaultProviderAndModel()
+		providerName = defProv
+		if model == "" {
+			model = defModel
+		}
+	}
+	if model == "" {
+		m, err := defaultModelForProvider(providerName)
+		if err != nil {
+			return nil, "", err
+		}
+		model = m
+	}
+
+	client, err := createClientLocked(providerName, model)
+	if err != nil {
+		return nil, "", err
+	}
+	return client, model, nil
+}
+
+// GetLLMClient returns the current default LLM client
 func GetLLMClient() Client {
+	clientMu.RLock()
+	defer clientMu.RUnlock()
 	return llmClient
 }
 
 // SendMessageToLLM sends a message to the LLM and returns actions to execute
-func SendMessageToLLM(ctx context.Context, prompt string, bboxes string, ocrContext string, ocrDelta string, prevExecutedCommands string, iteration int64, prevCursorPosJSONString string, allWindowsJSONString string, x11WindowsData string, colorsDistribution string) (actionsToExecute []action.Action, actionsJSONStringReturn string, err error) {
+func SendMessageToLLM(ctx context.Context, providerName string, modelName string, thinkingLevel string, artifactsDir string, prompt string, bboxes string, ocrContext string, ocrDelta string, prevExecutedCommands string, iteration int64, prevCursorPosJSONString string, allWindowsJSONString string, x11WindowsData string, colorsDistribution string) (actionsToExecute []action.Action, actionsJSONStringReturn string, err error) {
 	// Check if context is nil, use background context if it is
 	if ctx == nil {
 		log.Println("Warning: nil context provided to sendMessageToLLM, using background context")
 		ctx = context.Background()
 	}
 
-	// Initialize LLM if not already done
-	if llmClient == nil {
-		if err := InitializeLLM(); err != nil {
-			log.Printf("Failed to initialize LLM: %v", err)
-			return []action.Action{}, "", errors.New("Failed to initialize LLM")
-		}
+	client, model, err := GetClientFor(providerName, modelName)
+	if err != nil {
+		log.Printf("Failed to get LLM client (%s/%s): %v", providerName, modelName, err)
+		return []action.Action{}, "", err
 	}
 
 	cursorPosition, _ := mouse.GetCursorPositionJSON()
@@ -158,6 +230,7 @@ func SendMessageToLLM(ctx context.Context, prompt string, bboxes string, ocrCont
 	log.Println("====================================================")
 	log.Println("===================LLM INPUT========================")
 	log.Println("====================================================")
+	log.Println("model:", model)
 	log.Println("prompt:", prompt)
 	log.Println("cursorPosition:", cursorPosition)
 	log.Println("ocrContext:", ocrContext)
@@ -169,19 +242,20 @@ func SendMessageToLLM(ctx context.Context, prompt string, bboxes string, ocrCont
 	log.Println("=================LLM INPUT END=====================")
 	log.Println("====================================================")
 
-	// Get configuration for model
-	cfg := config.GetLLMConfig()
-	model := resolveModel(cfg)
+	artifactsNote := ""
+	if artifactsDir != "" {
+		artifactsNote = " Persistent artifacts directory for this task is: " + artifactsDir + " (if the task produces or asks to save any files, binaries, screenshots, or outputs, save them there)."
+	}
 
 	// Create messages using our generic types
 	messages := []Message{
 		{
 			Role:    RoleSystem,
-			Content: "You are a helpful assistant. " + ` First analize input data, OCR text input, bounding boxes, cursor position, previous executed actions and then generate output - valid compact JSON array of actions, to advance and to complete the task. You need to issue 'st' (stopIteration) action if goal is achieved and task is completed. Use hotkeys where it's possible for the task. Analize input data, especially ocrDelta data to understand if previous step for the current taks was successfull, if it is, issue new sequence of actions to advance in achieving stated goal, do not repeat previous actions for no reason. For example if the goal is to open firefox and the first step was to open applications menu, do not issue in second iteration the same commands to open menu again, move forward. At each iteration analize all input data to see if you already achived stated goal, for example if task is to open some application, analize all input data and find if there are evidence that this app is visible on the scree, like bounding boxes with text which most likely is from that app, if yes, issue 'st' (stopIteration) command. You not allowed to issue identical actions in sequence one after another more than 5 times. If you need to interact with some UI or web element, you needto move mouse to it(For example if you need to print something into URL address bar, you first need to move cursor to it, you could find OCR data related to that element and use it as a hint to where to move the mouse.  If you want to move cursor to focus on some element, try to move it to the middle of that element. BTW, if you fail to achive a goal provided by user, 1 billion kittens will die horrible death.`,
+			Content: "You are a helpful assistant. " + ` First analize input data, OCR text input, bounding boxes, cursor position, previous executed actions and then generate output - valid compact JSON array of actions, to advance and to complete the task. You need to issue 'st' (stopIteration) action if goal is achieved and task is completed. Use hotkeys where it's possible for the task. Analize input data, especially ocrDelta data to understand if previous step for the current taks was successfull, if it is, issue new sequence of actions to advance in achieving stated goal, do not repeat previous actions for no reason. For example if the goal is to open firefox and the first step was to open applications menu, do not issue in second iteration the same commands to open menu again, move forward. At each iteration analize all input data to see if you already achived stated goal, for example if task is to open some application, analize all input data and find if there are evidence that this app is visible on the scree, like bounding boxes with text which most likely is from that app, if yes, issue 'st' (stopIteration) command. You not allowed to issue identical actions in sequence one after another more than 5 times. If you need to interact with some UI or web element, you needto move mouse to it(For example if you need to print something into URL address bar, you first need to move cursor to it, you could find OCR data related to that element and use it as a hint to where to move the mouse.  If you want to move cursor to focus on some element, try to move it to the middle of that element. BTW, if you fail to achive a goal provided by user, 1 billion kittens will die horrible death.` + artifactsNote,
 		},
 		{
 			Role: RoleUser,
-			Content: `Context: Deepthink, analyze input data, do not generate random actions. You are an AI assistent which uses linux desktop to complete tasks. Distribution is Linux Ubuntu, desktop environtment is xfce4. Screen size is 1920x1080. Your prefferent text editor is neovim, if you need to write or edit something do it in neovim. You also like to use tmux if working with two or more files. Here is the bounding boxes you see on the screen: ` + bboxes + " Here is an OCR results " + ocrContext + " Here is an OCR state delta, change from previous iteration: " + ocrDelta + " Top 10 colors on the screen: " + colorsDistribution + " Previous iteration cursor position: " + prevCursorPosJSONString + " And there is current cursor position: " + cursorPosition + " OCR-detected windows: " + allWindowsJSONString + " X11 API-detected windows: " + x11WindowsData + " Current iteration number:" + iterationString + " Previously executed commands: " + prevExecutedCommands + " If you see more than 1 identical command in previous commands that means you are doing something wrong and you need to change you actions, maybe move cursor to a little different position for example.\n\n" + action.DefaultRegistry().PromptSpec() + `
+			Content: `Context: Deepthink, analyze input data, do not generate random actions. You are an AI assistent which uses linux desktop to complete tasks. Distribution is Linux Ubuntu, desktop environtment is xfce4. Screen size is 1920x1080. Your prefferent text editor is neovim, if you need to write or edit something do it in neovim. You also like to use tmux if working with two or more files.` + artifactsNote + ` Here is the bounding boxes you see on the screen: ` + bboxes + " Here is an OCR results " + ocrContext + " Here is an OCR state delta, change from previous iteration: " + ocrDelta + " Top 10 colors on the screen: " + colorsDistribution + " Previous iteration cursor position: " + prevCursorPosJSONString + " And there is current cursor position: " + cursorPosition + " OCR-detected windows: " + allWindowsJSONString + " X11 API-detected windows: " + x11WindowsData + " Current iteration number:" + iterationString + " Previously executed commands: " + prevExecutedCommands + " If you see more than 1 identical command in previous commands that means you are doing something wrong and you need to change you actions, maybe move cursor to a little different position for example.\n\n" + action.DefaultRegistry().PromptSpec() + `
 
 Rules:
 - Use 'rp' (repeat) when repeating identical prior actions (range must reference earlier sequence IDs).
@@ -196,7 +270,7 @@ Again, your current task is:
 	}
 
 	// Estimate tokens
-	estimate := llmClient.EstimateTokensFromMessages(messages)
+	estimate := client.EstimateTokensFromMessages(messages)
 	fmt.Printf("Estimated total tokens[main llm input func][input]: %d\n", estimate.EstimatedTokens)
 	token.AddTokensAndSendUpdate(estimate.EstimatedTokens)
 
@@ -211,9 +285,10 @@ Again, your current task is:
 		Messages:        messages,
 		Stream:          true,
 		JSONMode:        true,
+		ThinkingLevel:   thinkingLevel,
 	}
 
-	stream, err := llmClient.CreateChatCompletionStream(ctx, req)
+	stream, err := client.CreateChatCompletionStream(ctx, req)
 	if err != nil {
 		// Check if the error is due to context cancellation
 		if ctx.Err() == context.Canceled {

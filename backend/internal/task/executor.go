@@ -17,6 +17,7 @@ import (
 	"useless-agent/internal/mouse"
 	"useless-agent/internal/ocr"
 	"useless-agent/internal/screenshot"
+	"useless-agent/internal/storage"
 	"useless-agent/internal/token"
 	"useless-agent/pkg/x11"
 )
@@ -24,7 +25,14 @@ import (
 // ExecuteTask executes a task with the complete AGILoop implementation
 func ExecuteTask(task *Task) {
 	log.Printf("=== EXECUTING TASK %s ===", task.ID)
-	log.Printf("Task message: %s", task.Message)
+	log.Printf("Task message: %s (provider: %s, model: %s)", task.Message, task.Provider, task.Model)
+
+	artifactsDir, artErr := storage.GetTaskArtifactsDir(task.ID)
+	if artErr != nil {
+		log.Printf("Warning: failed to prepare artifacts dir for task %s: %v", task.ID, artErr)
+	} else {
+		log.Printf("Task artifacts directory: %s", artifactsDir)
+	}
 
 	var prevActionsJSONString string
 	log.Println("prevActionsJSONString:", prevActionsJSONString)
@@ -43,7 +51,7 @@ func ExecuteTask(task *Task) {
 	prevCursorPositionJSONString, _ := getCursorPositionJSON()
 
 	var subtasks []SubTask
-	subtasks, err = breakGoalIntoSubtasks(goal)
+	subtasks, err = breakGoalIntoSubtasks(task.Provider, task.Model, task.ThinkingLevel, goal)
 	if err != nil {
 		log.Println("Failed to break down goal into subtasks.")
 		subtasks = nil
@@ -252,7 +260,7 @@ func ExecuteTask(task *Task) {
 					// Continue with abstract description
 				}
 
-				textChangesSummary, err = getOCRDeltaAbstractDescription(textChangesJSON)
+				textChangesSummary, err = getOCRDeltaAbstractDescription(task.Provider, task.Model, task.ThinkingLevel, textChangesJSON)
 				if err != nil {
 					log.Printf("Filed to get OCR Delta abstract description [iteration: %d]: %s", iteration, err)
 				}
@@ -293,7 +301,7 @@ func ExecuteTask(task *Task) {
 			}
 			promptLogJSONString = string(promptLogBytes)
 
-			actions, actionsJSONString, err := sendMessageToLLM(task.Context, enhancedSubtaskDescription, boundingBoxesJSON, ocrResultsJSON, textChangesSummary, promptLogJSONString, iteration, prevCursorPositionJSONString, detectedWindowsJSON, x11WindowsData, colorsDistribution)
+			actions, actionsJSONString, err := sendMessageToLLM(task.Context, task.Provider, task.Model, task.ThinkingLevel, artifactsDir, enhancedSubtaskDescription, boundingBoxesJSON, ocrResultsJSON, textChangesSummary, promptLogJSONString, iteration, prevCursorPositionJSONString, detectedWindowsJSON, x11WindowsData, colorsDistribution)
 
 			// Send subtask update with actions
 			UpdateSubtask(task.ID, subtask.Id, subtask.Description, true, actions)
@@ -498,7 +506,7 @@ func ExecuteTask(task *Task) {
 				// Continue with abstract description
 			}
 
-			textChangesSummary, err = getOCRDeltaAbstractDescription(textChangesJSON)
+			textChangesSummary, err = getOCRDeltaAbstractDescription(task.Provider, task.Model, task.ThinkingLevel, textChangesJSON)
 			if err != nil {
 				log.Printf("Filed to get OCR Delta abstract description [iteration: %d]: %s", iteration, err)
 			}
@@ -571,7 +579,7 @@ func ExecuteTask(task *Task) {
 				// Continue with goal achievement check
 			}
 
-			taskCompleted, completionStatus, nextPrompt = isGoalAchieved(subtask.Description, boundingBoxesJSON, ocrResultsJSON, textChangesJSON, textChangesSummary, promptLogJSONString, iteration, prevCursorPositionJSONString, detectedWindowsJSON, currentCursorPosition, ocrDataNearTheCursor, colorsDistributionBeforeActions, colorsDistribution)
+			taskCompleted, completionStatus, nextPrompt = isGoalAchieved(task.Provider, task.Model, task.ThinkingLevel, subtask.Description, boundingBoxesJSON, ocrResultsJSON, textChangesJSON, textChangesSummary, promptLogJSONString, iteration, prevCursorPositionJSONString, detectedWindowsJSON, currentCursorPosition, ocrDataNearTheCursor, colorsDistributionBeforeActions, colorsDistribution)
 			log.Println("Verdict description:", completionStatus)
 			if taskCompleted {
 				log.Println("Completed task: ", subtask.Description)
@@ -622,8 +630,8 @@ func getCursorPosition() (int, int) {
 	return mouse.GetCursorPosition()
 }
 
-func breakGoalIntoSubtasks(goal string) ([]SubTask, error) {
-	llmSubtasks, err := llm.BreakGoalIntoSubtasks(goal, token.AddTokensAndSendUpdate)
+func breakGoalIntoSubtasks(provider, model, thinkingLevel, goal string) ([]SubTask, error) {
+	llmSubtasks, err := llm.BreakGoalIntoSubtasks(provider, model, thinkingLevel, goal, token.AddTokensAndSendUpdate)
 	if err != nil {
 		return nil, err
 	}
@@ -676,16 +684,16 @@ func boundingBoxArrayToJSONString(bbArray []imagepkg.BoundingBox) string {
 	return imagepkg.BoundingBoxArrayToJSONString(bbArray)
 }
 
-func sendMessageToLLM(ctx context.Context, prompt string, bboxes string, ocrContext string, ocrDelta string, prevExecutedCommands string, iteration int64, prevCursorPosJSONString string, allWindowsJSONString string, x11WindowsData string, colorsDistribution string) ([]actionpkg.Action, string, error) {
-	return llm.SendMessageToLLM(ctx, prompt, bboxes, ocrContext, ocrDelta, prevExecutedCommands, iteration, prevCursorPosJSONString, allWindowsJSONString, x11WindowsData, colorsDistribution)
+func sendMessageToLLM(ctx context.Context, provider, model, thinkingLevel, artifactsDir, prompt string, bboxes string, ocrContext string, ocrDelta string, prevExecutedCommands string, iteration int64, prevCursorPosJSONString string, allWindowsJSONString string, x11WindowsData string, colorsDistribution string) ([]actionpkg.Action, string, error) {
+	return llm.SendMessageToLLM(ctx, provider, model, thinkingLevel, artifactsDir, prompt, bboxes, ocrContext, ocrDelta, prevExecutedCommands, iteration, prevCursorPosJSONString, allWindowsJSONString, x11WindowsData, colorsDistribution)
 }
 
-func getOCRDeltaAbstractDescription(ocrDelta string) (string, error) {
-	return llm.GetOCRDeltaAbstractDescription(ocrDelta, token.AddTokensAndSendUpdate)
+func getOCRDeltaAbstractDescription(provider, model, thinkingLevel, ocrDelta string) (string, error) {
+	return llm.GetOCRDeltaAbstractDescription(provider, model, thinkingLevel, ocrDelta, token.AddTokensAndSendUpdate)
 }
 
-func isGoalAchieved(goal string, bboxes string, ocrJSONString string, ocrDelta string, ocrDeltaAbstract string, prevActionsJSONString string, iteration int64, prevCursorPositionJSONString string, allWindowsJSONString string, currentCursorPosition string, ocrDataNearTheCursor string, colorsDistributionBeforeAction string, colorsDistribution string) (bool, string, string) {
-	return llm.IsGoalAchieved(goal, bboxes, ocrJSONString, ocrDelta, ocrDeltaAbstract, prevActionsJSONString, iteration, prevCursorPositionJSONString, allWindowsJSONString, currentCursorPosition, ocrDataNearTheCursor, colorsDistributionBeforeAction, colorsDistribution, token.AddTokensAndSendUpdate)
+func isGoalAchieved(provider, model, thinkingLevel, goal string, bboxes string, ocrJSONString string, ocrDelta string, ocrDeltaAbstract string, prevActionsJSONString string, iteration int64, prevCursorPositionJSONString string, allWindowsJSONString string, currentCursorPosition string, ocrDataNearTheCursor string, colorsDistributionBeforeAction string, colorsDistribution string) (bool, string, string) {
+	return llm.IsGoalAchieved(provider, model, thinkingLevel, goal, bboxes, ocrJSONString, ocrDelta, ocrDeltaAbstract, prevActionsJSONString, iteration, prevCursorPositionJSONString, allWindowsJSONString, currentCursorPosition, ocrDataNearTheCursor, colorsDistributionBeforeAction, colorsDistribution, token.AddTokensAndSendUpdate)
 }
 
 func max(a, b int) int {

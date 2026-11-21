@@ -57,8 +57,17 @@ COPY . .
 RUN go mod download
 RUN go build -o main ./cmd/server
 
+# Create persistent data directories
+RUN mkdir -p /data/logs /data/artifacts
+ENV DATA_DIR=/data
+ENV CONFIG_PATH=/data/config.json
+ENV ARTIFACTS_DIR=/data/artifacts
+
 # Create a startup script
 RUN echo '#!/bin/bash\n\
+# Ensure persistent storage directories exist\n\
+mkdir -p "${DATA_DIR:-/data}/logs" "${ARTIFACTS_DIR:-/data/artifacts}"\n\
+\n\
 # Start Xvfb in background\n\
 Xvfb :2 -screen 0 1920x1080x24 &\n\
 XVFB_PID=$!\n\
@@ -67,7 +76,7 @@ XVFB_PID=$!\n\
 sleep 3\n\
 \n\
 # Start XFCE in background\n\
-DISPLAY=:2 startxfce4 &\n\
+DISPLAY=:2 ARTIFACTS_DIR="${ARTIFACTS_DIR:-/data/artifacts}" startxfce4 &\n\
 XFCE_PID=$!\n\
 \n\
 # Wait for XFCE to start\n\
@@ -84,15 +93,17 @@ cleanup() {\n\
 # Set trap to cleanup on exit\n\
 trap cleanup SIGTERM SIGINT\n\
 \n\
-# Start the application with all required command-line arguments\n\
+# Start the application with command-line arguments and persistent storage\n\
 ./main \\\n\
   -ip=${BIND_IP:-0.0.0.0} \\\n\
   -port=${PORT:-8080} \\\n\
   -display=${DISPLAY:-:2} \\\n\
-  -provider=${PROVIDER:-deepseek} \\\n\
-  -key=${API_KEY} \\\n\
-  -model=${MODEL} \\\n\
-  -base-url=${BASE_URL}' > /app/start.sh && \
+  -data-dir=${DATA_DIR:-/data} \\\n\
+  -config=${CONFIG_PATH:-/data/config.json} \\\n\
+  -provider=${PROVIDER:-} \\\n\
+  -key=${API_KEY:-} \\\n\
+  -model=${MODEL:-} \\\n\
+  -base-url=${BASE_URL:-}' > /app/start.sh && \
 chmod +x /app/start.sh
 
 # Expose the application port

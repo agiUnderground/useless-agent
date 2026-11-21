@@ -158,3 +158,9 @@ frontend/.vscode/
 frontend/.idea/
 frontend/*.swp
 frontend/*.swo
+
+# Persistent runtime data and real provider credentials (keep config.example.json)
+data/
+config.json
+backend/config.json
+*.local.json

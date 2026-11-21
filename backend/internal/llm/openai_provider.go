@@ -51,10 +51,11 @@ func (p *OpenAIProvider) CreateClient(config ProviderConfig) (Client, error) {
 	}
 
 	if httpTransport, ok := originalTransport.(*http.Transport); ok {
-		httpTransport.ResponseHeaderTimeout = 30 * time.Second
-		httpTransport.ExpectContinueTimeout = 1 * time.Second
-		httpTransport.IdleConnTimeout = 90 * time.Second
-		originalTransport = httpTransport
+		cloned := httpTransport.Clone()
+		cloned.ResponseHeaderTimeout = 5 * time.Minute
+		cloned.ExpectContinueTimeout = 1 * time.Second
+		cloned.IdleConnTimeout = 90 * time.Second
+		originalTransport = cloned
 	}
 
 	httpClient.Transport = originalTransport
@@ -98,7 +99,11 @@ func (c *OpenAIClient) CreateChatCompletion(ctx context.Context, req *ChatComple
 		oaiReq.PresencePenalty = openai.Float(req.PresencePenalty)
 	}
 
-	resp, err := c.client.Chat.Completions.New(ctx, oaiReq)
+	var reqOpts []option.RequestOption
+	if req.ThinkingLevel != "" {
+		reqOpts = append(reqOpts, option.WithJSONSet("reasoning_effort", req.ThinkingLevel))
+	}
+	resp, err := c.client.Chat.Completions.New(ctx, oaiReq, reqOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +147,11 @@ func (c *OpenAIClient) CreateChatCompletionStream(ctx context.Context, req *Chat
 		oaiReq.PresencePenalty = openai.Float(req.PresencePenalty)
 	}
 
-	stream := c.client.Chat.Completions.NewStreaming(ctx, oaiReq)
+	var reqOpts []option.RequestOption
+	if req.ThinkingLevel != "" {
+		reqOpts = append(reqOpts, option.WithJSONSet("reasoning_effort", req.ThinkingLevel))
+	}
+	stream := c.client.Chat.Completions.NewStreaming(ctx, oaiReq, reqOpts...)
 	if stream == nil {
 		return nil, errors.New("failed to create streaming chat completion: stream is nil")
 	}

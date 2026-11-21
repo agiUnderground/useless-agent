@@ -104,6 +104,17 @@ ssh -p 22 -fN -o IPQoS=ef USERNAME@REMOTE-HOST-PUBLIC-IP -L 127.0.0.1:8080:127.0
 ### How to use:
 `copy executable to the target machine`
 
+#### Configuration (`data/config.json`)
+You can configure multiple LLM providers and switch models from the UI using `data/config.json`:
+1. On first run inside the `useless-agent` directory (or via Docker Compose), the backend automatically creates `data/logs/`, `data/artifacts/`, and a starter `data/config.json` (without overwriting any existing data).
+2. Or copy [config.example.json](config.example.json) to `data/config.json` and fill in your provider API keys.
+3. Optional flags / environment variables:
+   - `--data-dir` / `DATA_DIR` — persistent data directory (default: `./data`)
+   - `--config` / `CONFIG_PATH` — path to `config.json` (default: `<data-dir>/config.json`)
+   - `--session-logs` — enable/disable persistent session logs in `<data-dir>/logs` (default: `true`)
+
+CLI flags (`--provider`, `--key`, `--model`, `--base-url`) remain supported and override `config.json` for the specified provider.
+
 `start executable:`
 ```bash
 ./useless-agent --provider=deepseek --base-url="https://api.deepseek.com/v1" --key=YOUR-API-KEY --model='deepseek-flash' --display=:1 --ip=127.0.0.1 --port=8080

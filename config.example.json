@@ -1,0 +1,48 @@
+{
+  "defaultProvider": "deepseek",
+  "defaultModel": "deepseek-flash",
+  "logging": {
+    "enabled": true,
+    "dir": "/data/logs"
+  },
+  "artifacts": {
+    "dir": "/data/artifacts"
+  },
+  "providers": {
+    "deepseek": {
+      "apiKey": "",
+      "baseUrl": "https://api.deepseek.com/v1",
+      "models": ["deepseek-flash", "deepseek-chat", "deepseek-reasoner"]
+    },
+    "zai": {
+      "apiKey": "",
+      "baseUrl": "https://api.z.ai/api/paas/v4",
+      "models": ["glm-5.3", "glm-5.3-flash"]
+    },
+    "gemini": {
+      "apiKey": "",
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai/",
+      "models": ["gemini-4-neon", "gemini-2.5-pro", "gemini-2.5-flash"]
+    },
+    "openai": {
+      "apiKey": "",
+      "baseUrl": "https://api.openai.com/v1",
+      "models": ["gpt-6.2-sol", "gpt-4o", "o3-mini"]
+    },
+    "anthropic": {
+      "apiKey": "",
+      "baseUrl": "https://api.anthropic.com/v1/",
+      "models": ["claude-sonnet-5-5", "claude-opus-4-6"]
+    },
+    "qwen": {
+      "apiKey": "",
+      "baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+      "models": ["qwen4-max", "qwen-vl-max"]
+    },
+    "minimax": {
+      "apiKey": "",
+      "baseUrl": "https://api.minimax.io/v1",
+      "models": ["MiniMax-M3.1-Flash", "MiniMax-M3.1"]
+    }
+  }
+}

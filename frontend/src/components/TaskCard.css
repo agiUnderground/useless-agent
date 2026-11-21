@@ -92,6 +92,15 @@
   margin-bottom: 4px;
 }
 
+.task-model-info {
+  font-size: 8px;
+  color: #777;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .task-cancel-btn {
   background: none;
   border: 1px solid currentColor;
@@ -117,6 +126,15 @@
   font-size: 10px;
   color: #888;
   margin-bottom: 4px;
+}
+
+.task-model-info {
+  font-size: 8px;
+  color: #777;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .task-message {

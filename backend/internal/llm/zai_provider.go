@@ -49,10 +49,11 @@ func (p *ZAIProvider) CreateClient(config ProviderConfig) (Client, error) {
 
 	// Configure the transport with proper timeouts
 	if httpTransport, ok := originalTransport.(*http.Transport); ok {
-		httpTransport.ResponseHeaderTimeout = 30 * time.Second
-		httpTransport.ExpectContinueTimeout = 1 * time.Second
-		httpTransport.IdleConnTimeout = 90 * time.Second
-		originalTransport = httpTransport
+		cloned := httpTransport.Clone()
+		cloned.ResponseHeaderTimeout = 5 * time.Minute
+		cloned.ExpectContinueTimeout = 1 * time.Second
+		cloned.IdleConnTimeout = 90 * time.Second
+		originalTransport = cloned
 	}
 
 	// Use clean transport without thinking modifications

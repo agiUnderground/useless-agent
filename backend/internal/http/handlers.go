@@ -9,12 +9,16 @@ import (
 	"image/draw"
 	"image/png"
 	"log"
+	"net"
 	"net/http"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"useless-agent/internal/config"
 	"useless-agent/internal/image"
 	"useless-agent/internal/screenshot"
+	"useless-agent/internal/storage"
 	"useless-agent/internal/task"
 	"useless-agent/internal/websocket"
 	"useless-agent/pkg/x11"
@@ -46,8 +50,11 @@ func ScreenshotHandler(w http.ResponseWriter, r *http.Request) {
 // LLMInputHandler handles LLM input requests
 func LLMInputHandler(w http.ResponseWriter, r *http.Request) {
 	type PostMessage struct {
-		Text      string `json:"text"`
-		SessionID string `json:"sessionId,omitempty"`
+		Text          string `json:"text"`
+		SessionID     string `json:"sessionId,omitempty"`
+		Model         string `json:"model,omitempty"`
+		Provider      string `json:"provider,omitempty"`
+		ThinkingLevel string `json:"thinkingLevel,omitempty"`
 	}
 	type ConfirmationMessage struct {
 		ReceivedText string `json:"Received llm input text,omitempty"`
@@ -63,6 +70,27 @@ func LLMInputHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Received message:", receivedMessage.Text)
 	log.Println("Received sessionID:", receivedMessage.SessionID)
+	log.Println("Received model:", receivedMessage.Model, "provider:", receivedMessage.Provider)
+
+	// Resolve provider and model
+	providerName := receivedMessage.Provider
+	modelName := receivedMessage.Model
+	if providerName == "" && modelName != "" {
+		if resolved, ok := config.ResolveProviderForModel(modelName); ok {
+			providerName = resolved
+		}
+	}
+	if providerName == "" && modelName == "" {
+		providerName, modelName = config.GetDefaultProviderAndModel()
+	} else if providerName == "" {
+		providerName, _ = config.GetDefaultProviderAndModel()
+	}
+
+	// Verify credentials exist for the chosen provider
+	if pcfg, ok := config.GetProviderConfig(providerName); !ok || pcfg.APIKey == "" {
+		http.Error(w, fmt.Sprintf("No API credentials configured for provider %q (model %q)", providerName, modelName), http.StatusBadRequest)
+		return
+	}
 
 	acknowledgment.ReceivedText = receivedMessage.Text
 
@@ -76,14 +104,31 @@ func LLMInputHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("No sessionID provided, using default")
 	}
 
+	// Ensure persistent session log is active for this session
+	clientIP := r.RemoteAddr
+	if host, _, splitErr := net.SplitHostPort(r.RemoteAddr); splitErr == nil {
+		clientIP = host
+	}
+	storage.StartSessionLog(clientIP, sessionID)
+
+	// Resolve thinking level (default to lowest supported level for thinking models)
+	thinkingLevel := receivedMessage.ThinkingLevel
+	if levels := config.ThinkingLevelsForModel(modelName); len(levels) > 0 {
+		if thinkingLevel == "" {
+			thinkingLevel = levels[0]
+		}
+	} else {
+		thinkingLevel = ""
+	}
+
 	// Create a new task for this request
-	newTask := task.CreateTask(receivedMessage.Text)
+	newTask := task.CreateTask(receivedMessage.Text, providerName, modelName, thinkingLevel, sessionID)
 	newTask.Status = "in-the-queue" // Start with queued status
 
-	log.Printf("Created task %s with message: %s", newTask.ID, receivedMessage.Text)
+	log.Printf("Created task %s with message: %s (provider: %s, model: %s)", newTask.ID, receivedMessage.Text, providerName, modelName)
 
-	// Send immediate WebSocket update with the task ID and queued status
-	websocket.SendTaskUpdate(newTask.ID, newTask.Status, newTask.Message)
+	// Send immediate WebSocket update with the task ID, queued status, and model
+	websocket.SendTaskUpdate(newTask.ID, newTask.Status, newTask.Message, newTask.Model)
 
 	// Enqueue the task
 	task.EnqueueTask(newTask)
@@ -94,6 +139,8 @@ func LLMInputHandler(w http.ResponseWriter, r *http.Request) {
 		"result":    "Task queued successfully",
 		"taskId":    newTask.ID,
 		"sessionId": sessionID,
+		"model":     newTask.Model,
+		"provider":  newTask.Provider,
 	})
 
 	jsonBytes, err := json.Marshal(response)
@@ -103,6 +150,88 @@ func LLMInputHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(jsonBytes)
+}
+
+// ModelsHandler returns all available models and whether their providers have credentials configured.
+func ModelsHandler(w http.ResponseWriter, r *http.Request) {
+	defaultProvider, defaultModel := config.GetDefaultProviderAndModel()
+	resp := map[string]interface{}{
+		"defaultProvider": defaultProvider,
+		"defaultModel":    defaultModel,
+		"models":          config.GetAvailableModels(),
+	}
+	jsonBytes, err := json.Marshal(resp)
+	if err != nil {
+		http.Error(w, "Failed to encode JSON", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonBytes)
+}
+
+// ArtifactsHandler lists or uploads persistent task artifacts.
+func ArtifactsHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		taskID := r.URL.Query().Get("taskId")
+		artifacts, err := storage.ListArtifacts(taskID)
+		if err != nil {
+			http.Error(w, "Failed to list artifacts: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		jsonBytes, err := json.Marshal(map[string]interface{}{
+			"artifactsDir": config.GetArtifactsDir(),
+			"artifacts":    artifacts,
+		})
+		if err != nil {
+			http.Error(w, "Failed to encode JSON", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(jsonBytes)
+
+	case http.MethodPost:
+		if err := r.ParseMultipartForm(100 << 20); err != nil {
+			http.Error(w, "Expected multipart form upload: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			http.Error(w, "Missing 'file' field: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		taskID := r.FormValue("taskId")
+		info, err := storage.SaveArtifact(taskID, header.Filename, file)
+		if err != nil {
+			http.Error(w, "Failed to save artifact: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		jsonBytes, _ := json.Marshal(info)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		w.Write(jsonBytes)
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// ArtifactDownloadHandler serves a saved artifact file by relative path under /artifacts/.
+func ArtifactDownloadHandler(w http.ResponseWriter, r *http.Request) {
+	relPath := strings.TrimPrefix(r.URL.Path, "/artifacts/")
+	if relPath == "" {
+		ArtifactsHandler(w, r)
+		return
+	}
+	cleanRel := filepath.Clean(relPath)
+	if strings.HasPrefix(cleanRel, "..") || filepath.IsAbs(cleanRel) {
+		http.Error(w, "Invalid artifact path", http.StatusBadRequest)
+		return
+	}
+	fullPath := filepath.Join(config.GetArtifactsDir(), cleanRel)
+	http.ServeFile(w, r, fullPath)
 }
 
 // TaskCancelHandler handles task cancellation requests
@@ -117,7 +246,11 @@ func TaskCancelHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Send WebSocket status update for canceled tasks
 	if success {
-		websocket.SendTaskUpdate(taskID, "canceled", "Task canceled by user")
+		modelName := ""
+		if t, ok := task.GetTask(taskID); ok {
+			modelName = t.Model
+		}
+		websocket.SendTaskUpdate(taskID, "canceled", "Task canceled by user", modelName)
 	}
 
 	var response []map[string]interface{}

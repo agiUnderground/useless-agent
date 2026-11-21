@@ -10,6 +10,10 @@ type Task struct {
 	ID         string
 	Status     string // "in-the-queue", "in-progress", "completed", "broken", "canceled"
 	Message    string
+	Provider      string
+	Model         string
+	ThinkingLevel string
+	SessionID     string
 	CreatedAt  time.Time
 	Context    context.Context    // Context for cancellation
 	CancelFunc context.CancelFunc // Function to cancel the context
@@ -21,6 +25,7 @@ type TaskUpdate struct {
 	TaskID  string `json:"taskId"`
 	Status  string `json:"status"`
 	Message string `json:"message"`
+	Model   string `json:"model,omitempty"`
 }
 
 // SubTask represents a subtask in goal breakdown

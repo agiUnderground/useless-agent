@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"useless-agent/internal/storage"
 )
 
 var upgrader = websocket.Upgrader{
@@ -86,6 +88,13 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 	websocketConnections = append(websocketConnections, wsConn)
 	wsmutex.Unlock()
 
+	// Start/rotate persistent session log using client IP
+	clientIP := r.RemoteAddr
+	if host, _, splitErr := net.SplitHostPort(r.RemoteAddr); splitErr == nil {
+		clientIP = host
+	}
+	storage.StartSessionLog(clientIP, fmt.Sprintf("ws-%d", time.Now().Unix()))
+
 	defer func() {
 		wsConn.mutex.Lock()
 		if !wsConn.closed {
@@ -125,7 +134,7 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // SendTaskUpdate sends a task update to all WebSocket clients
-func SendTaskUpdate(taskID, status, message string) {
+func SendTaskUpdate(taskID, status, message, model string) {
 	wsmutex.Lock()
 	defer wsmutex.Unlock()
 
@@ -134,6 +143,9 @@ func SendTaskUpdate(taskID, status, message string) {
 		"taskId":  taskID,
 		"status":  status,
 		"message": message,
+	}
+	if model != "" {
+		update["model"] = model
 	}
 
 	updateJSON, err := json.Marshal(update)

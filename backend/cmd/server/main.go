@@ -15,11 +15,22 @@ import (
 	"useless-agent/internal/llm"
 	"useless-agent/internal/mouse"
 	"useless-agent/internal/screenshot"
+	"useless-agent/internal/storage"
 	"useless-agent/internal/websocket"
 )
 
 func main() {
 	flag.Parse()
+
+	// Load optional config file and merge CLI flags
+	if err := config.LoadConfig(); err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	// Initialize persistent storage directories (logs & artifacts)
+	if err := storage.InitStorage(); err != nil {
+		log.Printf("Warning: Failed to initialize persistent storage: %v", err)
+	}
 
 	if err := screenshot.SuppressXGBLogs(); err != nil {
 		log.Fatalf("Failed to suppress xgb logs: %v", err)
@@ -42,6 +53,9 @@ func main() {
 	mux.HandleFunc("/mouse-input", mouse.MouseInputHandler)
 	mux.HandleFunc("/mouse-click", mouse.MouseClickHandler)
 	mux.HandleFunc("/llm-input", httpHandlers.LLMInputHandler)
+	mux.HandleFunc("/models", httpHandlers.ModelsHandler)
+	mux.HandleFunc("/artifacts", httpHandlers.ArtifactsHandler)
+	mux.HandleFunc("/artifacts/", httpHandlers.ArtifactDownloadHandler)
 	mux.HandleFunc("/video2", httpHandlers.Video2Handler)
 	mux.HandleFunc("/task-cancel", httpHandlers.TaskCancelHandler)
 	mux.HandleFunc("/user-assist", httpHandlers.UserAssistHandler)
@@ -105,9 +119,10 @@ func (lw *LogWriter) Write(p []byte) (n int, err error) {
 		return n, nil
 	}
 
-	// Send to WebSocket clients (non-blocking)
+	// Send to WebSocket clients and persistent session log file (non-blocking)
 	go func() {
 		websocket.SendLogMessage(logData)
+		storage.WriteSessionLog(logData)
 	}()
 
 	return n, nil
