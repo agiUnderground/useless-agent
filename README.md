@@ -7,8 +7,8 @@
 **Why is it interesting?**  
 
 * Uses text-only LLMs.  
-* Cheap: I spent about $4.57 playing with it for about 7 evenings.  
-* Single binary. *(almost, see todo list)*  
+* ~~Cheap: I spent about $4.57 playing with it for about 7 evenings.~~ only if you use cheap models.
+* ~~Single binary.~~ *(not happening anytime soon)*  
 * Easy to use: run the binary and copy the IP address.  
 * No telemetry, no bullshit.
 * IPv4 & IPv6
@@ -147,7 +147,7 @@ CLI flags (`--provider`, `--key`, `--model`, `--base-url`) remain supported and 
 > Like to burn money? Try more capable LLMs; using DeepSeek R1 instead of v3 would probably make the program more capable of doing nothing.
 
 ### Todo list:  
-- [ ] Build a single fully static binary.  
+- [ ] ~~Build a single fully static binary.~~ 
 - [X] Add stats about burned tokens.
 - [ ] Allow LLM to spawn local 'thoughts', which would do/monitor something and then allow them to interrupt the main LOOP and to inject its results into the thinking loop.
 - [ ] Build a unified concept space for models that are capable of ingesting more data.
