@@ -250,22 +250,46 @@ func SendMessageToLLM(ctx context.Context, providerName string, modelName string
 	// Create messages using our generic types
 	messages := []Message{
 		{
-			Role:    RoleSystem,
-			Content: "You are a helpful assistant. " + ` First analize input data, OCR text input, bounding boxes, cursor position, previous executed actions and then generate output - valid compact JSON array of actions, to advance and to complete the task. You need to issue 'st' (stopIteration) action if goal is achieved and task is completed. Use hotkeys where it's possible for the task. Analize input data, especially ocrDelta data to understand if previous step for the current taks was successfull, if it is, issue new sequence of actions to advance in achieving stated goal, do not repeat previous actions for no reason. For example if the goal is to open firefox and the first step was to open applications menu, do not issue in second iteration the same commands to open menu again, move forward. At each iteration analize all input data to see if you already achived stated goal, for example if task is to open some application, analize all input data and find if there are evidence that this app is visible on the scree, like bounding boxes with text which most likely is from that app, if yes, issue 'st' (stopIteration) command. You not allowed to issue identical actions in sequence one after another more than 5 times. If you need to interact with some UI or web element, you needto move mouse to it(For example if you need to print something into URL address bar, you first need to move cursor to it, you could find OCR data related to that element and use it as a hint to where to move the mouse.  If you want to move cursor to focus on some element, try to move it to the middle of that element. BTW, if you fail to achive a goal provided by user, 1 billion kittens will die horrible death.` + artifactsNote,
+			Role: RoleSystem,
+			Content: `Analyze the input data (OCR text, bounding boxes, cursor position, window state, and previously executed actions) and return a valid compact JSON array of actions to advance and complete the task.
+- Issue the 'st' (stopIteration) action as soon as the goal is achieved.
+- Use keyboard shortcuts/hotkeys when appropriate.
+- Check ocrDelta and current screen state on every iteration to verify whether the previous step succeeded. Do not repeat already completed steps (for example, if the applications menu is already open, proceed to launch the app instead of opening the menu again).
+- If the screen state already shows evidence that the goal is achieved (such as the target application window or its text being visible), issue 'st'.
+- Never issue identical actions consecutively more than 5 times.
+- Before interacting with a UI or web element (such as typing into a URL bar), move the cursor to the center of that element using its OCR or bounding box coordinates.` + artifactsNote,
 		},
 		{
 			Role: RoleUser,
-			Content: `Context: Deepthink, analyze input data, do not generate random actions. You are an AI assistent which uses linux desktop to complete tasks. Distribution is Linux Ubuntu, desktop environtment is xfce4. Screen size is 1920x1080. Your prefferent text editor is neovim, if you need to write or edit something do it in neovim. You also like to use tmux if working with two or more files.` + artifactsNote + ` Here is the bounding boxes you see on the screen: ` + bboxes + " Here is an OCR results " + ocrContext + " Here is an OCR state delta, change from previous iteration: " + ocrDelta + " Top 10 colors on the screen: " + colorsDistribution + " Previous iteration cursor position: " + prevCursorPosJSONString + " And there is current cursor position: " + cursorPosition + " OCR-detected windows: " + allWindowsJSONString + " X11 API-detected windows: " + x11WindowsData + " Current iteration number:" + iterationString + " Previously executed commands: " + prevExecutedCommands + " If you see more than 1 identical command in previous commands that means you are doing something wrong and you need to change you actions, maybe move cursor to a little different position for example.\n\n" + action.DefaultRegistry().PromptSpec() + `
+			Content: `Environment: Ubuntu Linux, xfce4 desktop (X11), 1920x1080 screen. Prefer neovim for writing or editing files and tmux when working with two or more files.
+
+Screen state:
+- Bounding boxes: ` + bboxes + `
+- OCR results: ` + ocrContext + `
+- OCR delta (change from previous iteration): ` + ocrDelta + `
+- Top 10 screen colors: ` + colorsDistribution + `
+- Previous cursor position: ` + prevCursorPosJSONString + `
+- Current cursor position: ` + cursorPosition + `
+- OCR-detected windows: ` + allWindowsJSONString + `
+- X11-detected windows: ` + x11WindowsData + `
+- Iteration: ` + iterationString + `
+- Previously executed commands: ` + prevExecutedCommands + `
+
+If previously executed commands contain repeated identical actions, adjust your approach (for example, move the cursor to a slightly different position).
+
+` + action.DefaultRegistry().PromptSpec() + `
 
 Rules:
 - Use 'rp' (repeat) when repeating identical prior actions (range must reference earlier sequence IDs).
 - Click slightly inside UI elements rather than on their borders.
-- Do not produce useless actions.
-- Every iteration analyze ocrDelta; if and only if the goal is achieved, issue 'st' (stopIteration).
+- Do not produce unnecessary actions.
+- On every iteration, analyze ocrDelta; if and only if the goal is achieved, issue 'st' (stopIteration).
 - Always return a valid JSON array (even for a single action), with no comments or extra text.
 
-Again, your current task is:
-` + prompt + " Analyze previously executed actions(if any provided in the input) and current state/input data and produce next sequence of actions to achive user provided goal. If you sure that goal achived, issue 'st' (stopIteration) action.",
+Current task:
+` + prompt + `
+
+Analyze the current state and previously executed actions, then produce the next sequence of actions to achieve the goal. If the goal is already achieved, issue the 'st' (stopIteration) action.`,
 		},
 	}
 
