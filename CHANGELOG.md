@@ -10,6 +10,7 @@
 * Added persistent storage for settings and state.
 
 #### Bugfixes
+* Restored toast error notifications for failed connections: entering an unreachable IP (or opening a task-card session whose backend is unreachable) now shows a bottom-right "Cannot connect" alert once per session, alongside the existing red chat-box flash.
 * Fixed premature main-goal completion caused by JSON array truncation in `BreakGoalIntoSubtasks`, and added explicit main-goal verification and replanning (`IsMainGoalAchieved`, `ReplanSubtasks`).
 * Fixed out-of-order WebSocket task status updates and queue state races that could leave newly started tasks stuck in `in-the-queue` or `in-progress`.
 * Omitted unsupported `presence_penalty` parameter for the Gemini provider.

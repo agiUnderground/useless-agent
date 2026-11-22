@@ -24,6 +24,7 @@ interface Session {
   ws?: WebSocket;
   videoInterval?: number;
   pingInterval?: number;
+  connectErrorNotified?: boolean;
 }
 
 interface ModelOption {
@@ -681,15 +682,21 @@ const App: React.FC = () => {
       session.ws.close();
     }
     
+    // Track whether this WebSocket ever opened successfully, so we only
+    // notify once per session about a failed initial connection.
+    let hasConnected = false;
+    let hasNotifiedConnectError = session.connectErrorNotified ?? false;
+
     // Create new WebSocket
     const ws = new WebSocket(CONFIG.getWsUrl(session.ip, '/ws'));
     
     ws.onopen = () => {
       console.log(`Connected to server ${session.ip}`);
+      hasConnected = true;
       setSessions(prevSessions =>
         prevSessions.map(s =>
           s.id === session.id
-            ? { ...s, isConnected: true, ws }
+            ? { ...s, isConnected: true, ws, connectErrorNotified: false }
             : s
         )
       );
@@ -838,6 +845,18 @@ const App: React.FC = () => {
       console.error(`WebSocket error for ${session.ip}:`, error);
       setServerOffline(true);
       setTimeout(() => setServerOffline(false), 1000);
+
+      if (!hasConnected && !hasNotifiedConnectError) {
+        hasNotifiedConnectError = true;
+        setSessions(prevSessions =>
+          prevSessions.map(s =>
+            s.id === session.id
+              ? { ...s, connectErrorNotified: true }
+              : s
+          )
+        );
+        showToast(`Cannot connect to ${session.ip}. Check that the backend is running and reachable.`, 'error');
+      }
     };
     
     return ws;
@@ -938,9 +957,11 @@ const App: React.FC = () => {
       
       // Setup WebSocket connection with a callback to activate user-assist when connected
       const ws = new WebSocket(CONFIG.getWsUrl(sessionIp, '/ws'));
+      let wsHasConnected = false;
       
       ws.onopen = () => {
         console.log(`Connected to server ${sessionIp}`);
+        wsHasConnected = true;
         
         // Update session state to connected
         setSessions(prevSessions =>
@@ -1096,6 +1117,11 @@ const App: React.FC = () => {
         console.error(`WebSocket error for ${sessionIp}:`, error);
         setServerOffline(true);
         setTimeout(() => setServerOffline(false), 1000);
+
+        if (!wsHasConnected && !newSession.connectErrorNotified) {
+          newSession.connectErrorNotified = true;
+          showToast(`Cannot connect to ${sessionIp}. Check that the backend is running and reachable.`, 'error');
+        }
       };
       
       // Store the WebSocket in the session
