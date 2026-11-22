@@ -6,6 +6,7 @@ interface Task {
   status: string;
   message: string;
   model?: string;
+  thinkingLevel?: string;
   sessionId?: string;
   sessionIp?: string; // Store the IP directly to preserve session info
   sequenceNumber?: number;
@@ -217,7 +218,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
       {/* Model info at the bottom of the task card */}
       {task.model && (
         <div className="task-model-info">
-          model: {task.model}
+          model: {task.model}{task.thinkingLevel ? ` · ${task.thinkingLevel}` : ''}
         </div>
       )}
     </div>

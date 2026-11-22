@@ -5,16 +5,19 @@
 #### Features
 * Added dual-stack IPv4 and IPv6 support across backend, frontend, and Docker (including mixed IPv4/IPv6 sessions and automatic IPv4 fallback when IPv6 is disabled).
 * Added LLM provider support for Google Gemini, OpenAI, Anthropic, Qwen, and MiniMax.
-* Added dynamic model and thinking level selection.
+* Added dynamic model and thinking level selection, displaying `model · effort` on task cards.
 * Added optional JSON configuration file support (`config.example.json`).
 * Added persistent storage for settings and state.
 
 #### Bugfixes
+* Fixed premature main-goal completion caused by JSON array truncation in `BreakGoalIntoSubtasks`, and added explicit main-goal verification and replanning (`IsMainGoalAchieved`, `ReplanSubtasks`).
+* Fixed out-of-order WebSocket task status updates and queue state races that could leave newly started tasks stuck in `in-the-queue` or `in-progress`.
 * Omitted unsupported `presence_penalty` parameter for the Gemini provider.
 * Removed fixed `max-height` on the frontend tasks container.
 * Cleaned up stale `/tmp/.X2-lock` and `/tmp/.X11-unix/X2` files on container startup so `Xvfb` restarts reliably.
 
 #### Changes
+* Refactored the execution engine (`Engine`) to use callback-driven subtask/task verification (triggering verification only when `stopIteration` is signaled, removing arbitrary sleep delays), guaranteed terminal status reporting, and context-propagated LLM calls.
 * Refactored action execution to a registry-based executor with a compact JSON action format to reduce token usage while keeping human-readable logs and UI updates.
 * Preferred X11/EWMH API for window detection and hardened the visual fallback.
 * Optimized Docker builds with multi-stage parallel backend builds, BuildKit cache mounts (`apt`, Go/CGO, `npm`), fixed Go module layer caching, and added `frontend/.dockerignore`.

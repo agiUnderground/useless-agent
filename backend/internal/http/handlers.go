@@ -121,26 +121,23 @@ func LLMInputHandler(w http.ResponseWriter, r *http.Request) {
 		thinkingLevel = ""
 	}
 
-	// Create a new task for this request
+	// Create a new task for this request (starts in "in-the-queue" and emits initial update)
 	newTask := task.CreateTask(receivedMessage.Text, providerName, modelName, thinkingLevel, sessionID)
-	newTask.Status = "in-the-queue" // Start with queued status
 
 	log.Printf("Created task %s with message: %s (provider: %s, model: %s)", newTask.ID, receivedMessage.Text, providerName, modelName)
 
-	// Send immediate WebSocket update with the task ID, queued status, and model
-	websocket.SendTaskUpdate(newTask.ID, newTask.Status, newTask.Message, newTask.Model)
-
-	// Enqueue the task
+	// Enqueue the task (transitions to "in-progress" immediately if no task is running)
 	task.EnqueueTask(newTask)
 
 	// Return immediate JSON response
 	var response []map[string]interface{}
 	response = append(response, map[string]interface{}{
-		"result":    "Task queued successfully",
-		"taskId":    newTask.ID,
-		"sessionId": sessionID,
-		"model":     newTask.Model,
-		"provider":  newTask.Provider,
+		"result":        "Task queued successfully",
+		"taskId":        newTask.ID,
+		"sessionId":     sessionID,
+		"model":         newTask.Model,
+		"provider":      newTask.Provider,
+		"thinkingLevel": newTask.ThinkingLevel,
 	})
 
 	jsonBytes, err := json.Marshal(response)
@@ -247,10 +244,12 @@ func TaskCancelHandler(w http.ResponseWriter, r *http.Request) {
 	// Send WebSocket status update for canceled tasks
 	if success {
 		modelName := ""
+		thinkingLevel := ""
 		if t, ok := task.GetTask(taskID); ok {
 			modelName = t.Model
+			thinkingLevel = t.ThinkingLevel
 		}
-		websocket.SendTaskUpdate(taskID, "canceled", "Task canceled by user", modelName)
+		websocket.SendTaskUpdate(taskID, "canceled", "Task canceled by user", modelName, thinkingLevel)
 	}
 
 	var response []map[string]interface{}

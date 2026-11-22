@@ -39,6 +39,7 @@ interface Task {
   status: string;
   message: string;
   model?: string;
+  thinkingLevel?: string;
   sessionId?: string;
   sessionIp?: string; // Store the IP directly to preserve session info
   sequenceNumber?: number;
@@ -454,6 +455,7 @@ const App: React.FC = () => {
         status: 'in-the-queue',
         message: message,
         model: selectedModel || undefined,
+        thinkingLevel: selectedThinkingLevel || undefined,
         sessionId: selectedSessionId,
         sessionIp: selectedSession?.ip, // Store the IP directly
         createdAt: Date.now(),
@@ -508,6 +510,7 @@ const App: React.FC = () => {
                     ...task,
                     id: firstEntry.taskId,
                     model: firstEntry.model || task.model,
+                    thinkingLevel: firstEntry.thinkingLevel || task.thinkingLevel,
                     isPlaceholder: false
                   }
                 : task
@@ -714,6 +717,7 @@ const App: React.FC = () => {
           const taskStatus = taskData.status || data.status;
           const taskMessage = taskData.message || data.message;
           const taskModel = taskData.model || data.model;
+          const taskThinkingLevel = taskData.thinkingLevel || data.thinkingLevel;
           
           if (!taskId || !taskStatus) {
             console.error('Invalid task update received:', data);
@@ -746,7 +750,7 @@ const App: React.FC = () => {
               
               const updatedTasks = prevTasks.map(t =>
                 t.id === taskId
-                  ? { ...t, status: taskStatus, completedAt: completionTime, model: taskModel || t.model }
+                  ? { ...t, status: taskStatus, completedAt: completionTime, model: taskModel || t.model, thinkingLevel: taskThinkingLevel || t.thinkingLevel }
                   : t
               );
               
@@ -769,7 +773,7 @@ const App: React.FC = () => {
                 console.log(`Updating placeholder task ${placeholderTask.id} to real ID ${taskId}`);
                 return prevTasks.map(t =>
                   t.id === placeholderTask.id
-                    ? { ...t, id: taskId, status: taskStatus, model: taskModel || t.model, isPlaceholder: false }
+                    ? { ...t, id: taskId, status: taskStatus, model: taskModel || t.model, thinkingLevel: taskThinkingLevel || t.thinkingLevel, isPlaceholder: false }
                     : t
                 );
               } else {
@@ -780,6 +784,7 @@ const App: React.FC = () => {
                   status: taskStatus,
                   message: taskMessage,
                   model: taskModel,
+                  thinkingLevel: taskThinkingLevel,
                   sessionId: session.id,
                   sessionIp: session.ip, // Store the IP directly
                   createdAt: Date.now(),
