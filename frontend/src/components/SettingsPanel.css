@@ -379,16 +379,16 @@
 .execution-engine .execution-live-pill {
   font-size: 9px !important;
   letter-spacing: 1.2px;
-  color: #4CAF50;
-  animation: livePulse 2s ease-in-out infinite;
+  color: #6ab893;
+  animation: livePulse 2.4s ease-in-out infinite;
 }
 
 .execution-engine .execution-queued-badge {
   margin-left: auto;
   font-size: 9px !important;
   letter-spacing: 1px;
-  color: rgba(33, 150, 243, 0.9);
-  border: 1px solid rgba(33, 150, 243, 0.35);
+  color: #88a9cf;
+  border: 1px solid rgba(108, 143, 184, 0.35);
   border-radius: 3px;
   padding: 2px 6px;
 }
@@ -405,7 +405,7 @@
   margin-bottom: 8px;
   background: linear-gradient(
     to right,
-    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0.14) 0%,
     rgba(255, 255, 255, 0.02) 92%,
     rgba(255, 255, 255, 0) 100%
   );
@@ -414,19 +414,19 @@
 .tasks-strip-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 5px;
   align-items: center;
 }
 
 .task-square {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
   padding: 0;
   border-radius: 3px;
   cursor: pointer;
   position: relative;
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   transition:
     transform 0.18s ease,
     box-shadow 0.2s ease,
@@ -436,7 +436,7 @@
 }
 
 .task-square:hover {
-  transform: translateY(-2px) scale(1.18);
+  transform: translateY(-1px) scale(1.14);
   z-index: 3;
   border-color: rgba(255, 255, 255, 0.45);
 }
@@ -444,32 +444,32 @@
 .task-square.selected {
   box-shadow:
     0 0 0 1px #000,
-    0 0 0 2px rgba(255, 255, 255, 0.8);
+    0 0 0 2px rgba(255, 255, 255, 0.72);
 }
 
 .task-square.status-in-progress {
-  background-color: rgba(255, 193, 7, 0.85);
-  border-color: rgba(255, 193, 7, 0.6);
+  background-color: rgba(217, 164, 91, 0.85);
+  border-color: rgba(217, 164, 91, 0.65);
 }
 
 .task-square.status-completed {
-  background-color: rgba(76, 175, 80, 0.8);
-  border-color: rgba(76, 175, 80, 0.55);
+  background-color: rgba(95, 168, 134, 0.72);
+  border-color: rgba(95, 168, 134, 0.55);
 }
 
 .task-square.status-broken {
-  background-color: rgba(244, 67, 54, 0.85);
-  border-color: rgba(244, 67, 54, 0.6);
+  background-color: rgba(201, 107, 107, 0.78);
+  border-color: rgba(201, 107, 107, 0.55);
 }
 
 .task-square.status-canceled {
-  background-color: rgba(158, 158, 158, 0.7);
-  border-color: rgba(158, 158, 158, 0.5);
+  background-color: rgba(110, 115, 124, 0.65);
+  border-color: rgba(110, 115, 124, 0.45);
 }
 
 .task-square.status-in-the-queue {
-  background-color: rgba(33, 150, 243, 0.8);
-  border-color: rgba(33, 150, 243, 0.55);
+  background-color: rgba(108, 143, 184, 0.55);
+  border-color: rgba(108, 143, 184, 0.45);
 }
 
 .task-square.running::after {
@@ -477,8 +477,8 @@
   position: absolute;
   inset: -4px;
   border-radius: 5px;
-  border: 1px solid rgba(255, 193, 7, 0.55);
-  animation: squarePulse 1.8s ease-out infinite;
+  border: 1px solid rgba(217, 164, 91, 0.5);
+  animation: squarePulse 2s ease-out infinite;
   pointer-events: none;
 }
 
@@ -486,11 +486,13 @@
 
 .task-header {
   padding: 4px 0 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 6px;
 }
 
 .prompt-label {
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.42);
   margin-bottom: 6px;
   text-transform: uppercase;
   letter-spacing: 0.8px;
@@ -515,38 +517,38 @@
 }
 
 .execution-engine .task-status-chip.status-in-progress {
-  color: #FFC107;
-  border-color: rgba(255, 193, 7, 0.45);
-  background: rgba(255, 193, 7, 0.08);
+  color: #d9a45b;
+  border-color: rgba(217, 164, 91, 0.4);
+  background: rgba(217, 164, 91, 0.08);
 }
 
 .execution-engine .task-status-chip.status-completed {
-  color: #4CAF50;
-  border-color: rgba(76, 175, 80, 0.45);
-  background: rgba(76, 175, 80, 0.08);
+  color: #6ab893;
+  border-color: rgba(95, 168, 134, 0.4);
+  background: rgba(95, 168, 134, 0.08);
 }
 
 .execution-engine .task-status-chip.status-broken {
-  color: #F44336;
-  border-color: rgba(244, 67, 54, 0.45);
-  background: rgba(244, 67, 54, 0.08);
+  color: #c96b6b;
+  border-color: rgba(201, 107, 107, 0.4);
+  background: rgba(201, 107, 107, 0.08);
 }
 
 .execution-engine .task-status-chip.status-canceled {
-  color: #9E9E9E;
-  border-color: rgba(158, 158, 158, 0.45);
-  background: rgba(158, 158, 158, 0.08);
+  color: #8c929c;
+  border-color: rgba(140, 146, 156, 0.35);
+  background: rgba(140, 146, 156, 0.08);
 }
 
 .execution-engine .task-status-chip.status-in-the-queue {
-  color: #2196F3;
-  border-color: rgba(33, 150, 243, 0.45);
-  background: rgba(33, 150, 243, 0.08);
+  color: #88a9cf;
+  border-color: rgba(108, 143, 184, 0.4);
+  background: rgba(108, 143, 184, 0.08);
 }
 
 .execution-engine .task-header-text {
   font-size: 12px !important;
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(255, 255, 255, 0.78);
   line-height: 1.45;
   word-wrap: break-word;
   overflow: hidden;
@@ -566,30 +568,32 @@
 }
 
 .timeline-viewport {
+  position: relative;
+  z-index: 2;
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 14px;
   scrollbar-width: thin;
-  scrollbar-color: #444 #212121;
+  scrollbar-color: #333 #111;
 }
 
 .timeline-viewport::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 
 .timeline-viewport::-webkit-scrollbar-track {
-  background: #212121;
+  background: #0d0d0d;
   border-radius: 3px;
 }
 
 .timeline-viewport::-webkit-scrollbar-thumb {
-  background: #444;
+  background: #333;
   border-radius: 3px;
 }
 
 .timeline-viewport::-webkit-scrollbar-thumb:hover {
-  background: #666;
+  background: #4d4d4d;
 }
 
 .timeline-scroll-content {
@@ -597,17 +601,79 @@
   transition: padding 0.2s ease;
 }
 
-.timeline-rail {
+/* --- Tree structure & dependency connectors ------------------- */
+
+.tl-task-group {
+  position: relative;
+  margin-bottom: 6px;
+}
+
+.tl-subtask-list {
+  position: relative;
+  margin-left: 8px;
+  padding-left: 16px;
+}
+
+/* Vertical trunk line from parent task to its subtasks */
+.tl-subtask-list::before {
+  content: '';
   position: absolute;
-  left: 7px;
+  left: 0;
   top: 0;
-  bottom: 0;
+  bottom: 14px;
   width: 1px;
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.14) 0%,
-    rgba(255, 255, 255, 0.05) 100%
-  );
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.tl-subtask-group {
+  position: relative;
+}
+
+/* Horizontal branch from task trunk into each subtask */
+.tl-subtask-group::before {
+  content: '';
+  position: absolute;
+  left: -16px;
+  top: 14px;
+  width: 14px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.tl-subtask-group.is-active-branch::before {
+  background: rgba(217, 164, 91, 0.38);
+}
+
+.tl-action-list {
+  position: relative;
+  margin-left: 8px;
+  padding-left: 16px;
+}
+
+/* Vertical sub-trunk line from parent subtask to its actions */
+.tl-action-list::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 13px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.tl-action-node {
+  position: relative;
+}
+
+/* Horizontal branch from subtask trunk into each action */
+.tl-action-node::before {
+  content: '';
+  position: absolute;
+  left: -16px;
+  top: 13px;
+  width: 14px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 /* --- Timeline rows -------------------------------------------- */
@@ -615,43 +681,84 @@
 .tl-row {
   position: relative;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
-  padding: 6px 8px 6px 22px;
+  padding: 6px 10px 6px 20px;
   border-radius: 4px;
   transition:
-    opacity 0.35s ease,
-    color 0.35s ease,
-    background-color 0.35s ease,
-    box-shadow 0.35s ease;
+    opacity 0.3s ease,
+    color 0.3s ease,
+    background-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.tl-task {
+  cursor: pointer;
+}
+
+.tl-task:hover {
+  background: rgba(255, 255, 255, 0.035);
 }
 
 .tl-dot {
   position: absolute;
-  left: 3px;
+  left: 5px;
   top: 50%;
-  width: 7px;
-  height: 7px;
-  margin-top: -3.5px;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.25);
   box-sizing: border-box;
-  transition: background-color 0.35s ease, box-shadow 0.35s ease, transform 0.35s ease;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.tl-action .tl-dot {
+  width: 5px;
+  height: 5px;
+  margin-top: -2.5px;
+  left: 5.5px;
 }
 
 .execution-engine .tl-tag {
   flex: none;
-  min-width: 86px;
   font-size: 9px !important;
-  letter-spacing: 1px;
-  color: rgba(255, 255, 255, 0.38);
+  letter-spacing: 0.9px;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.execution-engine .tl-task .tl-tag {
+  min-width: 54px;
+}
+
+.execution-engine .tl-subtask .tl-tag {
+  min-width: 50px;
 }
 
 .execution-engine .tl-status {
   flex: none;
   font-size: 9px !important;
-  letter-spacing: 1px;
-  opacity: 0.85;
+  letter-spacing: 0.9px;
+}
+
+.execution-engine .tl-status-in-progress {
+  color: #d9a45b;
+}
+
+.execution-engine .tl-status-completed {
+  color: #6ab893;
+}
+
+.execution-engine .tl-status-broken {
+  color: #c96b6b;
+}
+
+.execution-engine .tl-status-canceled {
+  color: #7c828d;
+}
+
+.execution-engine .tl-status-in-the-queue {
+  color: #88a9cf;
 }
 
 .execution-engine .tl-text {
@@ -667,16 +774,9 @@
   font-size: 11.5px !important;
 }
 
-.tl-subtask {
-  margin-left: 14px;
-}
-
 .tl-action {
-  margin-left: 34px;
-}
-
-.tl-action .tl-tag {
-  min-width: 58px;
+  padding-top: 4px;
+  padding-bottom: 4px;
 }
 
 .execution-engine .tl-action-name {
@@ -687,79 +787,91 @@
 }
 
 .execution-engine .tl-params {
-  font-size: 9px !important;
-  color: rgba(255, 255, 255, 0.4);
+  font-size: 9.5px !important;
+  color: rgba(255, 255, 255, 0.42);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
 }
 
-/* Row lifecycle states: planned (muted) -> active (bright) -> done (dim) */
+/* Row lifecycle states:
+   - planned (bottom half): toned-down muted gray, clearly legible
+   - done (top half): calm executed state
+   - active (middle): crisp bright highlight */
 
 .tl-row.is-planned {
-  opacity: 0.32;
-  color: rgba(255, 255, 255, 0.55);
+  opacity: 0.82;
+  color: #78808c;
+}
+
+.tl-row.is-planned .tl-tag {
+  color: #5c636e;
 }
 
 .tl-row.is-planned .tl-dot {
-  background: rgba(255, 255, 255, 0.18);
+  background: transparent;
+  border: 1px solid #5c636e;
 }
 
 .tl-row.is-done {
-  opacity: 0.6;
-  color: rgba(255, 255, 255, 0.68);
+  opacity: 0.88;
+  color: #a9b2be;
 }
 
 .tl-row.is-done .tl-dot {
-  background: rgba(76, 175, 80, 0.85);
+  background: #5fa886;
 }
 
 .tl-row.is-failed {
-  opacity: 0.75;
-  color: rgba(244, 67, 54, 0.85);
+  opacity: 0.92;
+  color: #c97b7b;
 }
 
 .tl-row.is-failed .tl-dot {
-  background: rgba(244, 67, 54, 0.9);
+  background: #c96b6b;
 }
 
 .tl-row.is-canceled {
-  opacity: 0.5;
-  color: rgba(255, 255, 255, 0.55);
+  opacity: 0.65;
+  color: #7c828d;
 }
 
 .tl-row.is-canceled .tl-dot {
-  background: rgba(158, 158, 158, 0.8);
+  background: #6e737c;
 }
 
 .tl-row.is-active {
   opacity: 1;
-  color: rgba(255, 255, 255, 0.95);
+  color: #f0f2f5;
+}
+
+.tl-row.is-active .tl-tag {
+  color: rgba(217, 164, 91, 0.85);
 }
 
 .tl-row.is-active .tl-dot {
-  background: #FFC107;
-  box-shadow: 0 0 10px rgba(255, 193, 7, 0.75);
-  animation: execDotPulse 1.6s ease-in-out infinite;
+  background: #d9a45b;
+  box-shadow: 0 0 8px rgba(217, 164, 91, 0.55);
+  animation: execDotPulse 1.8s ease-in-out infinite;
 }
 
 .tl-row.is-current {
-  background: rgba(255, 255, 255, 0.055);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.045);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
-/* --- Centered focus band / pointer ----------------------------- */
+/* --- Centered focus band / pointer (fades right -> left) ------ */
 
 .timeline-focus-band {
   position: absolute;
   left: 0;
   right: 14px;
   top: 50%;
-  height: 36px;
+  height: 32px;
   transform: translateY(-50%);
   pointer-events: none;
-  z-index: 4;
+  z-index: 1;
 }
 
 .timeline-focus-band::before {
@@ -767,44 +879,38 @@
   position: absolute;
   inset: 0;
   background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.045) 50%,
-    rgba(255, 255, 255, 0) 100%
+    to left,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.015) 45%,
+    rgba(255, 255, 255, 0) 85%
   );
+  border-radius: 4px;
 }
 
 .focus-line {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 35%;
+  right: 10px;
   top: 50%;
   height: 1px;
   background: linear-gradient(
-    to right,
-    rgba(255, 255, 255, 0.5) 0%,
-    rgba(255, 255, 255, 0.16) 70%,
+    to left,
+    rgba(255, 255, 255, 0.32) 0%,
+    rgba(255, 255, 255, 0.1) 45%,
     rgba(255, 255, 255, 0) 100%
   );
 }
 
-.focus-chevron {
+.focus-pointer-right {
   position: absolute;
-  left: 1px;
+  right: 2px;
+  top: 50%;
   width: 0;
   height: 0;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-}
-
-.focus-chevron-top {
-  top: 4px;
-  border-bottom: 5px solid rgba(255, 255, 255, 0.55);
-}
-
-.focus-chevron-bottom {
-  bottom: 4px;
-  border-top: 5px solid rgba(255, 255, 255, 0.55);
+  transform: translateY(-50%);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-right: 5px solid rgba(255, 255, 255, 0.45);
 }
 
 /* --- Follow-live button ---------------------------------------- */
@@ -817,9 +923,9 @@
   font-family: 'JetBrains Mono', monospace;
   font-size: 9px;
   letter-spacing: 1.2px;
-  color: #4CAF50;
-  background: rgba(0, 0, 0, 0.78);
-  border: 1px solid rgba(76, 175, 80, 0.45);
+  color: #6ab893;
+  background: rgba(10, 10, 10, 0.88);
+  border: 1px solid rgba(95, 168, 134, 0.4);
   border-radius: 3px;
   padding: 4px 10px;
   cursor: pointer;
@@ -827,8 +933,8 @@
 }
 
 .timeline-live-btn:hover {
-  background: rgba(76, 175, 80, 0.16);
-  border-color: rgba(76, 175, 80, 0.8);
+  background: rgba(95, 168, 134, 0.14);
+  border-color: rgba(95, 168, 134, 0.72);
 }
 
 /* --- Empty / loading states ------------------------------------ */
@@ -842,7 +948,7 @@
   text-align: center;
   font-size: 10px;
   letter-spacing: 1.6px;
-  color: rgba(255, 255, 255, 0.32);
+  color: rgba(255, 255, 255, 0.35);
 }
 
 .execution-loading {
@@ -853,13 +959,13 @@
 
 @keyframes execDotPulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.45);
+    box-shadow: 0 0 0 0 rgba(217, 164, 91, 0.4);
   }
   70% {
-    box-shadow: 0 0 0 7px rgba(255, 193, 7, 0);
+    box-shadow: 0 0 0 6px rgba(217, 164, 91, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(255, 193, 7, 0);
+    box-shadow: 0 0 0 0 rgba(217, 164, 91, 0);
   }
 }
 

@@ -146,21 +146,27 @@ const mergeFetchedState = (prev: ExecutionEngineState, fetched: ExecutionEngineS
   const merged = fetched.tasks.map(fetchTask => {
     const liveTask = prev.tasks.find(t => t.id === fetchTask.id);
     if (!liveTask) return fetchTask;
+    const mergedSubtasks = fetchTask.subtasks.map(fetchSub => {
+      const liveSub = liveTask.subtasks.find(s => s.id === fetchSub.id);
+      if (!liveSub) return fetchSub;
+      return {
+        ...fetchSub,
+        isActive: liveSub.isActive,
+        isCompleted: liveSub.isCompleted || fetchSub.isCompleted,
+        actions: liveSub.actions.length > 0 ? liveSub.actions : fetchSub.actions
+      };
+    });
+    const extraSubtasks = liveTask.subtasks.filter(
+      liveSub => !mergedSubtasks.some(m => m.id === liveSub.id)
+    );
+    const subtasks = [...mergedSubtasks, ...extraSubtasks].sort((a, b) => a.id - b.id);
+
     return {
       ...fetchTask,
       status: liveTask.status,
       message: liveTask.message || fetchTask.message,
       model: liveTask.model || fetchTask.model,
-      subtasks: fetchTask.subtasks.map(fetchSub => {
-        const liveSub = liveTask.subtasks.find(s => s.id === fetchSub.id);
-        if (!liveSub) return fetchSub;
-        return {
-          ...fetchSub,
-          isActive: liveSub.isActive,
-          isCompleted: liveSub.isCompleted || fetchSub.isCompleted,
-          actions: liveSub.actions.length > 0 ? liveSub.actions : fetchSub.actions
-        };
-      })
+      subtasks
     };
   });
 
@@ -670,15 +676,24 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             className="timeline-scroll-content"
             style={{ paddingTop: viewportHalf, paddingBottom: viewportHalf }}
           >
-            <div className="timeline-rail" aria-hidden="true" />
             {sortedTasks.map((task, taskIndex) => {
               const expanded = task.id === executionEngineState.selectedTask;
               const taskKey = `task-${task.id}`;
+              const hasSubtasks = expanded && task.subtasks.length > 0;
+              const isLastTask = taskIndex === sortedTasks.length - 1;
               return (
-                <div key={task.id} className="tl-task-group">
+                <div
+                  key={task.id}
+                  className={[
+                    'tl-task-group',
+                    hasSubtasks ? 'has-children' : '',
+                    isLastTask ? 'is-last' : ''
+                  ].filter(Boolean).join(' ')}
+                >
                   <div
                     ref={el => registerItem(taskKey, el)}
                     className={`tl-row tl-task ${taskRowState(task)} ${focusKey === taskKey ? 'is-current' : ''}`}
+                    onClick={() => handleTaskSquareClick(task.id)}
                   >
                     <span className="tl-dot" aria-hidden="true" />
                     <span className="tl-tag">TASK {String(taskIndex + 1).padStart(2, '0')}</span>
@@ -686,48 +701,69 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     <span className="tl-text" title={task.message}>{task.message}</span>
                   </div>
 
-                  {expanded && task.subtasks.map(subtask => {
-                    const subtaskKey = `subtask-${task.id}-${subtask.id}`;
-                    return (
-                      <div key={subtask.id} className="tl-subtask-group">
-                        <div
-                          ref={el => registerItem(subtaskKey, el)}
-                          className={`tl-row tl-subtask ${subtaskRowState(subtask)} ${focusKey === subtaskKey ? 'is-current' : ''}`}
-                        >
-                          <span className="tl-dot" aria-hidden="true" />
-                          <span className="tl-tag">SUBTASK {String(subtask.id).padStart(2, '0')}</span>
-                          <span className="tl-text" title={subtask.description}>{subtask.description}</span>
-                        </div>
-
-                        {subtask.actions.map((action, actionIndex) => {
-                          const actionKey = `action-${task.id}-${subtask.id}-${action.id}`;
-                          return (
+                  {hasSubtasks && (
+                    <div className="tl-subtask-list">
+                      {task.subtasks.map((subtask, subIndex) => {
+                        const subtaskKey = `subtask-${task.id}-${subtask.id}`;
+                        const isLastSubtask = subIndex === task.subtasks.length - 1;
+                        const hasActions = subtask.actions.length > 0;
+                        return (
+                          <div
+                            key={subtask.id}
+                            className={[
+                              'tl-subtask-group',
+                              isLastSubtask ? 'is-last' : '',
+                              hasActions ? 'has-children' : '',
+                              subtask.isActive ? 'is-active-branch' : ''
+                            ].filter(Boolean).join(' ')}
+                          >
                             <div
-                              key={action.id}
-                              ref={el => registerItem(actionKey, el)}
-                              className={`tl-row tl-action ${actionRowState(subtask, actionIndex)} ${focusKey === actionKey ? 'is-current' : ''}`}
+                              ref={el => registerItem(subtaskKey, el)}
+                              className={`tl-row tl-subtask ${subtaskRowState(subtask)} ${focusKey === subtaskKey ? 'is-current' : ''}`}
                             >
                               <span className="tl-dot" aria-hidden="true" />
-                              <span className="tl-tag">ACTION</span>
-                              <span className="tl-action-name">{action.action || '—'}</span>
-                              <span className="tl-params">{renderActionParams(action)}</span>
+                              <span className="tl-tag">STEP {String(subIndex + 1).padStart(2, '0')}</span>
+                              <span className="tl-text" title={subtask.description}>{subtask.description}</span>
                             </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
+
+                            {hasActions && (
+                              <div className="tl-action-list">
+                                {subtask.actions.map((action, actionIndex) => {
+                                  const actionKey = `action-${task.id}-${subtask.id}-${action.id}`;
+                                  const isLastAction = actionIndex === subtask.actions.length - 1;
+                                  return (
+                                    <div
+                                      key={action.id}
+                                      className={`tl-action-node ${isLastAction ? 'is-last' : ''}`}
+                                    >
+                                      <div
+                                        ref={el => registerItem(actionKey, el)}
+                                        className={`tl-row tl-action ${actionRowState(subtask, actionIndex)} ${focusKey === actionKey ? 'is-current' : ''}`}
+                                      >
+                                        <span className="tl-dot" aria-hidden="true" />
+                                        <span className="tl-action-name">{action.action || '—'}</span>
+                                        <span className="tl-params">{renderActionParams(action)}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* Centered focus pointer */}
+        {/* Centered focus pointer (fades right-to-left so left text stays crisp) */}
         <div className="timeline-focus-band" aria-hidden="true">
-          <span className="focus-chevron focus-chevron-top" />
           <span className="focus-line" />
-          <span className="focus-chevron focus-chevron-bottom" />
+          <span className="focus-pointer-right" />
         </div>
 
         {!followLive && (
