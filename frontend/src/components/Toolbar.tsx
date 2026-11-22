@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ChatFieldset from './ChatFieldset';
 import TasksSection from './TasksSection';
+import { InventoryServer } from '../api';
 import './Toolbar.css';
 
 interface ModelOption {
@@ -41,6 +42,7 @@ interface ToolbarProps {
   onDeactivateUserAssist: () => void;
   networkUsage: number;
   tokenUsage: number;
+  selectedFps?: number;
   onFpsChange?: (fps: number) => void;
   sessions?: Array<{ id: string; ip: string }>;
   selectedSessionId?: string | null;
@@ -49,6 +51,7 @@ interface ToolbarProps {
   onSelectModel?: (modelId: string, provider: string) => void;
   selectedThinkingLevel?: string;
   onSelectThinkingLevel?: (level: string) => void;
+  inventoryServers?: InventoryServer[];
 }
 
 const Toolbar: React.FC<ToolbarProps> = ({
@@ -66,6 +69,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onDeactivateUserAssist,
   networkUsage,
   tokenUsage,
+  selectedFps = 5,
   onFpsChange,
   sessions = [],
   selectedSessionId,
@@ -73,68 +77,47 @@ const Toolbar: React.FC<ToolbarProps> = ({
   selectedModel = '',
   onSelectModel,
   selectedThinkingLevel = '',
-  onSelectThinkingLevel
+  onSelectThinkingLevel,
+  inventoryServers = []
 }) => {
-  const [selectedFps, setSelectedFps] = useState(5); // Default to 5 FPS
-  
-  // Load saved FPS from localStorage on component mount
+  const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [inventoryFilter, setInventoryFilter] = useState('');
+  const inventoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close inventory dropdown when clicking outside
   useEffect(() => {
-    const savedFps = localStorage.getItem('selectedFps');
-    if (savedFps) {
-      const fps = parseInt(savedFps, 10);
-      setSelectedFps(fps);
-      
-      // Notify parent component about initial FPS
-      if (onFpsChange) {
-        onFpsChange(fps);
+    if (!inventoryOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (inventoryDropdownRef.current && !inventoryDropdownRef.current.contains(e.target as Node)) {
+        setInventoryOpen(false);
       }
-      
-      // Update the UI to show the selected FPS
-      const fpsButtons = document.querySelectorAll('.fps-button');
-      fpsButtons.forEach(button => {
-        if (parseInt(button.getAttribute('data-fps') || '0', 10) === fps) {
-          button.classList.add('active');
-        } else {
-          button.classList.remove('active');
-        }
-      });
-    } else {
-      // No saved FPS, use default 5 FPS
-      if (onFpsChange) {
-        onFpsChange(5);
-      }
-      
-      // Update UI to show the default FPS (5)
-      const fpsButtons = document.querySelectorAll('.fps-button');
-      fpsButtons.forEach(button => {
-        if (parseInt(button.getAttribute('data-fps') || '0', 10) === 5) {
-          button.classList.add('active');
-        } else {
-          button.classList.remove('active');
-        }
-      });
-    }
-  }, []);
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [inventoryOpen]);
+
+  const filteredInventory = inventoryServers.filter((srv) => {
+    const q = inventoryFilter.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      srv.name.toLowerCase().includes(q) ||
+      srv.ip.toLowerCase().includes(q) ||
+      (srv.description || '').toLowerCase().includes(q)
+    );
+  });
+
+  const handleSelectInventoryServer = (ip: string) => {
+    const event = new CustomEvent('connectSession', { detail: ip });
+    document.dispatchEvent(event);
+    setInventoryOpen(false);
+    setInventoryFilter('');
+  };
   
-  // Handle FPS button click
+  // Handle FPS button click (state is managed per-workspace by WorkspaceApp)
   const handleFpsClick = (fps: number) => {
-    setSelectedFps(fps);
-    localStorage.setItem('selectedFps', fps.toString());
-    
-    // Notify parent component about FPS change
     if (onFpsChange) {
       onFpsChange(fps);
     }
-    
-    // Update active state on buttons
-    const fpsButtons = document.querySelectorAll('.fps-button');
-    fpsButtons.forEach(button => {
-      if (parseInt(button.getAttribute('data-fps') || '0', 10) === fps) {
-        button.classList.add('active');
-      } else {
-        button.classList.remove('active');
-      }
-    });
   };
   
   // Validate IP address (IPv4 or IPv6, with optional brackets for IPv6)
@@ -303,11 +286,16 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <div className="fps-selector" style={{marginBottom: '10px'}}>
           <label style={{display: 'block', marginBottom: '4px', fontSize: '12px', color: '#6f6f6f'}}>FPS</label>
           <div className="fps-buttons" style={{display: 'flex', gap: '4px', height: '20px'}}>
-            <button className="fps-button" data-fps="1" onClick={() => handleFpsClick(1)}>1</button>
-            <button className="fps-button active" data-fps="5" onClick={() => handleFpsClick(5)}>5</button>
-            <button className="fps-button" data-fps="10" onClick={() => handleFpsClick(10)}>10</button>
-            <button className="fps-button" data-fps="15" onClick={() => handleFpsClick(15)}>15</button>
-            <button className="fps-button" data-fps="30" onClick={() => handleFpsClick(30)}>30</button>
+            {[1, 5, 10, 15, 30].map((fps) => (
+              <button
+                key={fps}
+                className={`fps-button ${selectedFps === fps ? 'active' : ''}`}
+                data-fps={fps}
+                onClick={() => handleFpsClick(fps)}
+              >
+                {fps}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -358,6 +346,54 @@ const Toolbar: React.FC<ToolbarProps> = ({
             }}
           />
           <button className="control-button" id="setTargetIP" onClick={handleConnectClick}>Connect</button>
+          <div className="inventory-picker-wrapper" ref={inventoryDropdownRef}>
+            <button
+              type="button"
+              className={`inventory-picker-btn ${inventoryOpen ? 'open' : ''}`}
+              title="Connect from Inventory"
+              onClick={() => setInventoryOpen((prev) => !prev)}
+            >
+              +
+            </button>
+            {inventoryOpen && (
+              <div className="inventory-dropdown">
+                <input
+                  type="text"
+                  className="inventory-dropdown-filter"
+                  placeholder="Filter inventory..."
+                  value={inventoryFilter}
+                  onChange={(e) => setInventoryFilter(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setInventoryOpen(false);
+                    } else if (e.key === 'Enter' && filteredInventory.length > 0) {
+                      handleSelectInventoryServer(filteredInventory[0].ip);
+                    }
+                  }}
+                  autoFocus
+                />
+                <div className="inventory-dropdown-list">
+                  {filteredInventory.length === 0 ? (
+                    <div className="inventory-dropdown-empty">
+                      {inventoryServers.length === 0 ? 'No servers in inventory' : 'No matches'}
+                    </div>
+                  ) : (
+                    filteredInventory.map((srv) => (
+                      <button
+                        key={srv.id}
+                        type="button"
+                        className="inventory-dropdown-item"
+                        onClick={() => handleSelectInventoryServer(srv.ip)}
+                      >
+                        <span className="inventory-dropdown-name">{srv.name}</span>
+                        <span className="inventory-dropdown-ip">{srv.ip}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </fieldset>
 

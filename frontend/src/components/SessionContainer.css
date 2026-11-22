@@ -1,6 +1,6 @@
 .session-container {
   position: relative;
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: var(--primary-bg);
   border: 1px solid var(--border-color);
   /* border-radius: 8px; */
   overflow: hidden;
@@ -27,11 +27,46 @@
   border-color: #4CAF50;
 }
 
+/* Keep selection border crisp and continuous above header/screenshot when zoomed out */
+.workspace-scaled-inner .session-container.selected {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.workspace-scaled-inner .session-container.selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid #4CAF50;
+  box-sizing: border-box;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 20;
+}
+
 /* Apply golden border when user-assist is active - higher specificity to override selected */
 .session-container.user-assist-active,
 .session-container.selected.user-assist-active {
   border-color: #FFC107 !important;
   box-shadow: 0 0 2px rgba(255, 193, 7, 0.5) !important;
+}
+
+.workspace-scaled-inner .session-container.user-assist-active,
+.workspace-scaled-inner .session-container.selected.user-assist-active {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.workspace-scaled-inner .session-container.user-assist-active::after,
+.workspace-scaled-inner .session-container.selected.user-assist-active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid #FFC107;
+  box-sizing: border-box;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 20;
 }
 
 .session-container.maximized {
@@ -226,7 +261,6 @@
   align-items: center;
   max-width: 100%;
   max-height: 100%;
-  /* width: 100%; */
   height: 100%;
 }
 

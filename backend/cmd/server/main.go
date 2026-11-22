@@ -6,11 +6,13 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 
 	"useless-agent/internal/config"
+	"useless-agent/internal/db"
 	httpHandlers "useless-agent/internal/http"
 	"useless-agent/internal/llm"
 	"useless-agent/internal/mouse"
@@ -31,6 +33,13 @@ func main() {
 	if err := storage.InitStorage(); err != nil {
 		log.Printf("Warning: Failed to initialize persistent storage: %v", err)
 	}
+
+	// Initialize SQLite database for users, workspaces, and inventory
+	dbPath := filepath.Join(config.GetDataDir(), "useless-agent.db")
+	if err := db.InitDB(dbPath); err != nil {
+		log.Fatalf("Failed to initialize SQLite database at %s: %v", dbPath, err)
+	}
+	log.Printf("SQLite database initialized at %s", dbPath)
 
 	if err := screenshot.SuppressXGBLogs(); err != nil {
 		log.Fatalf("Failed to suppress xgb logs: %v", err)
@@ -61,6 +70,17 @@ func main() {
 	mux.HandleFunc("/user-assist", httpHandlers.UserAssistHandler)
 	mux.HandleFunc("/execution-state", httpHandlers.ExecutionStateHandler)
 	mux.HandleFunc("/ping", httpHandlers.PingHandler)
+
+	// Persistence & Auth API routes
+	mux.HandleFunc("/api/auth/register", httpHandlers.AuthRegisterHandler)
+	mux.HandleFunc("/api/auth/login", httpHandlers.AuthLoginHandler)
+	mux.HandleFunc("/api/auth/me", httpHandlers.AuthMeHandler)
+	mux.HandleFunc("/api/auth/logout", httpHandlers.AuthLogoutHandler)
+	mux.HandleFunc("/api/user/preferences", httpHandlers.UserPreferencesHandler)
+	mux.HandleFunc("/api/workspaces", httpHandlers.WorkspacesHandler)
+	mux.HandleFunc("/api/workspaces/", httpHandlers.WorkspaceByIDHandler)
+	mux.HandleFunc("/api/inventory", httpHandlers.InventoryHandler)
+	mux.HandleFunc("/api/inventory/", httpHandlers.InventoryByIDHandler)
 
 	bindAddr := net.JoinHostPort(*config.BindIP, strconv.Itoa(*config.BindPORT))
 	log.Println("Server running on http://" + bindAddr)

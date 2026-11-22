@@ -404,6 +404,13 @@ func GetLogsDir() string {
 	return rt.logsDir
 }
 
+// GetDataDir returns the persistent data directory
+func GetDataDir() string {
+	rt.mu.RLock()
+	defer rt.mu.RUnlock()
+	return rt.dataDir
+}
+
 // GetArtifactsDir returns the directory for persistent task artifacts
 func GetArtifactsDir() string {
 	rt.mu.RLock()

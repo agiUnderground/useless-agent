@@ -35,6 +35,8 @@ interface ConnectionOverlayProps {
   sessions: Session[];
   settingsOpen?: boolean;
   tasks?: Task[];
+  isExpanded?: boolean;
+  previewScale?: number;
 }
 
 interface ConnectionLine {
@@ -53,26 +55,50 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
   userAssistTaskId,
   sessions,
   settingsOpen = false,
-  tasks = []
+  tasks = [],
+  isExpanded = true,
+  previewScale = 1
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [connectionLines, setConnectionLines] = useState<ConnectionLine[]>([]);
 
+  // Convert screen-space DOMRect into SVG-local unscaled coordinates (works when zoomed out or expanded)
+  const getLocalMetrics = () => {
+    const svgEl = svgRef.current;
+    if (!svgEl) return null;
+    const svgRect = svgEl.getBoundingClientRect();
+    const unscaledW = window.innerWidth || 1280;
+    const safeScale = isExpanded ? 1 : (previewScale > 0.05 ? previewScale : 1);
+    const toLocal = (r: DOMRect) => ({
+      left: (r.left - svgRect.left) / safeScale,
+      right: (r.right - svgRect.left) / safeScale,
+      top: (r.top - svgRect.top) / safeScale,
+      bottom: (r.bottom - svgRect.top) / safeScale,
+      width: r.width / safeScale,
+      height: r.height / safeScale,
+    });
+    return { svgRect, unscaledW, scale: safeScale, toLocal };
+  };
+
   // Calculate connection path around session perimeter
   const calculateConnectionPath = (chatElement: HTMLElement, sessionElement: HTMLElement) => {
-    const chatRect = chatElement.getBoundingClientRect();
-    const sessionRect = sessionElement.getBoundingClientRect();
+    const metrics = getLocalMetrics();
+    if (!metrics) return '';
+    const { toLocal, unscaledW } = metrics;
+
+    const chatRect = toLocal(chatElement.getBoundingClientRect());
+    const sessionRect = toLocal(sessionElement.getBoundingClientRect());
     const mainContentElement = document.querySelector('.main-content') as HTMLElement;
     
     if (!mainContentElement) return '';
     
-    const mainContentRect = mainContentElement.getBoundingClientRect();
+    const mainContentRect = toLocal(mainContentElement.getBoundingClientRect());
     
     // Get textbox element inside chat fieldset
     const chatInput = document.getElementById('llmChatInput') as HTMLTextAreaElement;
     if (!chatInput) return '';
     
-    const inputRect = chatInput.getBoundingClientRect();
+    const inputRect = toLocal(chatInput.getBoundingClientRect());
     
     // Check if we're in mobile responsive mode (width < 1100px)
     const isMobileMode = window.innerWidth < 1100;
@@ -105,7 +131,7 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
     
     // Calculate paths for both LEFT and RIGHT edges
     const sessionCenterY = sessionRect.top + sessionRect.height / 2;
-    const sessionToRightScreenPadding = (window.innerWidth - sessionRect.right) / 2;
+    const sessionToRightScreenPadding = (unscaledW - sessionRect.right) / 2;
     const sessionRightEndX = sessionRect.right + sessionToRightScreenPadding;
     
     // Calculate midpoint between chatbox and main content (exactly matching original)
@@ -123,7 +149,7 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
     let rightPath = `M ${chatStartX} ${chatStartY}`;
     rightPath += ` L ${midPointX} ${chatStartY}`;
     rightPath += ` L ${midPointX} ${mainContentRect.top}`;
-    rightPath += ` L ${window.innerWidth - sessionToRightScreenPadding} ${mainContentRect.top}`;
+    rightPath += ` L ${unscaledW - sessionToRightScreenPadding} ${mainContentRect.top}`;
     rightPath += ` L ${sessionRightEndX} ${sessionCenterY}`;
     rightPath += ` L ${sessionRect.right} ${sessionCenterY}`;
     
@@ -137,83 +163,54 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
 
   // Calculate coordinates for connection line elements
   const calculateConnectionCoordinates = (chatElement: HTMLElement, sessionElement: HTMLElement) => {
-    const chatRect = chatElement.getBoundingClientRect();
-    const sessionRect = sessionElement.getBoundingClientRect();
+    const metrics = getLocalMetrics();
+    if (!metrics) return { startX: 0, startY: 0, endX: 0, endY: 0 };
+    const { toLocal, unscaledW } = metrics;
+
+    const sessionRect = toLocal(sessionElement.getBoundingClientRect());
     const isMaximized = sessionElement?.classList.contains('maximized');
     
     // Get textbox element inside chat fieldset
     const chatInput = document.getElementById('llmChatInput') as HTMLTextAreaElement;
     if (!chatInput) return { startX: 0, startY: 0, endX: 0, endY: 0 };
     
-    const inputRect = chatInput.getBoundingClientRect();
-    const svgRect = svgRef.current?.getBoundingClientRect();
-    
-    if (!svgRect) return { startX: 0, startY: 0, endX: 0, endY: 0 };
+    const inputRect = toLocal(chatInput.getBoundingClientRect());
     
     // Check if we're in mobile responsive mode (width < 1100px)
     const isMobileMode = window.innerWidth < 1100;
     
     // Calculate start position (from chat input)
-    const startX = inputRect.right - svgRect.left;
-    const startY = inputRect.top + inputRect.height / 2 - svgRect.top;
+    const startX = inputRect.right;
+    const startY = inputRect.top + inputRect.height / 2;
     
     // Calculate end position (to session)
     let endX, endY;
     
     if (isMaximized) {
-      // For maximized sessions, use the fixed position
-      endX = sessionRect.left + sessionRect.width / 2 - svgRect.left;
-      endY = sessionRect.top + sessionRect.height / 2 - svgRect.top;
+      endX = sessionRect.left + sessionRect.width / 2;
+      endY = sessionRect.top + sessionRect.height / 2;
     } else if (isMobileMode) {
-      // Mobile mode: route to center of left edge
-      const sessionLeftX = sessionRect.left - svgRect.left;
-      const sessionCenterY = sessionRect.top + sessionRect.height / 2 - svgRect.top;
-      
-      // Calculate midpoint between chat and main content
-      const chatVisibleRight = chatRect.right;
-      const mainContentElement = document.querySelector('.main-content') as HTMLElement;
-      const mainContentRect = mainContentElement?.getBoundingClientRect();
-      
-      if (mainContentRect) {
-        const mainContentVisibleLeft = mainContentRect.left;
-        const midPointX = chatVisibleRight + (mainContentVisibleLeft - chatVisibleRight) / 2 - svgRect.left;
-        
-        // Route to midpoint, then to session Y level, then to left edge center
-        endX = sessionLeftX;
-        endY = sessionCenterY;
-      } else {
-        endX = sessionLeftX;
-        endY = sessionCenterY;
-      }
+      endX = sessionRect.left;
+      endY = sessionRect.top + sessionRect.height / 2;
     } else {
-      // Desktop mode: use original logic
-      const sessionCenterY = sessionRect.top + sessionRect.height / 2 - svgRect.top;
-      
-      // Calculate midpoint between chatbox and main content
-      const chatVisibleRight = chatRect.right;
+      const sessionCenterY = sessionRect.top + sessionRect.height / 2;
       const mainContentElement = document.querySelector('.main-content') as HTMLElement;
-      const mainContentRect = mainContentElement?.getBoundingClientRect();
+      const mainContentRect = mainContentElement ? toLocal(mainContentElement.getBoundingClientRect()) : null;
       
       if (mainContentRect) {
-        const mainContentVisibleLeft = mainContentRect.left;
-        const midPointX = chatVisibleRight + (mainContentVisibleLeft - chatVisibleRight) / 2 - svgRect.left;
-        
-        // Check if session's left edge is accessible
         const leftEdgeOffset = sessionRect.left - mainContentRect.left;
         const isLeftEdgeAccessible = leftEdgeOffset <= 10;
         
         if (isLeftEdgeAccessible) {
-          // Connect to left edge
-          endX = sessionRect.left - svgRect.left;
+          endX = sessionRect.left;
           endY = sessionCenterY;
         } else {
-          // Connect to right edge
-          const sessionToRightScreenPadding = (window.innerWidth - sessionRect.right) / 2;
-          endX = sessionRect.right + sessionToRightScreenPadding - svgRect.left;
+          const sessionToRightScreenPadding = (unscaledW - sessionRect.right) / 2;
+          endX = sessionRect.right + sessionToRightScreenPadding;
           endY = sessionCenterY;
         }
       } else {
-        endX = sessionRect.left - svgRect.left;
+        endX = sessionRect.left;
         endY = sessionCenterY;
       }
     }
@@ -276,10 +273,16 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
     });
   };
 
-  // Update connection lines when sessions or selection changes
+  // Update connection lines when sessions, selection, or zoom state changes
   useEffect(() => {
     recalculateConnectionLines();
-  }, [selectedSessionId, userAssistActive, sessions, settingsOpen]);
+    const raf = requestAnimationFrame(() => recalculateConnectionLines());
+    const timer = setTimeout(() => recalculateConnectionLines(), 280);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, [selectedSessionId, userAssistActive, sessions, settingsOpen, isExpanded, previewScale]);
 
   // Update connection lines when maximize state changes in mobile mode
   useEffect(() => {
@@ -358,18 +361,18 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
 
   // Calculate user-assist connection path (straight line from task card to chat)
   const calculateUserAssistPath = (taskCardElement: HTMLElement, chatElement: HTMLElement) => {
-    const taskRect = taskCardElement.getBoundingClientRect();
-    const chatRect = chatElement.getBoundingClientRect();
-    const overlayRect = svgRef.current?.getBoundingClientRect();
-    
-    if (!overlayRect) return '';
+    const metrics = getLocalMetrics();
+    if (!metrics) return '';
+    const { toLocal } = metrics;
+    const taskRect = toLocal(taskCardElement.getBoundingClientRect());
+    const chatRect = toLocal(chatElement.getBoundingClientRect());
     
     // Calculate center of chat fieldset
-    const chatCenterX = chatRect.left + chatRect.width / 2 - overlayRect.left;
-    const chatTopY = chatRect.top - overlayRect.top;
+    const chatCenterX = chatRect.left + chatRect.width / 2;
+    const chatTopY = chatRect.top;
     
     // Draw straight line from chat center to bottom edge of task card
-    const taskBottomY = taskRect.bottom - overlayRect.top;
+    const taskBottomY = taskRect.bottom;
     
     // Straight line from bottom edge of task card to top center of chat
     return `M ${chatCenterX} ${chatTopY} L ${chatCenterX} ${taskBottomY}`;
@@ -396,63 +399,61 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
     return bottomVisible;
   };
 
-  // Update user-assist connection line
+  // Update user-assist connection line (including when zooming in/out)
   useEffect(() => {
-    if (!svgRef.current) return;
-    
-    // Add user-assist connection line if active
-    if (userAssistActive && userAssistTaskId) {
-      // Find the user-assist task
-      const userAssistTask = tasks.find(t => t.id === userAssistTaskId);
-      if (userAssistTask) {
-        // Find task element
-        const tasksContainer = document.getElementById('tasksContainer');
-        if (tasksContainer) {
-          const taskElement = document.querySelector(`[data-task-id="${userAssistTaskId}"]`) as HTMLElement;
-          
-          if (taskElement) {
-            const chatFieldsetElement = document.getElementById('chatFieldset');
-            if (chatFieldsetElement) {
-              const pathData = calculateUserAssistPath(taskElement, chatFieldsetElement);
-              
-              // Always show user-assist connection in mobile mode (when settings sidebar is open)
-              // regardless of task card visibility, since the user is actively in user-assist mode
-              const isMobileMode = window.innerWidth < 1100 || settingsOpen;
-              
-              // Always show user-assist connection when user-assist is active
-              if (pathData) {
-                setConnectionLines((prevLines: ConnectionLine[]) => {
-                  // Remove existing user-assist connection
-                  const filtered = prevLines.filter(line => line.id !== 'user-assist-connection');
-                  // Add new user-assist connection AFTER main connection line to ensure it's visible
-                  const userAssistConnection = {
-                    id: 'user-assist-connection',
-                    path: pathData,
-                    userAssist: true,
-                    startX: 0,
-                    startY: 0,
-                    endX: 0,
-                    endY: 0
-                  };
-                  return [...filtered, userAssistConnection];
-                });
+    const updateUserAssistLine = () => {
+      if (!svgRef.current) return;
+      
+      // Add user-assist connection line if active
+      if (userAssistActive && userAssistTaskId) {
+        const userAssistTask = tasks.find(t => t.id === userAssistTaskId);
+        if (userAssistTask) {
+          const tasksContainer = document.getElementById('tasksContainer');
+          if (tasksContainer) {
+            const taskElement = document.querySelector(`[data-task-id="${userAssistTaskId}"]`) as HTMLElement;
+            
+            if (taskElement) {
+              const chatFieldsetElement = document.getElementById('chatFieldset');
+              if (chatFieldsetElement) {
+                const pathData = calculateUserAssistPath(taskElement, chatFieldsetElement);
+                if (pathData) {
+                  setConnectionLines((prevLines: ConnectionLine[]) => {
+                    const filtered = prevLines.filter(line => line.id !== 'user-assist-connection');
+                    const userAssistConnection = {
+                      id: 'user-assist-connection',
+                      path: pathData,
+                      userAssist: true,
+                      startX: 0,
+                      startY: 0,
+                      endX: 0,
+                      endY: 0
+                    };
+                    return [...filtered, userAssistConnection];
+                  });
+                }
               }
+            } else {
+              setConnectionLines((prevLines: ConnectionLine[]) =>
+                prevLines.filter(line => line.id !== 'user-assist-connection')
+              );
             }
-          } else {
-            // Remove user-assist connection if task element not found
-            setConnectionLines((prevLines: ConnectionLine[]) =>
-              prevLines.filter(line => line.id !== 'user-assist-connection')
-            );
           }
         }
+      } else {
+        setConnectionLines((prevLines: ConnectionLine[]) =>
+          prevLines.filter(line => line.id !== 'user-assist-connection')
+        );
       }
-    } else {
-      // Remove user-assist connection if not active
-      setConnectionLines((prevLines: ConnectionLine[]) =>
-        prevLines.filter(line => line.id !== 'user-assist-connection')
-      );
-    }
-  }, [userAssistActive, userAssistTaskId, tasks, settingsOpen]);
+    };
+
+    updateUserAssistLine();
+    const raf = requestAnimationFrame(updateUserAssistLine);
+    const timer = setTimeout(updateUserAssistLine, 280);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, [userAssistActive, userAssistTaskId, tasks, settingsOpen, isExpanded, previewScale]);
 
   // Handle tasks container scroll to update user-assist connection line
   useEffect(() => {
@@ -517,6 +518,7 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
               d={line.path}
               fill="none"
               strokeDasharray="5,5"
+              strokeWidth={isExpanded ? 1 : Math.max(1.5, 1.5 / (previewScale || 1))}
               stroke={line.userAssist ? '#FFC107' : '#4CAF50'}
               opacity="0.84"
             />

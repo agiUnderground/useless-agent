@@ -61,15 +61,14 @@ func CaptureX11Screenshot() (image.Image, error) {
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 	copy(img.Pix, reply.Data)
 
-	// Reorder pixel data (BGRA -> RGBA)
+	// Reorder pixel data (BGRX/BGRA -> opaque RGBA; X11 root window padding byte is often 0x00)
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			i := (y*width + x) * 4
 			b := reply.Data[i+0]
 			g := reply.Data[i+1]
 			r := reply.Data[i+2]
-			a := reply.Data[i+3]
-			img.SetRGBA(x, y, color.RGBA{R: r, G: g, B: b, A: a})
+			img.SetRGBA(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
 		}
 	}
 

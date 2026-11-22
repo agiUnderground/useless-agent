@@ -1,5 +1,21 @@
 # Changelog
 
+### v0.3.0
+
+#### Features
+* Added single-file SQLite persistence (`useless-agent.db`) for user accounts, 7-day auth sessions, workspaces, sessions, tasks, per-workspace metrics/settings (FPS, token usage, network usage), and server inventory.
+* Added dark-themed Login / Register page with salted `bcrypt` password hashing and 7-day persistent authentication (`localStorage` + `HttpOnly` cookie) for instant re-entry.
+* Added outer App Shell with a persistent left sidebar (`Workspaces`, `Inventory`), a secondary Workspaces sidebar (`+ New workspace`, workspace list with session/active-task indicators, delete confirmation modal, and persisted last-selected workspace per user), and a zoomed-out workspace preview stage with rounded corners, hover zoom reaction, left-click expand, and `Alt+W` zoom toggle.
+* Added automatic live task synchronization (`/execution-state`) on login, workspace activation, and session WebSocket connect to prevent hidden/runaway tasks.
+* Added Inventory management view (add, edit, delete, filter, and quick-connect servers) plus a `+` quick-connect dropdown with filter input inside the workspace Connection bar.
+* Prevented multiple workspaces from connecting to the same server IP simultaneously.
+
+#### Bugfixes
+* Fixed X11 `CaptureX11Screenshot` writing `0x00` padding byte as PNG alpha (making desktop backgrounds transparent) by setting opaque `A: 255`.
+* Preserved per-workspace Settings open/closed state, selected Settings tab, FPS selection, token/network usage, and user-assist state (gold border + gold connection line) across workspace switches and zoom transitions.
+* Fixed chat-to-session and user-assist SVG connection lines and session selection borders when zoomed out.
+* Prevented workspace hotkeys from firing while typing in any input/filter field (while keeping `Esc` to blur/close).
+
 ### v0.2.0
 
 #### Features

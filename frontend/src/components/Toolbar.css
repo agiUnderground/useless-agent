@@ -531,3 +531,110 @@ fieldset legend {
   flex: 1 !important;
   transition: flex 0.3s ease;
 }
+
+/* Inventory quick-connect dropdown */
+.inventory-picker-wrapper {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.inventory-picker-btn {
+  background-color: rgb(1, 1, 1);
+  border: 1px solid var(--border-color);
+  color: #9a9a9a;
+  width: 34px;
+  min-width: 34px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.inventory-picker-btn:hover,
+.inventory-picker-btn.open {
+  background-color: #010b13;
+  color: #FFC107;
+  border-color: #FFC107;
+}
+
+.inventory-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 240px;
+  background: #161616;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.65);
+  z-index: 1200;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.inventory-dropdown-filter {
+  width: 100%;
+  box-sizing: border-box;
+  background: #1f1f1f;
+  border: none;
+  border-bottom: 1px solid #333;
+  padding: 9px 10px;
+  color: #fff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  outline: none;
+}
+
+.inventory-dropdown-list {
+  max-height: 210px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #444 #161616;
+}
+
+.inventory-dropdown-empty {
+  padding: 14px 10px;
+  text-align: center;
+  color: #777;
+  font-size: 11px;
+}
+
+.inventory-dropdown-item {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #242424;
+  padding: 9px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  cursor: pointer;
+  text-align: left;
+  font-family: 'JetBrains Mono', monospace;
+  transition: background 0.15s ease;
+}
+
+.inventory-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.inventory-dropdown-item:hover {
+  background: #252525;
+}
+
+.inventory-dropdown-name {
+  font-size: 12px;
+  color: #fff;
+}
+
+.inventory-dropdown-ip {
+  font-size: 10px;
+  color: #FFC107;
+}
