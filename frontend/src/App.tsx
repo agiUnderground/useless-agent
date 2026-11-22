@@ -817,10 +817,11 @@ const App: React.FC = () => {
           console.log('Updating token usage from WebSocket:', data.total);
           setTokenUsage(data.total);
         }
-        
-        // Also call execution engine update handler if it exists
+
+        // Forward execution engine updates with the owning session id so the
+        // SettingsPanel can scope them to the currently selected session.
         if ((window as any).handleExecutionEngineUpdate && typeof (window as any).handleExecutionEngineUpdate === 'function') {
-          (window as any).handleExecutionEngineUpdate(data);
+          (window as any).handleExecutionEngineUpdate(data, session.id);
         }
       } catch (error) {
         console.error('Error parsing WebSocket message:', message, error);
@@ -1093,6 +1094,12 @@ const App: React.FC = () => {
           } else if (data.type === 'tokenUpdate') {
             // Handle token usage updates
             setTokenUsage(data.total);
+          }
+
+          // Forward execution engine updates with the owning session id so the
+          // SettingsPanel can scope them to the currently selected session.
+          if ((window as any).handleExecutionEngineUpdate && typeof (window as any).handleExecutionEngineUpdate === 'function') {
+            (window as any).handleExecutionEngineUpdate(data, sessionId);
           }
         } catch (error) {
           console.error('Error parsing WebSocket message:', message, error);

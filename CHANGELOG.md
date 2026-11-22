@@ -3,6 +3,7 @@
 ### v0.2.0
 
 #### Features
+* Redesigned the Settings -> Execution Engine tab with React-rendered status task boxes at the top and a centered, auto-scrolling vertical timeline below (executed items above, active item highlighted at the vertical center pointer, and planned items muted below, with manual-scroll pause and `FOLLOW LIVE` resume).
 * Added dual-stack IPv4 and IPv6 support across backend, frontend, and Docker (including mixed IPv4/IPv6 sessions and automatic IPv4 fallback when IPv6 is disabled).
 * Added LLM provider support for Google Gemini, OpenAI, Anthropic, Qwen, and MiniMax.
 * Added dynamic model and thinking level selection, displaying `model · effort` on task cards.
@@ -10,6 +11,7 @@
 * Added persistent storage for settings and state.
 
 #### Bugfixes
+* Fixed real-time Execution Engine updates and instant session switching: fixed stale WebSocket handler closures, scoped incoming events by session, aborted stale `/execution-state` fetches on session switch, and fixed backend `/execution-state` JSON serialization (`Context`/`CancelFunc`) with live subtask/action snapshots.
 * Restored toast error notifications for failed connections: entering an unreachable IP (or opening a task-card session whose backend is unreachable) now shows a bottom-right "Cannot connect" alert once per session, alongside the existing red chat-box flash.
 * Fixed premature main-goal completion caused by JSON array truncation in `BreakGoalIntoSubtasks`, and added explicit main-goal verification and replanning (`IsMainGoalAchieved`, `ReplanSubtasks`).
 * Fixed out-of-order WebSocket task status updates and queue state races that could leave newly started tasks stuck in `in-the-queue` or `in-progress`.

@@ -1,9 +1,13 @@
 package task
 
 import (
+	"context"
+	"encoding/json"
 	"sync"
 	"testing"
 	"time"
+
+	actionpkg "useless-agent/internal/action"
 )
 
 func resetManagerForTest() {
@@ -12,8 +16,64 @@ func resetManagerForTest() {
 	taskIDCounter = 0
 	taskQueue = make([]*Task, 0)
 	runningTask = nil
+	taskSubtasks = make(map[string][]SubtaskSnapshot)
 	taskRunner = ExecuteTask
 	managerMutex.Unlock()
+}
+
+func TestGetExecutionStateIsJSONSerializableWithLiveSubtasks(t *testing.T) {
+	resetManagerForTest()
+	defer resetManagerForTest()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	running := &Task{
+		ID:         "t-1",
+		Status:     StatusInProgress,
+		Message:    "serialize me",
+		Context:    ctx,
+		CancelFunc: cancel,
+		CreatedAt:  time.Now(),
+	}
+	managerMutex.Lock()
+	tasks["t-1"] = running
+	runningTask = running
+	managerMutex.Unlock()
+
+	UpdateSubtask("t-1", 1, "first subtask", true, []actionpkg.Action{{Seq: 1, Code: "tp", X: 10, Y: 20}})
+	UpdateAction("t-1", 1, 0, actionpkg.Action{Seq: 1, Code: "cl", X: 5, Y: 6})
+
+	state := GetExecutionState()
+
+	// Regression: Context/CancelFunc used to make this handler return 500.
+	encoded, err := json.Marshal(state)
+	if err != nil {
+		t.Fatalf("execution state must be JSON serializable: %v", err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		t.Fatalf("execution state JSON invalid: %v", err)
+	}
+
+	subs := state.Subtasks["t-1"]
+	if len(subs) != 1 {
+		t.Fatalf("expected 1 subtask snapshot, got %d", len(subs))
+	}
+	if !subs[0].IsActive || subs[0].IsCompleted {
+		t.Fatalf("expected active, not-completed subtask, got %+v", subs[0])
+	}
+	if len(subs[0].Actions) != 1 {
+		t.Fatalf("expected 1 recorded action, got %d", len(subs[0].Actions))
+	}
+
+	// Terminal tasks can no longer report an actively-executing subtask.
+	managerMutex.Lock()
+	running.Status = StatusCompleted
+	managerMutex.Unlock()
+	state = GetExecutionState()
+	if subs := state.Subtasks["t-1"]; len(subs) != 1 || subs[0].IsActive || !subs[0].IsCompleted {
+		t.Fatalf("expected completed subtask snapshot after task completes, got %+v", state.Subtasks["t-1"])
+	}
 }
 
 func TestManager_SecondTaskTransitionsToInProgressAfterFirstCompletes(t *testing.T) {

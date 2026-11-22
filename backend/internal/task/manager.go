@@ -27,6 +27,7 @@ var (
 	taskIDCounter int
 	taskQueue     = make([]*Task, 0)
 	runningTask   *Task
+	taskSubtasks  = make(map[string][]SubtaskSnapshot)
 
 	// taskRunner is the function used to execute a dequeued task (overridable in tests).
 	taskRunner = ExecuteTask
@@ -373,10 +374,31 @@ func GetExecutionState() *ExecutionState {
 		queuedTasks = append(queuedTasks, queuedTask.ID)
 	}
 
+	subtasksOut := make(map[string][]SubtaskSnapshot, len(taskSubtasks))
+	for taskID, subs := range taskSubtasks {
+		t, exists := tasks[taskID]
+		if !exists || len(subs) == 0 {
+			continue
+		}
+		cp := make([]SubtaskSnapshot, len(subs))
+		copy(cp, subs)
+		// Once a task is no longer running, no subtask can still be executing.
+		if t.Status != StatusInProgress {
+			for i := range cp {
+				if cp[i].IsActive {
+					cp[i].IsActive = false
+					cp[i].IsCompleted = true
+				}
+			}
+		}
+		subtasksOut[taskID] = cp
+	}
+
 	return &ExecutionState{
 		Tasks:       taskList,
 		RunningTask: runningTaskID,
 		QueuedTasks: queuedTasks,
+		Subtasks:    subtasksOut,
 	}
 }
 
@@ -387,12 +409,68 @@ func UpdateSubtask(taskID string, subtaskID int, description string, isActive bo
 		serializableActions[i] = actionpkg.ToVerboseMap(act)
 	}
 
+	recordSubtaskUpdate(taskID, subtaskID, description, isActive, actions)
 	websocket.SendSubtaskUpdate(taskID, subtaskID, description, isActive, serializableActions)
 }
 
 // UpdateAction sends an action update via WebSocket.
 func UpdateAction(taskID string, subtaskID int, actionIndex int, act actionpkg.Action) {
+	recordActionUpdate(taskID, subtaskID, actionIndex, act)
 	websocket.SendActionUpdate(taskID, subtaskID, actionIndex, actionpkg.ToVerboseMap(act))
+}
+
+// recordSubtaskUpdate maintains the server-side subtask snapshot used by /execution-state.
+func recordSubtaskUpdate(taskID string, subtaskID int, description string, isActive bool, actions []actionpkg.Action) {
+	managerMutex.Lock()
+	defer managerMutex.Unlock()
+
+	snapshotActions := make([]map[string]interface{}, len(actions))
+	for i, act := range actions {
+		snapshotActions[i] = actionpkg.ToVerboseMap(act)
+	}
+
+	list := taskSubtasks[taskID]
+	for i := range list {
+		if list[i].ID != subtaskID {
+			continue
+		}
+		wasActive := list[i].IsActive
+		list[i].Description = description
+		list[i].IsActive = isActive
+		if !isActive && wasActive {
+			list[i].IsCompleted = true
+		}
+		if len(snapshotActions) > 0 {
+			list[i].Actions = snapshotActions
+		}
+		return
+	}
+
+	taskSubtasks[taskID] = append(list, SubtaskSnapshot{
+		ID:          subtaskID,
+		Description: description,
+		IsActive:    isActive,
+		IsCompleted: false,
+		Actions:     snapshotActions,
+	})
+}
+
+// recordActionUpdate maintains the server-side action snapshot used by /execution-state.
+func recordActionUpdate(taskID string, subtaskID, actionIndex int, act actionpkg.Action) {
+	managerMutex.Lock()
+	defer managerMutex.Unlock()
+
+	list := taskSubtasks[taskID]
+	for i := range list {
+		if list[i].ID != subtaskID {
+			continue
+		}
+		for len(list[i].Actions) <= actionIndex {
+			list[i].Actions = append(list[i].Actions, map[string]interface{}{})
+		}
+		list[i].Actions[actionIndex] = actionpkg.ToVerboseMap(act)
+		return
+	}
 }
 
 // BroadcastExecutionEngineUpdate broadcasts execution engine updates via WebSocket.
