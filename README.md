@@ -1,6 +1,6 @@
 # useless-agent 
 
-![](/assets/img/demo2.png)
+![](/assets/img/useless-agent-main.png)
 
 **What can this agent do?** Basically nothing, that’s why it is the useless-agent.  
 
