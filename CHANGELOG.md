@@ -2,6 +2,9 @@
 
 ### v0.3.1
 
+#### Changes
+* Redesigned the outer App Shell (left navigation sidebar, workspaces sidebar, and workspace preview stage) and Inventory view with a unified obsidian/graphite/gold visual system, SVG icons, item count badges, refined empty states, and improved card/form layouts.
+
 #### Bugfixes
 * Deleting a workspace now first cancels all of its queued, running, or paused tasks via each session's `/task-cancel` endpoint; the workspace is only deleted after every cancellation succeeds, otherwise the delete confirmation dialog stays open and shows an inline error.
 * Preserved per-workspace LLM model/provider/thinking-level selection and task list scroll position across workspace switches (in both normal and user-assist modes).

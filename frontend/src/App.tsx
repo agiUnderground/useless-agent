@@ -434,11 +434,12 @@ const App: React.FC = () => {
       {/* Persistent Left Sidebar */}
       <aside className="shell-nav">
         <div className="shell-brand">
-          <span className="shell-brand-dot" />
+          <span className="shell-brand-mark" aria-hidden="true" />
           <span className="shell-brand-name">useless-agent</span>
         </div>
 
-        <nav className="shell-nav-items">
+        <nav className="shell-nav-items" aria-label="Primary navigation">
+          <div className="shell-nav-section-label">Navigation</div>
           <button
             type="button"
             className={`shell-nav-btn ${activeNav === 'workspaces' ? 'active' : ''}`}
@@ -447,8 +448,14 @@ const App: React.FC = () => {
               setIsExpanded(false);
             }}
           >
-            <span className="shell-nav-icon">◫</span>
-            <span>Workspaces</span>
+            <svg className="shell-nav-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <rect x="2" y="2" width="5" height="5" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
+              <rect x="9" y="2" width="5" height="5" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
+              <rect x="2" y="9" width="5" height="5" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
+              <rect x="9" y="9" width="5" height="5" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
+            </svg>
+            <span className="shell-nav-label">Workspaces</span>
+            <span className="shell-nav-count">{workspaces.length}</span>
           </button>
 
           <button
@@ -459,8 +466,14 @@ const App: React.FC = () => {
               setIsExpanded(false);
             }}
           >
-            <span className="shell-nav-icon">⊞</span>
-            <span>Inventory</span>
+            <svg className="shell-nav-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <rect x="2" y="2.5" width="12" height="4.5" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
+              <rect x="2" y="9" width="12" height="4.5" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
+              <circle cx="4.5" cy="4.75" r="0.8" fill="currentColor" />
+              <circle cx="4.5" cy="11.25" r="0.8" fill="currentColor" />
+            </svg>
+            <span className="shell-nav-label">Inventory</span>
+            <span className="shell-nav-count">{inventory.length}</span>
           </button>
         </nav>
 
@@ -471,8 +484,12 @@ const App: React.FC = () => {
               {auth.user.username}
             </span>
           </div>
-          <button type="button" className="shell-logout-btn" onClick={handleLogout} title="Sign out">
-            Exit
+          <button type="button" className="shell-logout-btn" onClick={handleLogout} title="Sign out" aria-label="Sign out">
+            <svg viewBox="0 0 16 16" fill="none" width="14" height="14" aria-hidden="true">
+              <path d="M6 2.5H3.5A1.5 1.5 0 0 0 2 4v8a1.5 1.5 0 0 0 1.5 1.5H6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              <path d="M10.5 11L13.5 8L10.5 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M13.5 8H6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            </svg>
           </button>
         </div>
       </aside>
@@ -482,8 +499,28 @@ const App: React.FC = () => {
         <>
           {/* Second Sidebar: Workspaces List */}
           <aside className="workspaces-sidebar">
-            <div className="workspaces-sidebar-top">
-              {creatingWorkspace ? (
+            <div className="workspaces-sidebar-header">
+              <div className="workspaces-sidebar-title-group">
+                <span className="workspaces-sidebar-title">Workspaces</span>
+                <span className="workspaces-sidebar-count">{workspaces.length}</span>
+              </div>
+              {!creatingWorkspace && (
+                <button
+                  type="button"
+                  className="new-workspace-icon-btn"
+                  onClick={() => setCreatingWorkspace(true)}
+                  title="New workspace"
+                  aria-label="New workspace"
+                >
+                  <svg viewBox="0 0 16 16" fill="none" width="14" height="14" aria-hidden="true">
+                    <path d="M8 3.25v9.5M3.25 8h9.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {creatingWorkspace && (
+              <div className="workspaces-create-panel">
                 <form className="new-workspace-form" onSubmit={handleCreateWorkspace}>
                   <input
                     type="text"
@@ -500,9 +537,6 @@ const App: React.FC = () => {
                     autoFocus
                   />
                   <div className="new-workspace-form-actions">
-                    <button type="submit" className="new-workspace-confirm">
-                      Create
-                    </button>
                     <button
                       type="button"
                       className="new-workspace-cancel"
@@ -513,19 +547,13 @@ const App: React.FC = () => {
                     >
                       Cancel
                     </button>
+                    <button type="submit" className="new-workspace-confirm" disabled={!newWorkspaceName.trim()}>
+                      Create
+                    </button>
                   </div>
                 </form>
-              ) : (
-                <button
-                  type="button"
-                  className="new-workspace-btn"
-                  onClick={() => setCreatingWorkspace(true)}
-                >
-                  <span>+</span>
-                  <span>New workspace</span>
-                </button>
-              )}
-            </div>
+              </div>
+            )}
 
             <div className="workspaces-list">
               {workspaces.map((ws) => {
@@ -541,24 +569,27 @@ const App: React.FC = () => {
                     onClick={() => selectWorkspace(ws.id)}
                   >
                     <div className="workspace-item-header">
-                      <span className="workspace-item-name">{ws.name}</span>
+                      <span className="workspace-item-name" title={ws.name}>{ws.name}</span>
                       {!ws.isDefault && (
                         <button
                           type="button"
                           className="workspace-delete-btn"
                           title="Delete workspace"
+                          aria-label={`Delete ${ws.name}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             setDeleteError(null);
                             setWorkspaceToDelete(ws);
                           }}
                         >
-                          ×
+                          <svg viewBox="0 0 16 16" fill="none" width="12" height="12" aria-hidden="true">
+                            <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                          </svg>
                         </button>
                       )}
                     </div>
                     <div className="workspace-item-meta">
-                      <span>
+                      <span className="workspace-session-count">
                         {ws.sessions.length} {ws.sessions.length === 1 ? 'session' : 'sessions'}
                       </span>
                       {activeTaskCount > 0 && (

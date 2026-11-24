@@ -1,21 +1,49 @@
-/* Outer App Shell (Left Sidebar + Workspaces Sidebar + Zoomed-Out Workspace Stage) */
+/* Outer App Shell — Precision Obsidian / Graphite / Burnished Gold */
+
+:root {
+  --shell-bg-canvas: #0b0b0c;
+  --shell-bg-nav: #111113;
+  --shell-bg-sidebar: #141416;
+  --shell-bg-surface: #19191c;
+  --shell-bg-elevated: #202024;
+  --shell-bg-input: #101012;
+  --shell-border-subtle: #222226;
+  --shell-border-default: #2d2d33;
+  --shell-border-strong: #3e3e46;
+  --shell-text-primary: #f4f4f6;
+  --shell-text-secondary: #a1a1aa;
+  --shell-text-muted: #6c6c75;
+  --shell-gold: #f5be0b;
+  --shell-gold-hover: #ffd038;
+  --shell-gold-subtle: rgba(245, 190, 11, 0.10);
+  --shell-gold-border: rgba(245, 190, 11, 0.34);
+  --shell-danger: #ef4444;
+  --shell-danger-subtle: rgba(239, 68, 68, 0.12);
+  --shell-header-height: 56px;
+}
 
 .app-shell {
   display: flex;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
+  background: var(--shell-bg-canvas);
   font-family: 'JetBrains Mono', monospace;
-  color: #e6e6e6;
+  color: var(--shell-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Primary persistent left sidebar */
+/* ==========================================================================
+   Primary Persistent Left Sidebar (200px)
+   ========================================================================== */
+
 .shell-nav {
-  width: 190px;
-  min-width: 190px;
+  width: 200px;
+  min-width: 200px;
   height: 100vh;
-  background: rgba(16, 16, 16, 0.96);
-  border-right: 1px solid #2b2b2b;
+  background: var(--shell-bg-nav);
+  border-right: 1px solid var(--shell-border-subtle);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -24,94 +52,155 @@
 }
 
 .shell-brand {
-  padding: 20px 18px 16px;
-  border-bottom: 1px solid #242424;
+  height: var(--shell-header-height);
+  padding: 0 16px;
+  border-bottom: 1px solid var(--shell-border-subtle);
   display: flex;
   align-items: center;
   gap: 10px;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
-.shell-brand-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #FFC107;
-  box-shadow: 0 0 8px rgba(255, 193, 7, 0.55);
+.shell-brand-mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--shell-gold);
   flex-shrink: 0;
 }
 
 .shell-brand-name {
   font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  color: #fff;
+  letter-spacing: -0.01em;
+  color: var(--shell-text-primary);
+  line-height: 1;
 }
 
 .shell-nav-items {
   flex: 1;
-  padding: 14px 10px;
+  padding: 16px 10px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+}
+
+.shell-nav-section-label {
+  padding: 0 10px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--shell-text-muted);
 }
 
 .shell-nav-btn {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 11px 12px;
+  height: 36px;
+  padding: 0 10px;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 8px;
-  color: #9e9e9e;
+  border-radius: 6px;
+  color: var(--shell-text-secondary);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
+  font-size: 12.5px;
+  font-weight: 500;
   cursor: pointer;
   text-align: left;
-  transition: all 0.15s ease;
+  box-sizing: border-box;
+  transition: background-color 0.14s ease, color 0.14s ease, border-color 0.14s ease;
 }
 
 .shell-nav-btn:hover {
   background: rgba(255, 255, 255, 0.04);
-  color: #fff;
+  color: var(--shell-text-primary);
 }
 
 .shell-nav-btn.active {
-  background: #1f1f1f;
-  border-color: #383838;
-  color: #fff;
+  background: var(--shell-bg-elevated);
+  border-color: var(--shell-border-default);
+  color: var(--shell-text-primary);
+}
+
+.shell-nav-btn.active::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 7px;
+  bottom: 7px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--shell-gold);
 }
 
 .shell-nav-icon {
-  font-size: 14px;
-  opacity: 0.85;
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--shell-text-muted);
+  transition: color 0.14s ease;
+}
+
+.shell-nav-btn:hover .shell-nav-icon {
+  color: var(--shell-text-secondary);
+}
+
+.shell-nav-btn.active .shell-nav-icon {
+  color: var(--shell-gold);
+}
+
+.shell-nav-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell-nav-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--shell-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.shell-nav-btn.active .shell-nav-count {
+  color: var(--shell-text-secondary);
 }
 
 .shell-nav-footer {
-  padding: 14px 12px;
-  border-top: 1px solid #242424;
+  height: 56px;
+  padding: 0 12px;
+  border-top: 1px solid var(--shell-border-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .shell-user-info {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   min-width: 0;
+  flex: 1;
 }
 
 .shell-user-avatar {
   width: 26px;
   height: 26px;
   border-radius: 6px;
-  background: #252525;
-  border: 1px solid #3a3a3a;
-  color: #FFC107;
-  font-size: 12px;
+  background: var(--shell-bg-elevated);
+  border: 1px solid var(--shell-border-default);
+  color: var(--shell-gold);
+  font-size: 11px;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -122,37 +211,45 @@
 
 .shell-username {
   font-size: 12px;
-  color: #ccc;
+  font-weight: 500;
+  color: var(--shell-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .shell-logout-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
-  border: 1px solid #333;
-  color: #888;
-  border-radius: 5px;
-  padding: 5px 8px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  border: 1px solid transparent;
+  color: var(--shell-text-muted);
+  border-radius: 6px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.14s ease, color 0.14s ease, border-color 0.14s ease;
   flex-shrink: 0;
 }
 
 .shell-logout-btn:hover {
-  color: #F44336;
-  border-color: rgba(244, 67, 54, 0.5);
+  background: var(--shell-danger-subtle);
+  color: var(--shell-danger);
+  border-color: rgba(239, 68, 68, 0.28);
 }
 
-/* Second sidebar: Workspaces list */
+/* ==========================================================================
+   Secondary Sidebar: Workspaces List (264px — Golden Ratio Harmony)
+   ========================================================================== */
+
 .workspaces-sidebar {
-  width: 215px;
-  min-width: 215px;
+  width: 264px;
+  min-width: 264px;
   height: 100vh;
-  background: rgba(20, 20, 20, 0.94);
-  border-right: 1px solid #2b2b2b;
+  background: var(--shell-bg-sidebar);
+  border-right: 1px solid var(--shell-border-subtle);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -160,32 +257,71 @@
   user-select: none;
 }
 
-.workspaces-sidebar-top {
-  padding: 16px 14px 12px;
-  border-bottom: 1px solid #242424;
+.workspaces-sidebar-header {
+  height: var(--shell-header-height);
+  padding: 0 14px 0 16px;
+  border-bottom: 1px solid var(--shell-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
-.new-workspace-btn {
-  width: 100%;
-  padding: 10px 12px;
-  background: #1d1d1d;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
-  font-family: 'JetBrains Mono', monospace;
+.workspaces-sidebar-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.workspaces-sidebar-title {
   font-size: 12px;
-  cursor: pointer;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--shell-text-secondary);
+}
+
+.workspaces-sidebar-count {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--shell-text-muted);
+  background: var(--shell-bg-elevated);
+  border: 1px solid var(--shell-border-subtle);
+  border-radius: 4px;
+  padding: 1px 6px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+.new-workspace-icon-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  transition: all 0.15s ease;
+  background: var(--shell-bg-surface);
+  border: 1px solid var(--shell-border-default);
+  border-radius: 6px;
+  color: var(--shell-text-secondary);
+  cursor: pointer;
+  transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+  flex-shrink: 0;
 }
 
-.new-workspace-btn:hover {
-  background: #262626;
-  border-color: #FFC107;
-  color: #FFC107;
+.new-workspace-icon-btn:hover {
+  background: var(--shell-gold-subtle);
+  border-color: var(--shell-gold-border);
+  color: var(--shell-gold);
+}
+
+.workspaces-create-panel {
+  padding: 12px;
+  border-bottom: 1px solid var(--shell-border-subtle);
+  background: rgba(255, 255, 255, 0.015);
 }
 
 .new-workspace-form {
@@ -196,152 +332,206 @@
 
 .new-workspace-input {
   width: 100%;
+  height: 34px;
   box-sizing: border-box;
-  background: #141414;
-  border: 1px solid #FFC107;
+  background: var(--shell-bg-input);
+  border: 1px solid var(--shell-gold-border);
   border-radius: 6px;
-  padding: 8px 10px;
-  color: #fff;
+  padding: 0 10px;
+  color: var(--shell-text-primary);
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   outline: none;
+  box-shadow: 0 0 0 2px rgba(245, 190, 11, 0.12);
+}
+
+.new-workspace-input::placeholder {
+  color: var(--shell-text-muted);
 }
 
 .new-workspace-form-actions {
   display: flex;
+  justify-content: flex-end;
   gap: 6px;
 }
 
 .new-workspace-form-actions button {
-  flex: 1;
-  padding: 6px 8px;
+  height: 28px;
+  padding: 0 10px;
   border-radius: 5px;
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
+  font-weight: 500;
   cursor: pointer;
+  transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease, opacity 0.14s ease;
 }
 
 .new-workspace-confirm {
-  background: #FFC107;
-  color: #111;
+  background: var(--shell-gold);
+  color: #111113;
   border: none;
   font-weight: 600;
 }
 
+.new-workspace-confirm:hover:not(:disabled) {
+  background: var(--shell-gold-hover);
+}
+
+.new-workspace-confirm:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .new-workspace-cancel {
   background: transparent;
-  color: #999;
-  border: 1px solid #333;
+  color: var(--shell-text-secondary);
+  border: 1px solid var(--shell-border-default);
+}
+
+.new-workspace-cancel:hover {
+  color: var(--shell-text-primary);
+  border-color: var(--shell-border-strong);
 }
 
 .workspaces-list {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 10px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   scrollbar-width: thin;
-  scrollbar-color: #3a3a3a transparent;
+  scrollbar-color: var(--shell-border-default) transparent;
 }
 
 .workspace-item {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 13px 14px;
-  border-radius: 9px;
-  background: #171717;
-  border: 1px solid #262626;
+  gap: 5px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
   cursor: pointer;
-  transition: all 0.16s ease;
+  transition: background-color 0.14s ease, border-color 0.14s ease;
 }
 
 .workspace-item:hover {
-  background: #1e1e1e;
-  border-color: #3d3d3d;
+  background: rgba(255, 255, 255, 0.035);
 }
 
 .workspace-item.active {
-  background: #232323;
-  border-color: #FFC107;
-  box-shadow: 0 0 0 1px rgba(255, 193, 7, 0.15);
+  background: var(--shell-bg-elevated);
+  border-color: var(--shell-border-default);
+}
+
+.workspace-item.active::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--shell-gold);
 }
 
 .workspace-item-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 8px;
+  min-height: 20px;
 }
 
 .workspace-item-name {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
-  color: #f0f0f0;
+  color: var(--shell-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color 0.14s ease;
+}
+
+.workspace-item:hover .workspace-item-name,
+.workspace-item.active .workspace-item-name {
+  color: var(--shell-text-primary);
 }
 
 .workspace-item.active .workspace-item-name {
-  color: #fff;
+  font-weight: 600;
 }
 
 .workspace-delete-btn {
   opacity: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
-  color: #777;
-  font-size: 14px;
-  line-height: 1;
-  padding: 2px 4px;
+  color: var(--shell-text-muted);
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  flex-shrink: 0;
+  transition: opacity 0.14s ease, color 0.14s ease, background-color 0.14s ease;
 }
 
-.workspace-item:hover .workspace-delete-btn {
+.workspace-item:hover .workspace-delete-btn,
+.workspace-delete-btn:focus-visible {
   opacity: 1;
 }
 
 .workspace-delete-btn:hover {
-  color: #F44336;
-  background: rgba(244, 67, 54, 0.12);
+  color: var(--shell-danger);
+  background: var(--shell-danger-subtle);
 }
 
 .workspace-item-meta {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   font-size: 11px;
-  color: #777;
+  color: var(--shell-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.workspace-session-count {
+  line-height: 1.2;
 }
 
 .workspace-active-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: #FFC107;
-  font-size: 10px;
+  color: var(--shell-gold);
+  font-size: 10.5px;
   font-weight: 600;
+  line-height: 1.2;
 }
 
 .workspace-active-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: #FFC107;
-  animation: wsPulse 1.6s ease-in-out infinite;
+  background: var(--shell-gold);
+  animation: wsPulse 1.8s ease-in-out infinite;
 }
 
 @keyframes wsPulse {
   0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.45; transform: scale(0.85); }
+  50% { opacity: 0.4; transform: scale(0.85); }
 }
 
-/* Workspace Preview Stage (Zoomed-Out Container) */
+/* ==========================================================================
+   Workspace Preview Stage (Zoomed-Out Container)
+   ========================================================================== */
+
 .workspace-stage {
   flex: 1;
   height: 100vh;
@@ -352,25 +542,26 @@
   box-sizing: border-box;
   position: relative;
   overflow: hidden;
+  background: var(--shell-bg-canvas);
 }
 
 .workspace-preview-frame {
   position: relative;
-  border-radius: 16px;
+  border-radius: 12px;
   overflow: hidden;
-  border: 1px solid #353535;
-  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.65);
-  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
-              border-color 0.2s ease,
-              box-shadow 0.24s ease;
+  border: 1px solid var(--shell-border-default);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.72);
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+              border-color 0.18s ease,
+              box-shadow 0.22s ease;
   cursor: pointer;
-  background: #0d0d0d;
+  background: #0d0d0e;
 }
 
 .workspace-preview-frame:hover {
-  transform: scale(1.022);
-  border-color: rgba(255, 193, 7, 0.65);
-  box-shadow: 0 26px 68px rgba(0, 0, 0, 0.78), 0 0 0 1px rgba(255, 193, 7, 0.2);
+  transform: scale(1.016);
+  border-color: var(--shell-gold-border);
+  box-shadow: 0 28px 72px rgba(0, 0, 0, 0.82), 0 0 0 1px rgba(245, 190, 11, 0.16);
 }
 
 .workspace-scaled-inner {
@@ -388,24 +579,25 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding-bottom: 18px;
-  transition: background 0.2s ease;
+  padding-bottom: 20px;
+  transition: background 0.18s ease;
 }
 
 .workspace-preview-frame:hover .workspace-preview-overlay {
-  background: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.14);
 }
 
 .workspace-preview-hint {
   opacity: 0;
   transform: translateY(6px);
-  background: rgba(16, 16, 16, 0.9);
-  border: 1px solid #444;
-  color: #eee;
+  background: rgba(17, 17, 19, 0.94);
+  border: 1px solid var(--shell-border-strong);
+  color: var(--shell-text-primary);
   padding: 7px 14px;
-  border-radius: 999px;
-  font-size: 12px;
-  transition: all 0.2s ease;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  transition: opacity 0.18s ease, transform 0.18s ease;
   pointer-events: none;
 }
 
@@ -426,7 +618,7 @@
               var(--dot-color);
 }
 
-/* Floating Zoom-Out Button inside Expanded Workspace (bottom-right so it never covers Settings close button) */
+/* Floating Zoom-Out Button inside Expanded Workspace */
 .workspace-zoom-out-btn {
   position: fixed;
   bottom: 14px;
@@ -434,32 +626,33 @@
   z-index: 1150;
   display: flex;
   align-items: center;
-  gap: 7px;
-  background: rgba(18, 18, 18, 0.85);
-  backdrop-filter: blur(6px);
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
+  gap: 8px;
+  background: rgba(17, 17, 19, 0.88);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--shell-border-default);
+  border-radius: 6px;
   padding: 6px 11px;
-  color: #ccc;
-  opacity: 0.78;
+  color: var(--shell-text-secondary);
+  opacity: 0.84;
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.16s ease;
+  transition: opacity 0.14s ease, background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 
 .workspace-zoom-out-btn:hover {
   opacity: 1;
-  background: #222;
-  border-color: #FFC107;
-  color: #FFC107;
+  background: var(--shell-bg-elevated);
+  border-color: var(--shell-gold-border);
+  color: var(--shell-gold);
 }
 
 .workspace-zoom-out-kbd {
   font-size: 10px;
-  color: #777;
-  background: #141414;
-  border: 1px solid #333;
+  color: var(--shell-text-muted);
+  background: var(--shell-bg-input);
+  border: 1px solid var(--shell-border-subtle);
   border-radius: 4px;
   padding: 1px 5px;
 }
@@ -470,87 +663,96 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--shell-bg-canvas);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
-  color: #888;
+  font-size: 12.5px;
+  color: var(--shell-text-muted);
 }
 
-/* Confirmation Modal */
+/* ==========================================================================
+   Confirmation Modal
+   ========================================================================== */
+
 .shell-modal-backdrop {
   position: fixed;
   inset: 0;
   z-index: 2000;
   background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(3px);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .shell-modal {
-  width: 380px;
+  width: 400px;
   max-width: calc(100vw - 32px);
-  background: #161616;
-  border: 1px solid #353535;
-  border-radius: 12px;
-  padding: 20px 22px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75);
+  background: var(--shell-bg-sidebar);
+  border: 1px solid var(--shell-border-default);
+  border-radius: 10px;
+  padding: 24px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.78);
   font-family: 'JetBrains Mono', monospace;
-  color: #e6e6e6;
+  color: var(--shell-text-primary);
 }
 
 .shell-modal-title {
   font-size: 14px;
   font-weight: 600;
-  color: #fff;
+  color: var(--shell-text-primary);
   margin-bottom: 10px;
 }
 
 .shell-modal-body {
-  margin: 0 0 18px;
+  margin: 0 0 20px;
   font-size: 12px;
-  line-height: 1.55;
-  color: #aaa;
+  line-height: 1.6;
+  color: var(--shell-text-secondary);
 }
 
 .shell-modal-body strong {
-  color: #fff;
+  color: var(--shell-text-primary);
 }
 
 .shell-modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
 }
 
 .shell-modal-cancel {
+  height: 34px;
   background: transparent;
-  border: 1px solid #383838;
-  color: #bbb;
+  border: 1px solid var(--shell-border-default);
+  color: var(--shell-text-secondary);
   border-radius: 6px;
-  padding: 7px 14px;
+  padding: 0 14px;
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
+  transition: border-color 0.14s ease, color 0.14s ease;
 }
 
 .shell-modal-cancel:hover {
-  border-color: #666;
-  color: #fff;
+  border-color: var(--shell-border-strong);
+  color: var(--shell-text-primary);
 }
 
 .shell-modal-danger {
-  background: #c62828;
-  border: 1px solid #e53935;
+  height: 34px;
+  background: #dc2626;
+  border: 1px solid #ef4444;
   color: #fff;
   border-radius: 6px;
-  padding: 7px 14px;
+  padding: 0 14px;
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  transition: background-color 0.14s ease;
 }
 
 .shell-modal-danger:hover {
-  background: #d32f2f;
+  background: #ef4444;
 }
