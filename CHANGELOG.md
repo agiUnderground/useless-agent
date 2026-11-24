@@ -4,6 +4,8 @@
 
 #### Bugfixes
 * Deleting a workspace now first cancels all of its queued, running, or paused tasks via each session's `/task-cancel` endpoint; the workspace is only deleted after every cancellation succeeds, otherwise the delete confirmation dialog stays open and shows an inline error.
+* Preserved per-workspace LLM model/provider/thinking-level selection and task list scroll position across workspace switches (in both normal and user-assist modes).
+* Fixed user-assist task card restoration and SVG connection lines (chat-to-session and user-assist badge-to-task) across workspace switches, zoom transitions, preview hover scaling, and task list scrolling.
 
 ### v0.3.0
 

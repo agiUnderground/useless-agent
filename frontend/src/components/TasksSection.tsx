@@ -1,31 +1,50 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import './TasksSection.css';
 import TaskCard from './TaskCard';
 
 // Global task counter for sequence numbers
 let taskSequenceNumber = 1;
 
+// Task list scroll positions survive WorkspaceApp remounts (workspace switches)
+const tasksScrollPositions = new Map<string, number>();
+
 // Function for smart scrolling based on task position
-function smartScrollToTask(taskCardElement: HTMLElement, tasksContainerElement: HTMLElement) {
+export function smartScrollToTask(
+  taskCardElement: HTMLElement,
+  tasksContainerElement: HTMLElement,
+  behavior: ScrollBehavior = 'smooth'
+) {
   const taskCards = Array.from(tasksContainerElement.querySelectorAll('.task-card'));
   const taskIndex = taskCards.indexOf(taskCardElement);
   const totalTasks = taskCards.length;
-  
+
+  let targetScroll: number;
   if (taskIndex === 0) {
     // First task - scroll to top
-    tasksContainerElement.scrollTo({ top: 0, behavior: 'smooth' });
+    targetScroll = 0;
   } else if (taskIndex === totalTasks - 1) {
     // Last task - scroll to bottom
-    tasksContainerElement.scrollTo({ top: tasksContainerElement.scrollHeight, behavior: 'smooth' });
+    targetScroll = tasksContainerElement.scrollHeight;
   } else {
-    // Middle task - scroll to center
+    // Middle task - scroll to center (account for CSS transform scale when zoomed out)
     const taskRect = taskCardElement.getBoundingClientRect();
     const containerRect = tasksContainerElement.getBoundingClientRect();
+    const scale =
+      tasksContainerElement.clientHeight > 0 && containerRect.height > 0
+        ? containerRect.height / tasksContainerElement.clientHeight
+        : 1;
     const containerCenter = containerRect.height / 2;
     const taskCenter = taskRect.top - containerRect.top + taskRect.height / 2;
-    const scrollOffset = taskCenter - containerCenter;
-    
-    tasksContainerElement.scrollBy({ top: scrollOffset, behavior: 'smooth' });
+    const scrollOffset = (taskCenter - containerCenter) / scale;
+    targetScroll = Math.max(0, tasksContainerElement.scrollTop + scrollOffset);
+  }
+
+  if (behavior === 'auto') {
+    tasksContainerElement.scrollTop = targetScroll;
+  } else if (typeof tasksContainerElement.scrollTo === 'function') {
+    tasksContainerElement.scrollTo({ top: targetScroll, behavior });
+  } else {
+    tasksContainerElement.scrollTop = targetScroll;
   }
 }
 
@@ -69,6 +88,7 @@ interface TasksSectionProps {
   userAssistTaskCard: Task | null;
   onDeactivateUserAssist: () => void;
   sessions?: Array<{ id: string; ip: string }>;
+  workspaceId?: string;
 }
 
 const TasksSection: React.FC<TasksSectionProps> = ({
@@ -79,10 +99,48 @@ const TasksSection: React.FC<TasksSectionProps> = ({
   userAssistActive,
   userAssistTaskCard,
   onDeactivateUserAssist,
-  sessions = []
+  sessions = [],
+  workspaceId
 }) => {
   const tasksContainerRef = useRef<HTMLDivElement>(null);
-  const prevTasksLengthRef = useRef<number>(0);
+  // Start with the initial length so a fresh workspace mount is not treated as
+  // "new tasks added" (that would override the restored scroll position).
+  const prevTasksLengthRef = useRef<number>(tasks.length);
+
+  // Restore and persist the task list scroll position per workspace (both normal
+  // and user-assist modes). WorkspaceApp is keyed by workspace id, so switching
+  // workspaces remounts the task list.
+  useLayoutEffect(() => {
+    const container = tasksContainerRef.current;
+    if (!container || !workspaceId) return;
+
+    const savedScroll = tasksScrollPositions.get(workspaceId);
+    let restoring = savedScroll !== undefined;
+    let rafId = 0;
+
+    if (savedScroll !== undefined) {
+      container.scrollTop = savedScroll;
+      rafId = requestAnimationFrame(() => {
+        if (tasksContainerRef.current) {
+          tasksContainerRef.current.scrollTop = savedScroll;
+        }
+        restoring = false;
+      });
+    }
+
+    const saveScroll = () => {
+      if (restoring) return;
+      tasksScrollPositions.set(workspaceId, container.scrollTop);
+    };
+    container.addEventListener('scroll', saveScroll);
+    return () => {
+      cancelAnimationFrame(rafId);
+      container.removeEventListener('scroll', saveScroll);
+      if (!restoring && container.scrollHeight > container.clientHeight) {
+        tasksScrollPositions.set(workspaceId, container.scrollTop);
+      }
+    };
+  }, [workspaceId]);
   
   // Auto-scroll to bottom when a new task is added and not in user-assist mode
   useEffect(() => {

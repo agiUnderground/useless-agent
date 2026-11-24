@@ -30,6 +30,10 @@ const App: React.FC = () => {
   const [settingsOpenByWorkspace, setSettingsOpenByWorkspace] = useState<Record<string, boolean>>({});
   const [settingsTabsByWorkspace, setSettingsTabsByWorkspace] = useState<Record<string, Record<string, string>>>({});
   const [userAssistTaskIdByWorkspace, setUserAssistTaskIdByWorkspace] = useState<Record<string, string | null>>({});
+  const [modelSelectionByWorkspace, setModelSelectionByWorkspace] = useState<Record<
+    string,
+    { modelId: string; provider: string; thinkingLevel: string } | null
+  >>({});
 
   // Global Alt+W toggle for zooming in/out of the active workspace
   useEffect(() => {
@@ -633,6 +637,20 @@ const App: React.FC = () => {
                         ...prev,
                         [activeWorkspace.id]: taskId,
                       }))
+                    }
+                    initialModelSelection={modelSelectionByWorkspace[activeWorkspace.id] ?? null}
+                    onModelSelectionChange={(selection) =>
+                      setModelSelectionByWorkspace((prev) => {
+                        const current = prev[activeWorkspace.id];
+                        if (
+                          current?.modelId === selection.modelId &&
+                          current?.provider === selection.provider &&
+                          current?.thinkingLevel === selection.thinkingLevel
+                        ) {
+                          return prev;
+                        }
+                        return { ...prev, [activeWorkspace.id]: selection };
+                      })
                     }
                     onZoomOut={() => setIsExpanded(false)}
                     onPersistState={handlePersistWorkspaceState}

@@ -8,11 +8,6 @@ import SettingsPanel from './SettingsPanel';
 import ConnectionOverlay from './ConnectionOverlay';
 import TasksSection from './TasksSection';
 
-// Import smartScrollToTask function from TasksSection
-declare global {
-  function smartScrollToTask(taskCardElement: HTMLElement, tasksContainerElement: HTMLElement): void;
-}
-
 interface Session {
   id: string;
   ip: string;
@@ -70,6 +65,16 @@ export interface WorkspaceAppProps {
   onChangeSessionSettingsTab: (sessionId: string, tab: string) => void;
   initialUserAssistTaskId?: string | null;
   onUserAssistTaskIdChange?: (taskId: string | null) => void;
+  initialModelSelection?: {
+    modelId: string;
+    provider: string;
+    thinkingLevel: string;
+  } | null;
+  onModelSelectionChange?: (selection: {
+    modelId: string;
+    provider: string;
+    thinkingLevel: string;
+  }) => void;
   onZoomOut: () => void;
   onPersistState: (
     workspaceId: string,
@@ -101,6 +106,8 @@ const WorkspaceApp: React.FC<WorkspaceAppProps> = ({
   onChangeSessionSettingsTab,
   initialUserAssistTaskId = null,
   onUserAssistTaskIdChange,
+  initialModelSelection = null,
+  onModelSelectionChange,
   onZoomOut,
   onPersistState,
 }) => {
@@ -132,6 +139,7 @@ const WorkspaceApp: React.FC<WorkspaceAppProps> = ({
       onUserAssistTaskIdChange(userAssistActive ? userAssistTaskId : null);
     }
   }, [userAssistActive, userAssistTaskId, onUserAssistTaskIdChange]);
+
   const [tasks, setTasks] = useState<Task[]>(() =>
     initialTasks.map((t) => ({
       id: t.id,
@@ -146,6 +154,17 @@ const WorkspaceApp: React.FC<WorkspaceAppProps> = ({
       completedAt: t.completedAt || undefined,
     }))
   );
+
+  // Restore the highlighted user-assist card when its task arrives after remount
+  // (workspace switches reload/sync tasks asynchronously).
+  useEffect(() => {
+    if (!userAssistActive || !userAssistTaskId) return;
+    const activeTask = tasks.find(t => t.id === userAssistTaskId);
+    if (activeTask) {
+      setUserAssistTaskCard(prev => (prev?.id === activeTask.id ? prev : { ...activeTask }));
+    }
+  }, [tasks, userAssistActive, userAssistTaskId]);
+
   const [sessionLogs, setSessionLogs] = useState<Record<string, string[]>>({});
   const [tokenUsage, setTokenUsage] = useState<number>(initialTokenUsage || 0);
   const lastServerTokenTotalRef = useRef<Record<string, number>>({});
@@ -158,9 +177,20 @@ const WorkspaceApp: React.FC<WorkspaceAppProps> = ({
     return maxSeq + 1;
   });
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>('');
-  const [selectedProvider, setSelectedProvider] = useState<string>('');
-  const [selectedThinkingLevel, setSelectedThinkingLevel] = useState<string>('');
+  const [selectedModel, setSelectedModel] = useState<string>(initialModelSelection?.modelId || '');
+  const [selectedProvider, setSelectedProvider] = useState<string>(initialModelSelection?.provider || '');
+  const [selectedThinkingLevel, setSelectedThinkingLevel] = useState<string>(initialModelSelection?.thinkingLevel || '');
+
+  // Keep the selected LLM model per workspace so it survives WorkspaceApp remounts.
+  useEffect(() => {
+    if (onModelSelectionChange && selectedModel) {
+      onModelSelectionChange({
+        modelId: selectedModel,
+        provider: selectedProvider,
+        thinkingLevel: selectedThinkingLevel,
+      });
+    }
+  }, [onModelSelectionChange, selectedModel, selectedProvider, selectedThinkingLevel]);
 
   const mainContentRef = useRef<HTMLDivElement>(null);
   const spaceKeyPressedRef = useRef<boolean>(false);
@@ -1951,6 +1981,7 @@ const WorkspaceApp: React.FC<WorkspaceAppProps> = ({
           selectedThinkingLevel={selectedThinkingLevel}
           onSelectThinkingLevel={handleSelectThinkingLevel}
           inventoryServers={inventoryServers}
+          workspaceId={workspaceId}
         />
       </div>
       

@@ -52,6 +52,7 @@ interface ToolbarProps {
   selectedThinkingLevel?: string;
   onSelectThinkingLevel?: (level: string) => void;
   inventoryServers?: InventoryServer[];
+  workspaceId?: string;
 }
 
 const Toolbar: React.FC<ToolbarProps> = ({
@@ -78,7 +79,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onSelectModel,
   selectedThinkingLevel = '',
   onSelectThinkingLevel,
-  inventoryServers = []
+  inventoryServers = [],
+  workspaceId
 }) => {
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [inventoryFilter, setInventoryFilter] = useState('');
@@ -418,6 +420,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         userAssistTaskCard={userAssistTaskCard}
         onDeactivateUserAssist={onDeactivateUserAssist}
         sessions={sessions}
+        workspaceId={workspaceId}
       />
 
       {/* Chat fieldset */}

@@ -68,7 +68,17 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
     if (!svgEl) return null;
     const svgRect = svgEl.getBoundingClientRect();
     const unscaledW = window.innerWidth || 1280;
-    const safeScale = isExpanded ? 1 : (previewScale > 0.05 ? previewScale : 1);
+    // Measure the scale actually applied to the SVG instead of trusting the React prop.
+    // The zoomed-out preview frame adds its own hover transform, so the effective scale can
+    // differ from (and animate independently of) previewScale.
+    const measuredScale = svgRect.width > 0 && unscaledW > 0 ? svgRect.width / unscaledW : 0;
+    const safeScale = isExpanded
+      ? 1
+      : measuredScale > 0.05
+        ? measuredScale
+        : previewScale > 0.05
+          ? previewScale
+          : 1;
     const toLocal = (r: DOMRect) => ({
       left: (r.left - svgRect.left) / safeScale,
       right: (r.right - svgRect.left) / safeScale,
@@ -218,18 +228,32 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
     return { startX, startY, endX, endY };
   };
 
-  // Consolidated function to recalculate connection lines
+  const linesEqual = (a: ConnectionLine[], b: ConnectionLine[]) => {
+    if (a.length !== b.length) return false;
+    return a.every((line, index) => {
+      const other = b[index];
+      return (
+        line.id === other.id &&
+        line.path === other.path &&
+        line.userAssist === other.userAssist &&
+        line.startX === other.startX &&
+        line.startY === other.startY &&
+        line.endX === other.endX &&
+        line.endY === other.endY
+      );
+    });
+  };
+
+  // Consolidated function to recalculate session connection lines
   const recalculateConnectionLines = () => {
     if (!svgRef.current) return;
 
     const chatFieldsetElement = document.getElementById('chatFieldset');
     if (!chatFieldsetElement) return;
 
-    // Start with existing connection lines to preserve user-assist connection
-    setConnectionLines((prevLines: ConnectionLine[]) => {
-      // Filter out only session connections, keep user-assist connections
-      const nonSessionConnections = prevLines.filter(line => line.id.startsWith('user-assist-'));
-      const lines: ConnectionLine[] = [...nonSessionConnections];
+    setConnectionLines(prevLines => {
+      // Preserve the user-assist connection; it is updated separately.
+      const nextLines: ConnectionLine[] = prevLines.filter(line => line.id.startsWith('user-assist-'));
 
       // Determine which session to connect to
       let targetSessionId = selectedSessionId;
@@ -242,24 +266,20 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
         }
       }
 
-      // Find target session
       const targetSession = sessions.find(s => s.id === targetSessionId);
 
       if (targetSession) {
-        // Find session container element
-        const sessionElement = document.querySelector(`[data-session-id="${targetSession.id}"]`) as HTMLElement;
-        const isMaximized = sessionElement?.classList.contains('maximized');
+        const sessionElement = document.querySelector(`[data-session-id="${targetSession.id}"]`) as HTMLElement | null;
 
         if (sessionElement) {
-          // Calculate path using same logic as original
           const pathData = calculateConnectionPath(chatFieldsetElement, sessionElement);
           const coords = calculateConnectionCoordinates(chatFieldsetElement, sessionElement);
 
           if (pathData) {
-            lines.push({
+            nextLines.push({
               id: `connection-${targetSession.id}`,
               path: pathData,
-              userAssist: userAssistActive, // Main connection line should be golden when user-assist is active
+              userAssist: userAssistActive,
               startX: coords.startX,
               startY: coords.startY,
               endX: coords.endX,
@@ -269,8 +289,57 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
         }
       }
 
-      return lines;
+      return linesEqual(nextLines, prevLines) ? prevLines : nextLines;
     });
+  };
+
+  const updateUserAssistLine = () => {
+    if (!svgRef.current) return;
+
+    if (userAssistActive && userAssistTaskId) {
+      const userAssistTask = tasks.find(t => t.id === userAssistTaskId);
+      if (!userAssistTask) {
+        setConnectionLines(prevLines => prevLines.filter(line => line.id !== 'user-assist-connection'));
+        return;
+      }
+
+      const taskElement = document.querySelector(`[data-task-id="${userAssistTaskId}"]`) as HTMLElement | null;
+      if (!taskElement) {
+        setConnectionLines(prevLines => prevLines.filter(line => line.id !== 'user-assist-connection'));
+        return;
+      }
+
+      const chatFieldsetElement = document.getElementById('chatFieldset');
+      if (!chatFieldsetElement) return;
+
+      // Hide the line when the task card is scrolled out of the tasks list. The live
+      // zoomed-out update loop must not resurrect a line pointing at a hidden card.
+      const pathData = isTaskCardVisible(taskElement)
+        ? calculateUserAssistPath(taskElement, chatFieldsetElement)
+        : '';
+
+      if (pathData) {
+        setConnectionLines(prevLines => {
+          const nextLines = prevLines
+            .filter(line => line.id !== 'user-assist-connection')
+            .map(line => ({ ...line }));
+          nextLines.push({
+            id: 'user-assist-connection',
+            path: pathData,
+            userAssist: true,
+            startX: 0,
+            startY: 0,
+            endX: 0,
+            endY: 0
+          });
+          return linesEqual(nextLines, prevLines) ? prevLines : nextLines;
+        });
+      } else {
+        setConnectionLines(prevLines => prevLines.filter(line => line.id !== 'user-assist-connection'));
+      }
+    } else {
+      setConnectionLines(prevLines => prevLines.filter(line => line.id !== 'user-assist-connection'));
+    }
   };
 
   // Update connection lines when sessions, selection, or zoom state changes
@@ -324,7 +393,10 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
     let resizeTimeout: ReturnType<typeof setTimeout>;
     const debouncedResize = () => {
       clearTimeout(resizeTimeout);
-      resizeTimeout = setTimeout(recalculateConnectionLines, 100);
+      resizeTimeout = setTimeout(() => {
+        recalculateConnectionLines();
+        updateUserAssistLine();
+      }, 100);
     };
 
     window.addEventListener('resize', debouncedResize);
@@ -394,58 +466,13 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
     const containerHeight = containerRect.height;
     
     // Task card bottom is visible if it's within visible area of container
-    const bottomVisible = (taskBottom > 0 && taskBottom <= containerHeight);
+    const bottomVisible = (taskBottom > 0 && taskBottom <= containerHeight + 2);
     
     return bottomVisible;
   };
 
   // Update user-assist connection line (including when zooming in/out)
   useEffect(() => {
-    const updateUserAssistLine = () => {
-      if (!svgRef.current) return;
-      
-      // Add user-assist connection line if active
-      if (userAssistActive && userAssistTaskId) {
-        const userAssistTask = tasks.find(t => t.id === userAssistTaskId);
-        if (userAssistTask) {
-          const tasksContainer = document.getElementById('tasksContainer');
-          if (tasksContainer) {
-            const taskElement = document.querySelector(`[data-task-id="${userAssistTaskId}"]`) as HTMLElement;
-            
-            if (taskElement) {
-              const chatFieldsetElement = document.getElementById('chatFieldset');
-              if (chatFieldsetElement) {
-                const pathData = calculateUserAssistPath(taskElement, chatFieldsetElement);
-                if (pathData) {
-                  setConnectionLines((prevLines: ConnectionLine[]) => {
-                    const filtered = prevLines.filter(line => line.id !== 'user-assist-connection');
-                    const userAssistConnection = {
-                      id: 'user-assist-connection',
-                      path: pathData,
-                      userAssist: true,
-                      startX: 0,
-                      startY: 0,
-                      endX: 0,
-                      endY: 0
-                    };
-                    return [...filtered, userAssistConnection];
-                  });
-                }
-              }
-            } else {
-              setConnectionLines((prevLines: ConnectionLine[]) =>
-                prevLines.filter(line => line.id !== 'user-assist-connection')
-              );
-            }
-          }
-        }
-      } else {
-        setConnectionLines((prevLines: ConnectionLine[]) =>
-          prevLines.filter(line => line.id !== 'user-assist-connection')
-        );
-      }
-    };
-
     updateUserAssistLine();
     const raf = requestAnimationFrame(updateUserAssistLine);
     const timer = setTimeout(updateUserAssistLine, 280);
@@ -454,6 +481,59 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
       clearTimeout(timer);
     };
   }, [userAssistActive, userAssistTaskId, tasks, settingsOpen, isExpanded, previewScale]);
+
+  // While zoomed out, the preview frame animates its own hover transform and geometry can
+  // change without a React prop change. Update lines for a short window after mount and
+  // restart that window on hover/transition/resize events. Equal results reuse the previous
+  // state, so stable frames do not cause re-renders.
+  useEffect(() => {
+    if (isExpanded) return;
+
+    let raf = 0;
+    let framesLeft = 75;
+
+    const tick = () => {
+      recalculateConnectionLines();
+      updateUserAssistLine();
+      if (--framesLeft > 0) {
+        raf = requestAnimationFrame(tick);
+      } else {
+        raf = 0;
+      }
+    };
+
+    const restartUpdates = () => {
+      framesLeft = 75;
+      if (!raf) raf = requestAnimationFrame(tick);
+    };
+
+    raf = requestAnimationFrame(tick);
+
+    const previewFrame = svgRef.current?.closest('.workspace-preview-frame') as HTMLElement | null;
+    previewFrame?.addEventListener('pointerenter', restartUpdates);
+    previewFrame?.addEventListener('pointerleave', restartUpdates);
+    previewFrame?.addEventListener('transitionrun', restartUpdates);
+    previewFrame?.addEventListener('transitionend', restartUpdates);
+    window.addEventListener('resize', restartUpdates);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      previewFrame?.removeEventListener('pointerenter', restartUpdates);
+      previewFrame?.removeEventListener('pointerleave', restartUpdates);
+      previewFrame?.removeEventListener('transitionrun', restartUpdates);
+      previewFrame?.removeEventListener('transitionend', restartUpdates);
+      window.removeEventListener('resize', restartUpdates);
+    };
+  }, [
+    isExpanded,
+    previewScale,
+    selectedSessionId,
+    userAssistActive,
+    userAssistTaskId,
+    sessions,
+    tasks,
+    settingsOpen
+  ]);
 
   // Handle tasks container scroll to update user-assist connection line
   useEffect(() => {
@@ -506,7 +586,7 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
     return () => {
       tasksContainer.removeEventListener('scroll', handleTasksScroll);
     };
-  }, [userAssistActive, userAssistTaskId, tasks, settingsOpen]);
+  }, [userAssistActive, userAssistTaskId, tasks, settingsOpen, isExpanded, previewScale]);
 
   return (
     <div className="connection-overlay" id="connectionOverlay">
@@ -518,7 +598,8 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
               d={line.path}
               fill="none"
               strokeDasharray="5,5"
-              strokeWidth={isExpanded ? 1 : Math.max(1.5, 1.5 / (previewScale || 1))}
+              strokeWidth={isExpanded ? 1 : 1.5}
+              vectorEffect="non-scaling-stroke"
               stroke={line.userAssist ? '#FFC107' : '#4CAF50'}
               opacity="0.84"
             />
