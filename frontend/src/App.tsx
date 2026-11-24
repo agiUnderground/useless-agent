@@ -48,6 +48,7 @@ const App: React.FC = () => {
   const [creatingWorkspace, setCreatingWorkspace] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [workspaceToDelete, setWorkspaceToDelete] = useState<WorkspaceData | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Dynamic scale calculation for the zoomed-out workspace preview
   const stageRef = useRef<HTMLDivElement>(null);
@@ -283,9 +284,34 @@ const App: React.FC = () => {
     }
   };
 
+  const cancelWorkspaceTasks = async (wsId: string): Promise<void> => {
+    const ws = workspaces.find((w) => w.id === wsId);
+    if (!ws) return;
+
+    const nonTerminalStatuses = ['in-the-queue', 'in-progress', 'paused'];
+    const activeTasks = ws.tasks.filter(
+      (task) => nonTerminalStatuses.includes(task.status) && task.id && task.sessionIp
+    );
+
+    for (const task of activeTasks) {
+      const response = await fetch(
+        CONFIG.getHttpUrl(task.sessionIp as string, `/task-cancel?taskId=${encodeURIComponent(task.id)}`),
+        { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+      );
+      if (!response.ok) {
+        throw new Error(
+          `Failed to cancel task ${task.id} on server ${task.sessionIp}: ${response.statusText}`
+        );
+      }
+    }
+  };
+
   const handleDeleteWorkspace = async (wsId: string) => {
     if (!auth) return;
     try {
+      // Cancel every queued/running/paused task of this workspace first.
+      // The workspace is only deleted if all cancellations succeed.
+      await cancelWorkspaceTasks(wsId);
       await api.deleteWorkspace(auth.token, wsId);
       setWorkspaces((prev) => {
         const remaining = prev.filter((w) => w.id !== wsId);
@@ -299,10 +325,15 @@ const App: React.FC = () => {
         }
         return remaining;
       });
+      setWorkspaceToDelete(null);
+      setDeleteError(null);
     } catch (err) {
       console.error('Failed to delete workspace:', err);
-    } finally {
-      setWorkspaceToDelete(null);
+      setDeleteError(
+        err instanceof Error
+          ? `${err.message}. Workspace was not deleted.`
+          : 'Failed to cancel workspace tasks. Workspace was not deleted.'
+      );
     }
   };
 
@@ -514,6 +545,7 @@ const App: React.FC = () => {
                           title="Delete workspace"
                           onClick={(e) => {
                             e.stopPropagation();
+                            setDeleteError(null);
                             setWorkspaceToDelete(ws);
                           }}
                         >
@@ -634,18 +666,27 @@ const App: React.FC = () => {
       {workspaceToDelete && (
         <div
           className="shell-modal-backdrop"
-          onClick={() => setWorkspaceToDelete(null)}
+          onClick={() => {
+            setWorkspaceToDelete(null);
+            setDeleteError(null);
+          }}
         >
           <div className="shell-modal" onClick={(e) => e.stopPropagation()}>
             <div className="shell-modal-title">Delete Workspace</div>
             <p className="shell-modal-body">
               Delete workspace <strong>{workspaceToDelete.name}</strong>? All saved sessions and tasks in this workspace will be permanently removed.
             </p>
+            {deleteError && (
+              <p className="shell-modal-body" style={{ color: '#f87171' }}>{deleteError}</p>
+            )}
             <div className="shell-modal-actions">
               <button
                 type="button"
                 className="shell-modal-cancel"
-                onClick={() => setWorkspaceToDelete(null)}
+                onClick={() => {
+                  setWorkspaceToDelete(null);
+                  setDeleteError(null);
+                }}
               >
                 Cancel
               </button>

@@ -1,5 +1,10 @@
 # Changelog
 
+### v0.3.1
+
+#### Bugfixes
+* Deleting a workspace now first cancels all of its queued, running, or paused tasks via each session's `/task-cancel` endpoint; the workspace is only deleted after every cancellation succeeds, otherwise the delete confirmation dialog stays open and shows an inline error.
+
 ### v0.3.0
 
 #### Features
