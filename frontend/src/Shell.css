@@ -404,6 +404,67 @@
   scrollbar-color: var(--shell-border-default) transparent;
 }
 
+/* Kill switch (bottom of the workspaces sidebar) */
+.workspaces-sidebar-footer {
+  flex-shrink: 0;
+  padding: 10px;
+  border-top: 1px solid var(--shell-border-subtle);
+}
+
+.kill-switch-btn {
+  width: 100%;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  background: transparent;
+  border: 1px solid var(--shell-border-default);
+  border-radius: 6px;
+  color: var(--shell-text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.kill-switch-btn:hover:not(:disabled) {
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.45);
+  background: var(--shell-danger-subtle);
+}
+
+.kill-switch-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.kill-switch-icon {
+  flex-shrink: 0;
+}
+
+.kill-switch-label {
+  flex: 1;
+  text-align: left;
+}
+
+.kill-switch-count {
+  min-width: 20px;
+  padding: 1px 5px;
+  box-sizing: border-box;
+  border-radius: 4px;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 .workspace-item {
   position: relative;
   display: flex;
@@ -755,4 +816,26 @@
 
 .shell-modal-danger:hover {
   background: #ef4444;
+}
+
+.kill-switch-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.kill-switch-spinner {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--shell-border-strong);
+  border-top-color: var(--shell-danger);
+  animation: killSwitchSpin 0.7s linear infinite;
+}
+
+@keyframes killSwitchSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }

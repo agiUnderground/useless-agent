@@ -16,6 +16,7 @@ import {
 import LoginPage from './components/LoginPage';
 import WorkspaceApp from './components/WorkspaceApp';
 import InventoryView from './components/InventoryView';
+import { isActiveTaskStatus, runKillSwitch, KillSwitchReport } from './killSwitch';
 
 type NavTab = 'workspaces' | 'inventory';
 
@@ -54,6 +55,26 @@ const App: React.FC = () => {
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [workspaceToDelete, setWorkspaceToDelete] = useState<WorkspaceData | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Kill switch: cancels every task across every workspace.
+  const [killSwitchOpen, setKillSwitchOpen] = useState(false);
+  const [killSwitchBusy, setKillSwitchBusy] = useState(false);
+  const [killSwitchReport, setKillSwitchReport] = useState<KillSwitchReport | null>(null);
+  const [killSwitchError, setKillSwitchError] = useState<string | null>(null);
+
+  // Escape closes the kill switch dialog (unless a cancellation is running).
+  useEffect(() => {
+    if (!killSwitchOpen || killSwitchBusy) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setKillSwitchOpen(false);
+        setKillSwitchReport(null);
+        setKillSwitchError(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [killSwitchOpen, killSwitchBusy]);
 
   // Dynamic scale calculation for the zoomed-out workspace preview
   const stageRef = useRef<HTMLDivElement>(null);
@@ -305,9 +326,8 @@ const App: React.FC = () => {
     const ws = workspaces.find((w) => w.id === wsId);
     if (!ws) return;
 
-    const nonTerminalStatuses = ['in-the-queue', 'in-progress', 'paused'];
     const activeTasks = ws.tasks.filter(
-      (task) => nonTerminalStatuses.includes(task.status) && task.id && task.sessionIp
+      (task) => isActiveTaskStatus(task.status) && task.id && task.sessionIp
     );
 
     for (const task of activeTasks) {
@@ -320,6 +340,82 @@ const App: React.FC = () => {
           `Failed to cancel task ${task.id} on server ${task.sessionIp}: ${response.statusText}`
         );
       }
+    }
+  };
+
+  const closeKillSwitch = () => {
+    if (killSwitchBusy) return;
+    setKillSwitchOpen(false);
+    setKillSwitchReport(null);
+    setKillSwitchError(null);
+  };
+
+  const openKillSwitch = () => {
+    setKillSwitchReport(null);
+    setKillSwitchError(null);
+    setKillSwitchOpen(true);
+  };
+
+  const handleKillSwitch = async () => {
+    setKillSwitchBusy(true);
+    setKillSwitchError(null);
+    try {
+      const report = await runKillSwitch(workspaces);
+
+      const canceledIds = new Set(report.canceled.map((task) => task.taskId));
+      const canceledAt = Date.now();
+      // Tasks only discovered on the session servers (runaway tasks) are added
+      // to their workspace as canceled so they stay visible after the kill.
+      const discoveredByWorkspace = new Map<string, PersistedTask[]>();
+      for (const task of report.canceled) {
+        if (!task.workspaceId) continue;
+        const list = discoveredByWorkspace.get(task.workspaceId) || [];
+        list.push({
+          id: task.taskId,
+          sessionId: task.sessionId,
+          sessionIp: task.sessionIp,
+          status: 'canceled',
+          message: task.message,
+          model: task.model,
+          thinkingLevel: task.thinkingLevel,
+          createdAt: task.createdAt,
+          completedAt: canceledAt,
+        });
+        discoveredByWorkspace.set(task.workspaceId, list);
+      }
+
+      setWorkspaces((prev) =>
+        prev.map((ws) => {
+          const discovered = (discoveredByWorkspace.get(ws.id) || []).filter(
+            (task) => !ws.tasks.some((existing) => existing.id === task.id)
+          );
+          let changed = false;
+          const tasks = ws.tasks.map((task) => {
+            if (!canceledIds.has(task.id) || task.status === 'canceled') return task;
+            changed = true;
+            return { ...task, status: 'canceled', completedAt: task.completedAt || canceledAt };
+          });
+          for (const task of discovered) {
+            tasks.push(task);
+            changed = true;
+          }
+          return changed ? { ...ws, tasks } : ws;
+        })
+      );
+
+      // Update the mounted workspace's task cards without remounting it.
+      document.dispatchEvent(
+        new CustomEvent('tasksCanceled', { detail: { taskIds: [...canceledIds] } })
+      );
+
+      setKillSwitchReport(report);
+    } catch (err) {
+      console.error('Kill switch failed:', err);
+      setKillSwitchError(
+        err instanceof Error ? err.message : 'Failed to cancel tasks across workspaces.'
+      );
+    } finally {
+      setKillSwitchBusy(false);
     }
   };
 
@@ -459,6 +555,12 @@ const App: React.FC = () => {
     }
   }
 
+  // Active tasks shown on the kill switch button.
+  const activeTaskCount = workspaces.reduce(
+    (total, ws) => total + ws.tasks.filter((task) => isActiveTaskStatus(task.status)).length,
+    0
+  );
+
   return (
     <div className="app-shell">
       {/* Persistent Left Sidebar */}
@@ -588,8 +690,8 @@ const App: React.FC = () => {
             <div className="workspaces-list">
               {workspaces.map((ws) => {
                 const isSelected = activeWorkspace?.id === ws.id;
-                const activeTaskCount = ws.tasks.filter(
-                  (t) => t.status === 'in-progress' || t.status === 'in-the-queue'
+                const workspaceActiveTaskCount = ws.tasks.filter((t) =>
+                  isActiveTaskStatus(t.status)
                 ).length;
 
                 return (
@@ -622,16 +724,48 @@ const App: React.FC = () => {
                       <span className="workspace-session-count">
                         {ws.sessions.length} {ws.sessions.length === 1 ? 'session' : 'sessions'}
                       </span>
-                      {activeTaskCount > 0 && (
+                      {workspaceActiveTaskCount > 0 && (
                         <span className="workspace-active-badge">
                           <span className="workspace-active-dot" />
-                          {activeTaskCount} active
+                          {workspaceActiveTaskCount} active
                         </span>
                       )}
                     </div>
                   </div>
                 );
               })}
+            </div>
+
+            <div className="workspaces-sidebar-footer">
+              <button
+                type="button"
+                className="kill-switch-btn"
+                onClick={openKillSwitch}
+                title="Cancel all tasks across all workspaces"
+                aria-label="Kill switch: cancel all tasks"
+                disabled={killSwitchBusy}
+              >
+                <svg
+                  className="kill-switch-icon"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  width="14"
+                  height="14"
+                  aria-hidden="true"
+                >
+                  <path d="M8 2.25v5.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                  <path
+                    d="M5.1 4.35a5.1 5.1 0 1 0 5.8 0"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span className="kill-switch-label">Kill switch</span>
+                {activeTaskCount > 0 && (
+                  <span className="kill-switch-count">{activeTaskCount}</span>
+                )}
+              </button>
             </div>
           </aside>
 
@@ -779,6 +913,117 @@ const App: React.FC = () => {
               >
                 Delete
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Kill Switch Confirmation / Report Dialog */}
+      {killSwitchOpen && (
+        <div
+          className="shell-modal-backdrop"
+          onClick={() => {
+            if (!killSwitchBusy) {
+              setKillSwitchOpen(false);
+              setKillSwitchReport(null);
+              setKillSwitchError(null);
+            }
+          }}
+        >
+          <div
+            className="shell-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="kill-switch-dialog-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="shell-modal-title" id="kill-switch-dialog-title">
+              {killSwitchBusy
+                ? 'Canceling all tasks…'
+                : killSwitchReport
+                  ? killSwitchReport.canceled.length > 0
+                    ? `Canceled ${killSwitchReport.canceled.length} ${
+                        killSwitchReport.canceled.length === 1 ? 'task' : 'tasks'
+                      }`
+                    : 'No tasks canceled'
+                  : 'Cancel all tasks?'}
+            </div>
+
+            {killSwitchBusy ? (
+              <p className="shell-modal-body kill-switch-progress">
+                <span className="kill-switch-spinner" aria-hidden="true" />
+                Canceling every queued, running, and paused task across all workspaces…
+              </p>
+            ) : killSwitchReport ? (
+              <>
+                <p className="shell-modal-body">
+                  {killSwitchReport.canceled.length > 0
+                    ? `Across ${killSwitchReport.workspaceCount} ${
+                        killSwitchReport.workspaceCount === 1 ? 'workspace' : 'workspaces'
+                      }.`
+                    : `No queued, running, or paused tasks were found across ${workspaces.length} ${
+                        workspaces.length === 1 ? 'workspace' : 'workspaces'
+                      }.`}
+                </p>
+                {killSwitchReport.alreadyStopped > 0 && (
+                  <p className="shell-modal-body">
+                    {killSwitchReport.alreadyStopped}{' '}
+                    {killSwitchReport.alreadyStopped === 1 ? 'task' : 'tasks'} had already stopped.
+                  </p>
+                )}
+                {killSwitchReport.failed > 0 && (
+                  <p className="shell-modal-body" style={{ color: '#f87171' }}>
+                    {killSwitchReport.failed} {killSwitchReport.failed === 1 ? 'task' : 'tasks'}{' '}
+                    could not be canceled (the server may be offline).
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="shell-modal-body">
+                  Cancel every queued, running, and paused task across all{' '}
+                  <strong>
+                    {workspaces.length} {workspaces.length === 1 ? 'workspace' : 'workspaces'}
+                  </strong>
+                  ? Tasks that are not visible in the lists are canceled too. This cannot be undone.
+                </p>
+                {killSwitchError && (
+                  <p className="shell-modal-body" style={{ color: '#f87171' }}>
+                    {killSwitchError}
+                  </p>
+                )}
+              </>
+            )}
+
+            <div className="shell-modal-actions">
+              {!killSwitchBusy &&
+                (killSwitchReport ? (
+                  <button
+                    type="button"
+                    className="shell-modal-cancel"
+                    onClick={() => {
+                      setKillSwitchOpen(false);
+                      setKillSwitchReport(null);
+                      setKillSwitchError(null);
+                    }}
+                    autoFocus
+                  >
+                    Close
+                  </button>
+                ) : (
+                  <>
+                    <button type="button" className="shell-modal-cancel" onClick={closeKillSwitch} autoFocus>
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="shell-modal-danger"
+                      onClick={handleKillSwitch}
+                    >
+                      Cancel all tasks
+                    </button>
+                  </>
+                ))}
             </div>
           </div>
         </div>

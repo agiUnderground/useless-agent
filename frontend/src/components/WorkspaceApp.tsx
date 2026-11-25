@@ -174,6 +174,26 @@ const WorkspaceApp: React.FC<WorkspaceAppProps> = ({
     }
   }, [tasks, userAssistActive, userAssistTaskId]);
 
+  // The global kill switch (App shell) cancels tasks across every workspace.
+  // Reflect it here without remounting so task cards stop their timers at once.
+  useEffect(() => {
+    const handleTasksCanceled = (event: Event) => {
+      const detail = (event as CustomEvent<{ taskIds?: string[] }>).detail;
+      const canceledIds = new Set(detail?.taskIds || []);
+      if (canceledIds.size === 0) return;
+      const completedAt = Date.now();
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          canceledIds.has(task.id) && task.status !== 'canceled'
+            ? { ...task, status: 'canceled', completedAt: task.completedAt || completedAt }
+            : task
+        )
+      );
+    };
+    document.addEventListener('tasksCanceled', handleTasksCanceled);
+    return () => document.removeEventListener('tasksCanceled', handleTasksCanceled);
+  }, []);
+
   const [sessionLogs, setSessionLogs] = useState<Record<string, string[]>>({});
   const [tokenUsage, setTokenUsage] = useState<number>(initialTokenUsage || 0);
   const lastServerTokenTotalRef = useRef<Record<string, number>>({});

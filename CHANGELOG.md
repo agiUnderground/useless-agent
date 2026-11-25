@@ -3,6 +3,7 @@
 ### Unreleased
 
 #### Features
+* Added a **Kill switch** at the bottom of the Workspaces sidebar: after a confirmation dialog it cancels every queued, running, and paused task across all workspaces (including tasks only visible on the session servers) and reports how many were canceled, how many had already stopped, and how many failed.
 * Added per-session video recording: a `Rec` button with a fat dot in each session header starts/stops recording the session stream at exactly the session's FPS (a 1 FPS session records at 1 FPS, no extra capture or network load). The dot turns into a pulsating red dot with the elapsed time while recording; finished videos are uploaded to the backend and saved as `data/artifacts/session-recording/<start-time>_<session-ip>.webm`.
 * Added disposable Docker containers to the Inventory view ("+ Disposable container", Docker Compose only): starts a copy-on-write copy of the `backend` service in about a second and lists it as a highlighted `TEMP` row that can be connected in any workspace; **Destroy** removes the container, its data volume and the inventory entry. Backed by a new `docker-controller` sidecar that is the only service with access to the Docker socket. No setup: the shared token is generated on first start, and each copy starts with a copy of the backend's `config.json`. See `DOCKER_README.md`.
 * Sessions now fill the workspace for any number of sessions: rows of equal height, and an incomplete last row is widened (5 sessions are 3 + 2 instead of 3 + 1 + 1).
