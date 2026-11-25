@@ -40,7 +40,6 @@ const (
 	labelOwner       = "uagent.owner"
 	labelComposeSvc  = "com.docker.compose.service"
 	namePrefix       = "uagent-disp-"
-	defaultMax       = 8
 	pidsLimit        = 1024
 	socketPath       = "/var/run/docker.sock"
 	tokenFileDefault = "/run/uagent-controller/token"
@@ -53,7 +52,6 @@ const (
 var (
 	errBadRequest = errors.New("bad request")
 	errNotFound   = errors.New("not found")
-	errConflict   = errors.New("conflict")
 
 	errUnauth     = errors.New("unauthorized")
 	containerIDRe = regexp.MustCompile(`^[a-f0-9]{12,64}$`)
@@ -70,29 +68,24 @@ func envOr(key, def string) string {
 	return def
 }
 
-func maxContainers() int {
-	n, err := strconv.Atoi(envOr("MAX_CONTAINERS", strconv.Itoa(defaultMax)))
-	if err != nil || n < 1 {
-		return defaultMax
-	}
-	return n
-}
-
 // ---------- Docker Engine API (subsets) ----------
 
+type containerConfig struct {
+	Env        []string          `json:"Env"`
+	Labels     map[string]string `json:"Labels"`
+	Cmd        []string          `json:"Cmd"`
+	Entrypoint []string          `json:"Entrypoint"`
+	WorkingDir string            `json:"WorkingDir"`
+	User       string            `json:"User"`
+	Image      string            `json:"Image"`
+}
+
 type containerInspect struct {
-	ID     string `json:"Id"`
-	Name   string `json:"Name"`
-	Image  string `json:"Image"`
-	Config struct {
-		Env        []string          `json:"Env"`
-		Labels     map[string]string `json:"Labels"`
-		Cmd        []string          `json:"Cmd"`
-		Entrypoint []string          `json:"Entrypoint"`
-		WorkingDir string            `json:"WorkingDir"`
-		User       string            `json:"User"`
-	} `json:"Config"`
-	State struct {
+	ID     string          `json:"Id"`
+	Name   string          `json:"Name"`
+	Image  string          `json:"Image"`
+	Config containerConfig `json:"Config"`
+	State  struct {
 		Running bool `json:"Running"`
 	} `json:"State"`
 	NetworkSettings struct {
@@ -170,6 +163,14 @@ func (c *dockerClient) inspectContainer(id string) (*containerInspect, error) {
 	return &ci, nil
 }
 
+// imageExists reports whether the daemon still knows an image reference.
+func (c *dockerClient) imageExists(ref string) bool {
+	if strings.TrimSpace(ref) == "" {
+		return false
+	}
+	return c.do("GET", "/images/"+ref+"/json", nil, nil) == nil
+}
+
 // ownNetwork finds the network this sidecar is attached to, which is the
 // compose network the disposable containers must join as well.
 func (c *dockerClient) ownNetwork() (*networkInspect, error) {
@@ -238,15 +239,31 @@ func (c *dockerClient) removeVolume(name string) error {
 	return c.do("DELETE", "/volumes/"+name, nil, nil)
 }
 
-// create starts a new container from the template's image and environment,
-// attached to the compose network, with a private /data volume.
+// chooseImage picks the image a disposable copy is created from.
+//
+// A running container's inspect data keeps pointing at the image ID it was
+// created from. A rebuild ("docker compose up --build") replaces that image,
+// and the old ID can disappear from the image store while the container keeps
+// running. Creating a copy then fails with "No such image". Prefer the exact
+// image the template runs on, and fall back to the reference (tag) it was
+// created from, which now points at the rebuilt image.
+func chooseImage(src *containerInspect, imageExists func(string) bool) (string, error) {
+	for _, ref := range []string{src.Image, src.Config.Image} {
+		if imageExists(ref) {
+			return ref, nil
+		}
+	}
+	return "", fmt.Errorf("image %q is not available in Docker; rebuild the %q service",
+		src.Config.Image, sourceService)
+}
+
 // create starts a new container from the template's image and environment,
 // attached to the compose network, with a private /data volume. seedConfig,
 // when not empty, is written into that volume, at the path where the template
 // itself keeps its config file, before the container starts.
-func (c *dockerClient) create(src *containerInspect, net *networkInspect, name, owner string, seedConfig []byte) (*containerInspect, error) {
+func (c *dockerClient) create(src *containerInspect, net *networkInspect, name, owner, image string, seedConfig []byte) (*containerInspect, error) {
 	body := map[string]any{
-		"Image":      src.Image,
+		"Image":      image,
 		"Labels":     map[string]string{labelManaged: "true", labelOwner: owner},
 		"Env":        templateEnv(src.Config.Env),
 		"Cmd":        src.Config.Cmd,
@@ -451,11 +468,10 @@ func main() {
 		log.Print("no shared token available (set CONTROLLER_TOKEN or mount a writable volume at " + tokenFile + "): disposable containers are disabled")
 	}
 	d := newDockerClient()
-	max := maxContainers()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", withAuth(handleHealth(d)))
-	mux.HandleFunc("POST /containers", withAuth(handleCreate(d, max)))
+	mux.HandleFunc("POST /containers", withAuth(handleCreate(d)))
 	mux.HandleFunc("DELETE /containers/{id}", withAuth(handleDelete(d)))
 
 	log.Printf("docker-controller listening on %s", listenAddr)
@@ -481,8 +497,6 @@ func withAuth(h apiHandler) http.HandlerFunc {
 				status = http.StatusBadRequest
 			case errors.Is(err, errNotFound):
 				status = http.StatusNotFound
-			case errors.Is(err, errConflict):
-				status = http.StatusConflict
 			}
 			log.Printf("%s %s: %v", r.Method, r.URL.Path, err)
 			writeErr(w, status, err)
@@ -521,7 +535,7 @@ func handleHealth(d *dockerClient) apiHandler {
 	}
 }
 
-func handleCreate(d *dockerClient, max int) apiHandler {
+func handleCreate(d *dockerClient) apiHandler {
 	return func(w http.ResponseWriter, r *http.Request) error {
 		var req struct {
 			Owner  string `json:"owner"`
@@ -534,14 +548,6 @@ func handleCreate(d *dockerClient, max int) apiHandler {
 		owner := strings.TrimSpace(req.Owner)
 		if len(owner) > 128 || strings.ContainsAny(owner, "\n\r") {
 			return fmt.Errorf("%w: invalid owner", errBadRequest)
-		}
-
-		n, err := d.managedCount()
-		if err != nil {
-			return err
-		}
-		if n >= max {
-			return fmt.Errorf("%w: limit of %d disposable containers reached", errConflict, max)
 		}
 
 		seed, err := decodeSeedConfig(req.Config)
@@ -557,11 +563,15 @@ func handleCreate(d *dockerClient, max int) apiHandler {
 		if err != nil {
 			return err
 		}
+		image, err := chooseImage(src, d.imageExists)
+		if err != nil {
+			return err
+		}
 
 		// Copy-on-write: same image (shared read-only layers) plus a thin
 		// per-container write layer. Nothing is copied from disk.
 		name := namePrefix + randHex(4)
-		ci, err := d.create(src, net, name, owner, seed)
+		ci, err := d.create(src, net, name, owner, image, seed)
 		if err != nil {
 			return err
 		}

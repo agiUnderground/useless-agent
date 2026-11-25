@@ -112,3 +112,39 @@ func TestTemplateEnvDropsControllerCredentials(t *testing.T) {
 		t.Fatalf("controller credentials leaked: %v", got)
 	}
 }
+
+func TestChooseImagePrefersRunningImage(t *testing.T) {
+	src := &containerInspect{
+		Image:  "sha256:old",
+		Config: containerConfig{Image: "useless-agent-backend"},
+	}
+
+	got, err := chooseImage(src, func(ref string) bool { return true })
+	if err != nil || got != "sha256:old" {
+		t.Fatalf("chooseImage = %q, %v; want the image the template runs on", got, err)
+	}
+}
+
+// A rebuild can remove the image ID the running backend was created from
+// while the container keeps running. The copy must then use the image
+// reference (tag) instead of failing with "No such image".
+func TestChooseImageFallsBackToReference(t *testing.T) {
+	src := &containerInspect{
+		Image:  "sha256:old",
+		Config: containerConfig{Image: "useless-agent-backend"},
+	}
+
+	got, err := chooseImage(src, func(ref string) bool {
+		return ref == "useless-agent-backend"
+	})
+	if err != nil || got != "useless-agent-backend" {
+		t.Fatalf("chooseImage = %q, %v; want the rebuilt image reference", got, err)
+	}
+}
+
+func TestChooseImageReportsMissingImage(t *testing.T) {
+	src := &containerInspect{Image: "sha256:old"}
+	if _, err := chooseImage(src, func(string) bool { return false }); err == nil {
+		t.Fatal("expected an error when no image is available")
+	}
+}

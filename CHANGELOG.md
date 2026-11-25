@@ -12,6 +12,8 @@
 * Disposable containers only offered the providers configured through environment variables because their empty `/data` had no `config.json`; they now start with a copy of the backend's config.
 * A disposable container could still be connected while it was already being destroyed; its row now turns grey and ignores input until the request finishes, and becomes usable again with an error message if destroying fails.
 * Inventory errors from creating or destroying (shown with the add/edit form closed) were not displayed.
+* Creating a disposable container failed with "Could not create container: docker-controller returned 500" after the `backend` image was rebuilt: the controller created copies from the image ID stored in the running backend container, which Docker had already replaced and removed. It now uses that ID only while the image still exists and otherwise falls back to the image reference the service was created from (the rebuilt image). The backend also did not read the controller's error body, so the real cause (`No such image`) was hidden behind a generic 500; the message is now shown.
+* Removed the arbitrary cap of 8 disposable containers at once (and the `MAX_CONTAINERS`/`DISPOSABLE_MAX_CONTAINERS` setting): creation is no longer limited by the controller.
 
 
 ### v0.3.1

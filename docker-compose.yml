@@ -42,7 +42,6 @@ services:
       - CONTROLLER_TOKEN=${CONTROLLER_TOKEN:-}
       - CONTROLLER_TOKEN_FILE=${CONTROLLER_TOKEN_FILE:-/run/uagent-controller/token}
       - SOURCE_SERVICE=backend
-      - MAX_CONTAINERS=${DISPOSABLE_MAX_CONTAINERS:-8}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - controller-token:/run/uagent-controller

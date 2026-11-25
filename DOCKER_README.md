@@ -131,7 +131,6 @@ Optional settings, all in `.env`:
 
 | Variable | Purpose |
 |---|---|
-| `DISPOSABLE_MAX_CONTAINERS` | Cap on disposables at once (default `8`) |
 | `CONTROLLER_TOKEN` | Use your own shared secret instead of the generated one |
 | `CONTROLLER_UID`, `CONTROLLER_GID`, `DOCKER_GID` | Run the controller as another user than the socket's owner |
 

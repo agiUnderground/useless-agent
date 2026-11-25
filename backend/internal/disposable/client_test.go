@@ -95,7 +95,7 @@ func TestClientCreateSendsConfig(t *testing.T) {
 func TestClientSurfacesControllerError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusConflict)
-		_, _ = w.Write([]byte(`{"error":"conflict: limit of 8 disposable containers reached"}`))
+		_, _ = w.Write([]byte(`{"error":"conflict: container name is already in use"}`))
 	}))
 	defer server.Close()
 	t.Setenv("CONTROLLER_URL", server.URL)
@@ -105,5 +105,8 @@ func TestClientSurfacesControllerError(t *testing.T) {
 	var se *StatusError
 	if err == nil || !errors.As(err, &se) || se.Code != http.StatusConflict {
 		t.Fatalf("expected a 409 StatusError, got %v", err)
+	}
+	if se.Msg != "conflict: container name is already in use" {
+		t.Fatalf("controller error not surfaced, got %q", se.Msg)
 	}
 }

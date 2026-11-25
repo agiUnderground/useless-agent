@@ -165,6 +165,10 @@ func (c *Client) call(ctx context.Context, method, path string, body []byte, out
 		var e struct {
 			Error string `json:"error"`
 		}
+		// The controller answers errors as {"error": "..."}. Without this the
+		// user only sees "docker-controller returned 500" and the real cause
+		// stays in the controller's log.
+		_ = json.Unmarshal(data, &e)
 		if resp.StatusCode == http.StatusServiceUnavailable {
 			return fmt.Errorf("%w: %s", ErrNotConfigured, e.Error)
 		}
