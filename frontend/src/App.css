@@ -84,9 +84,14 @@ html, body {
   min-width: 0;
   height: calc(100vh - 50px);
   display: grid;
+  /* Columns/rows are set inline by the workspace (sessionLayout.ts). These are
+     only the fallback for a stage that has not been measured yet. */
   grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
   grid-auto-rows: minmax(300px, 1fr);
-  /* gap: 10px; */
+  /* No horizontal gap: sessions in a row touch. The vertical gap leaves a
+     channel between rows for the chat-to-session line. */
+  column-gap: 0;
+  row-gap: 8px;
   padding-top: 10px;
   padding-right: 0;
   padding-bottom: 0;
@@ -170,11 +175,6 @@ html, body {
     flex-direction: column;
   }
   
-  .main-content[data-session-count="3"] .session-container:nth-child(3),
-  .main-content[data-session-count="5"] .session-container:nth-child(5) {
-    grid-column: span 1;
-  }
-  
   /* Fix vertical centering for maximized sessions in mobile mode */
   .main-content:has(.session-container.maximized) {
     justify-content: center;
@@ -231,42 +231,8 @@ html, body {
   }
 }
 
-/* Layout adjustments for different session counts */
-.main-content[data-session-count="1"] {
-  grid-template-columns: 1fr;
-}
-
-.main-content[data-session-count="2"] {
-  grid-template-columns: 1fr 1fr;
-}
-
-.main-content[data-session-count="3"] {
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-}
-
-.main-content[data-session-count="3"] .session-container:nth-child(3) {
-  grid-column: span 2;
-}
-
-.main-content[data-session-count="4"] {
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-}
-
-.main-content[data-session-count="5"] {
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-}
-
-.main-content[data-session-count="5"] .session-container:nth-child(5) {
-  grid-column: span 3;
-}
-
-.main-content[data-session-count="6"] {
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-}
+/* Session layouts per count are computed in sessionLayout.ts and applied inline,
+   so any number of sessions fills the stage without empty cells. */
 
 .button-group {
   display: flex;

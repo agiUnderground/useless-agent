@@ -12,12 +12,16 @@ services:
       - CONFIG_PATH=/data/config.json
       - ARTIFACTS_DIR=/data/artifacts
       - DISPLAY=:2
-      # Disposable containers: an empty CONTROLLER_TOKEN disables the feature.
+      # Disposable containers. The token shared with docker-controller is read
+      # from the controller-token volume; CONTROLLER_TOKEN overrides it.
       - CONTROLLER_URL=http://docker-controller:8090
       - CONTROLLER_TOKEN=${CONTROLLER_TOKEN:-}
+      - CONTROLLER_TOKEN_FILE=${CONTROLLER_TOKEN_FILE:-/run/uagent-controller/token}
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
       - ./data:/data
+      # Shared secret with docker-controller for disposable containers.
+      - controller-token:/run/uagent-controller:ro
     ports:
       - "8080:8080"
     depends_on:
@@ -25,22 +29,26 @@ services:
 
   # Only this service can talk to Docker. It offers exactly two operations:
   # start a disposable copy of the `backend` container, and destroy one.
-  # Requires in .env: CONTROLLER_TOKEN=<random secret> and DOCKER_GID=<id of
-  # the group that owns /var/run/docker.sock>. Without them the feature is off.
+  # Nothing needs to be configured: the shared token with the backend is
+  # generated on first start and kept in the controller-token volume, and the
+  # service opens the Docker socket as its owner (uid 0) with every capability
+  # dropped. To run it as another user instead, set CONTROLLER_UID, CONTROLLER_GID
+  # and DOCKER_GID (the id of the group that owns /var/run/docker.sock).
   docker-controller:
     build:
       context: ./docker-controller
       dockerfile: Dockerfile
     environment:
       - CONTROLLER_TOKEN=${CONTROLLER_TOKEN:-}
+      - CONTROLLER_TOKEN_FILE=${CONTROLLER_TOKEN_FILE:-/run/uagent-controller/token}
       - SOURCE_SERVICE=backend
       - MAX_CONTAINERS=${DISPOSABLE_MAX_CONTAINERS:-8}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    # Unprivileged: a normal user that is only a member of the socket's group.
-    user: "65534:65534"
+      - controller-token:/run/uagent-controller
+    user: "${CONTROLLER_UID:-0}:${CONTROLLER_GID:-0}"
     group_add:
-      - "${DOCKER_GID:-65534}"
+      - "${DOCKER_GID:-0}"
     read_only: true
     cap_drop:
       - ALL
@@ -58,3 +66,7 @@ services:
       - "3001:80"
     environment:
       - REACT_APP_API_URL=http://localhost:8080
+
+volumes:
+  # Shared secret between backend and docker-controller (filled automatically).
+  controller-token:

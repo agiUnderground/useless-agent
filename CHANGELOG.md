@@ -3,7 +3,14 @@
 ### Unreleased
 
 #### Features
-* Added disposable Docker containers to the Inventory view ("+ Disposable container", Docker Compose only): starts a copy-on-write copy of the `backend` service in about a second and lists it as a highlighted `TEMP` row that can be connected in any workspace; **Destroy** removes the container, its data volume and the inventory entry. Backed by a new, unprivileged `docker-controller` sidecar that is the only service with access to the Docker socket (`CONTROLLER_TOKEN`, `DOCKER_GID`, `DISPOSABLE_MAX_CONTAINERS` in `.env`). See `DOCKER_README.md`.
+* Added disposable Docker containers to the Inventory view ("+ Disposable container", Docker Compose only): starts a copy-on-write copy of the `backend` service in about a second and lists it as a highlighted `TEMP` row that can be connected in any workspace; **Destroy** removes the container, its data volume and the inventory entry. Backed by a new `docker-controller` sidecar that is the only service with access to the Docker socket. No setup: the shared token is generated on first start, and each copy starts with a copy of the backend's `config.json`. See `DOCKER_README.md`.
+* Sessions now fill the workspace for any number of sessions: rows of equal height, and an incomplete last row is widened (5 sessions are 3 + 2 instead of 3 + 1 + 1).
+* The chat-to-session line is routed through free space only (beside the grid, the top margin, the gaps between rows) and takes the shortest route that crosses no other session, instead of running around the outside of the grid and through neighbouring sessions.
+
+#### Bugfixes
+* Disposable containers only offered the providers configured through environment variables because their empty `/data` had no `config.json`; they now start with a copy of the backend's config.
+* A disposable container could still be connected while it was already being destroyed; its row now turns grey and ignores input until the request finishes, and becomes usable again with an error message if destroying fails.
+* Inventory errors from creating or destroying (shown with the add/edit form closed) were not displayed.
 
 
 ### v0.3.1

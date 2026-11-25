@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
+	"useless-agent/internal/config"
 	"useless-agent/internal/db"
 	"useless-agent/internal/disposable"
 )
@@ -466,7 +469,16 @@ func DisposableCreateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c, err := disposables.Create(r.Context(), user.ID)
+	// A copy starts with an empty /data, so give it the template's config.json
+	// (providers, API keys, default model). Without it only the providers
+	// configured through environment variables would be available inside.
+	seed, err := readSeedConfig()
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	c, err := disposables.Create(r.Context(), user.ID, seed)
 	if err != nil {
 		writeJSONError(w, http.StatusBadGateway, "Could not create container: "+err.Error())
 		return
@@ -487,6 +499,26 @@ func DisposableCreateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, srv)
+}
+
+// readSeedConfig returns the config.json a disposable container should start
+// with, or nil when there is none.
+func readSeedConfig() ([]byte, error) {
+	path := config.GetConfigPath()
+	if path == "" {
+		return nil, nil
+	}
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("could not read %s: %w", path, err)
+	}
+	if len(data) > disposable.MaxConfigBytes {
+		return nil, fmt.Errorf("%s is too large to copy (%d bytes)", path, len(data))
+	}
+	return data, nil
 }
 
 // CapabilitiesHandler handles GET /api/capabilities and tells the frontend

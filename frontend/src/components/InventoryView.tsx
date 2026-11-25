@@ -73,6 +73,9 @@ const InventoryView: React.FC<InventoryViewProps> = ({
 }) => {
   const [filter, setFilter] = useState('');
   const [creatingDisposable, setCreatingDisposable] = useState(false);
+  // Inventory rows whose container is being destroyed right now. They stay
+  // visible but greyed out and ignore clicks until the request finishes.
+  const [destroyingIds, setDestroyingIds] = useState<ReadonlySet<string>>(() => new Set());
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -153,6 +156,28 @@ const InventoryView: React.FC<InventoryViewProps> = ({
     }
   };
 
+  const handleDeleteRow = async (srv: InventoryServer) => {
+    if (destroyingIds.has(srv.id)) return;
+    setError(null);
+    if (srv.isDisposable) setDestroyingIds((prev) => new Set(prev).add(srv.id));
+    try {
+      await onDeleteServer(srv.id);
+      setDestroyingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(srv.id);
+        return next;
+      });
+    } catch (err) {
+      // Keep the row usable so the user can retry; the container still exists.
+      setDestroyingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(srv.id);
+        return next;
+      });
+      setError(err instanceof Error ? err.message : 'Failed to delete server');
+    }
+  };
+
   const filtered = servers.filter((s) => {
     const q = filter.trim().toLowerCase();
     if (!q) return true;
@@ -221,6 +246,13 @@ const InventoryView: React.FC<InventoryViewProps> = ({
             </button>
           </div>
         </header>
+
+        {/* Errors from create/destroy happen with the form closed; show them here. */}
+        {error && !showForm && (
+          <div className="inventory-error inventory-error-banner" role="alert">
+            {error}
+          </div>
+        )}
 
         {showForm && (
           <form className="inventory-form" onSubmit={handleSubmit}>
@@ -340,7 +372,8 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                 srv={srv}
                 onConnectServer={onConnectServer}
                 onEdit={startEdit}
-                onDeleteServer={onDeleteServer}
+                onDelete={(row) => handleDeleteRow(row)}
+                destroying={destroyingIds.has(srv.id)}
               />
             ))}
           </div>
@@ -354,7 +387,9 @@ interface RowProps {
   srv: InventoryServer;
   onConnectServer: (ip: string) => void;
   onEdit: (srv: InventoryServer) => void;
-  onDeleteServer: (id: string) => Promise<void>;
+  onDelete: (srv: InventoryServer) => Promise<void>;
+  /** The row's container is being destroyed: show it as out of service. */
+  destroying: boolean;
 }
 
 const ServerIcon: React.FC = () => (
@@ -376,9 +411,39 @@ const ContainerIcon: React.FC = () => (
 );
 
 /** One inventory line. Disposable rows are tinted and cannot be edited. */
-const DisposableAwareRow: React.FC<RowProps> = ({ srv, onConnectServer, onEdit, onDeleteServer }) => {
+const DisposableAwareRow: React.FC<RowProps> = ({ srv, onConnectServer, onEdit, onDelete, destroying }) => {
   const isDisposable = !!srv.isDisposable;
   const ready = useContainerReady(isDisposable ? srv.ip : null);
+
+  if (destroying) {
+    return (
+      <div
+        className={`inventory-card${isDisposable ? ' is-disposable' : ''} is-destroying`}
+        aria-disabled="true"
+        data-server-id={srv.id}
+      >
+        <div className="inventory-card-icon" aria-hidden="true">
+          {isDisposable ? <ContainerIcon /> : <ServerIcon />}
+        </div>
+        <div className="inventory-card-main">
+          <div className="inventory-card-title-row">
+            <span className="inventory-card-name">{srv.name}</span>
+            <span className="inventory-badge" title="Temporary Docker container">
+              TEMP
+            </span>
+            <span className="inventory-card-ip">{srv.ip}</span>
+          </div>
+          <div className="inventory-card-desc">Container is being destroyed…</div>
+        </div>
+        <div className="inventory-card-actions">
+          <span className="inventory-destroying" role="status">
+            <span className="inventory-spinner" aria-hidden="true" />
+            Destroying…
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`inventory-card${isDisposable ? ' is-disposable' : ''}`}>
@@ -421,7 +486,7 @@ const DisposableAwareRow: React.FC<RowProps> = ({ srv, onConnectServer, onEdit, 
         <button
           type="button"
           className="inventory-action-btn danger"
-          onClick={() => onDeleteServer(srv.id)}
+          onClick={() => onDelete(srv)}
           title={isDisposable ? 'Destroy the container and remove this entry' : 'Remove from inventory'}
         >
           {isDisposable ? 'Destroy' : 'Delete'}

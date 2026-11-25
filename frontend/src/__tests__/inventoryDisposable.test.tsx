@@ -70,6 +70,49 @@ describe('InventoryView disposable containers', () => {
     expect(unavailable.onCreateDisposable).not.toHaveBeenCalled();
   });
 
+  it('shows a disposable as out of service while it is being destroyed', async () => {
+    let finish: () => void = () => {};
+    const onDelete = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    renderView({
+      servers: [baseServer({ id: 'd1', name: 'disposable-abc', ip: '172.18.0.5', isDisposable: true })],
+      onDeleteServer: onDelete,
+    });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Connect' })).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Destroy' }));
+    const row = screen.getByText('disposable-abc').closest('.inventory-card');
+    expect(row?.className).toContain('is-destroying');
+    expect(row?.getAttribute('aria-disabled')).toBe('true');
+    // Nothing left to click while the container is being removed.
+    expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Destroy' })).toBeNull();
+    expect(screen.getByRole('status').textContent).toContain('Destroying');
+
+    fireEvent.click(row as HTMLElement);
+    expect(onDelete).toHaveBeenCalledTimes(1);
+
+    finish();
+    await waitFor(() => expect(screen.getByText('disposable-abc').closest('.inventory-card')?.className).not.toContain('is-destroying'));
+  });
+
+  it('makes a row usable again when destroying fails', async () => {
+    renderView({
+      servers: [baseServer({ id: 'd1', name: 'disposable-abc', ip: '172.18.0.5', isDisposable: true })],
+      onDeleteServer: vi.fn().mockRejectedValue(new Error('docker is down')),
+    });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Connect' })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Destroy' }));
+
+    await waitFor(() => expect(screen.getByText('docker is down')).toBeTruthy());
+    expect(screen.getByText('disposable-abc').closest('.inventory-card')?.className).not.toContain('is-destroying');
+    expect(screen.getByRole('button', { name: 'Destroy' })).toBeTruthy();
+  });
+
   it('creates a disposable container when the button is used', async () => {
     const props = renderView({ disposableAvailable: true });
     fireEvent.click(screen.getByRole('button', { name: /Disposable container/ }));

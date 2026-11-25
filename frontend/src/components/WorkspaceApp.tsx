@@ -6,6 +6,7 @@ import SessionContainer from './SessionContainer';
 import Toolbar from './Toolbar';
 import SettingsPanel from './SettingsPanel';
 import ConnectionOverlay from './ConnectionOverlay';
+import { computeSessionGrid, gridStyle } from '../sessionLayout';
 import TasksSection from './TasksSection';
 
 interface Session {
@@ -453,6 +454,23 @@ const WorkspaceApp: React.FC<WorkspaceAppProps> = ({
       mainContentRef.current.setAttribute('data-session-count', sessions.length.toString());
     }
   }, [sessions.length]);
+
+  // Track the size of the session stage; the grid is chosen from its shape.
+  const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    const el = mainContentRef.current;
+    if (!el) return;
+    const update = () => setStageSize({ width: el.clientWidth, height: el.clientHeight });
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Sessions fill the stage completely: rows of equal height, and an
+  // incomplete last row is widened (5 sessions = 3 + 2, not 3 + 1 + 1).
+  const sessionGrid = computeSessionGrid(sessions.length, stageSize.width, stageSize.height);
+  const anySessionMaximized = sessions.some((s) => s.maximized);
 
   // Handle session selection
   const handleSessionSelect = (sessionId: string) => {
@@ -1609,27 +1627,16 @@ const WorkspaceApp: React.FC<WorkspaceAppProps> = ({
     const currentIndex = sessionElements.findIndex((el: HTMLElement) => el.dataset.sessionId === selectedSessionId);
     if (currentIndex === -1) return;
     
-    // Calculate grid layout based on session count
-    const sessionCount = sessionElements.length;
-    let cols: number, rows: number;
-    
-    if (sessionCount === 1) {
-      cols = 1; rows = 1;
-    } else if (sessionCount === 2) {
-      cols = 2; rows = 1;
-    } else if (sessionCount === 3) {
-      cols = 2; rows = 2;
-    } else if (sessionCount === 4) {
-      cols = 2; rows = 2;
-    } else if (sessionCount === 5) {
-      cols = 3; rows = 2;
-    } else if (sessionCount === 6) {
-      cols = 3; rows = 2;
-    } else {
-      // Fallback for more sessions
-      cols = Math.ceil(Math.sqrt(sessionCount));
-      rows = Math.ceil(sessionCount / cols);
-    }
+    // Use the same grid the sessions are laid out in, so arrow keys follow
+    // what is on screen (a widened last row still counts as one row).
+    const stageElement = mainContentRef.current;
+    const grid = computeSessionGrid(
+      sessionElements.length,
+      stageElement?.clientWidth ?? 0,
+      stageElement?.clientHeight ?? 0,
+    );
+    const cols = grid.cols;
+    const rows = grid.rows;
     
     // Calculate target position based on direction
     let targetIndex = currentIndex;
@@ -1990,8 +1997,10 @@ const WorkspaceApp: React.FC<WorkspaceAppProps> = ({
         className={`main-content ${settingsOpen ? 'mobile-mode' : ''}`}
         id="mainContent"
         data-session-count={sessions.length.toString()}
+        // A maximized session is laid out by CSS (:has(.maximized)).
+        style={anySessionMaximized ? undefined : gridStyle(sessionGrid)}
       >
-        {sessions.map(session => {
+        {sessions.map((session, sessionIndex) => {
           // Check if this session should have golden border when user-assist is active
           // Find the task associated with user-assist
           const userAssistTask = userAssistTaskId ? tasks.find(t => t.id === userAssistTaskId) : null;
@@ -2014,6 +2023,7 @@ const WorkspaceApp: React.FC<WorkspaceAppProps> = ({
               onNetworkUpdate={handleNetworkUpdate}
               inProgressTask={getInProgressTaskForSelectedSession()}
               selectedFps={selectedFps}
+              gridSpan={sessionGrid.spans[sessionIndex]}
             />
           );
         })}
@@ -2028,6 +2038,7 @@ const WorkspaceApp: React.FC<WorkspaceAppProps> = ({
         tasks={tasks}
         isExpanded={isExpanded}
         previewScale={previewScale}
+        layoutVersion={`${stageSize.width}x${stageSize.height}:${sessionGrid.gridCols}:${sessionGrid.spans.join('.')}`}
       />
       
       <SettingsPanel

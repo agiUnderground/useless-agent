@@ -117,6 +117,7 @@ type runtimeConfig struct {
 	logsDir         string
 	artifactsDir    string
 	dataDir         string
+	configPath      string
 	providers       map[string]ProviderCredentials
 	providerOrder   []string
 }
@@ -201,6 +202,8 @@ func LoadConfig() error {
 	if canBootstrap {
 		bootstrapDataDir(dataDir, rt.logsDir, rt.artifactsDir, cfgPath, defaultCfgPath)
 	}
+
+	rt.configPath = cfgPath
 
 	// Load optional config file if present
 	if cfgPath != "" {
@@ -409,6 +412,13 @@ func GetDataDir() string {
 	rt.mu.RLock()
 	defer rt.mu.RUnlock()
 	return rt.dataDir
+}
+
+// GetConfigPath returns the resolved path of the JSON config file ("" if none).
+func GetConfigPath() string {
+	rt.mu.RLock()
+	defer rt.mu.RUnlock()
+	return rt.configPath
 }
 
 // GetArtifactsDir returns the directory for persistent task artifacts

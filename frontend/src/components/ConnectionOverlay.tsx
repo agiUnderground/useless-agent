@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './ConnectionOverlay.css';
+import { routeConnection, routeToPath, type Rect } from '../connectionRouting';
 
 interface Session {
   id: string;
@@ -37,6 +38,8 @@ interface ConnectionOverlayProps {
   tasks?: Task[];
   isExpanded?: boolean;
   previewScale?: number;
+  /** Changes whenever the session grid changes, so lines are re-measured. */
+  layoutVersion?: string;
 }
 
 interface ConnectionLine {
@@ -57,7 +60,8 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
   settingsOpen = false,
   tasks = [],
   isExpanded = true,
-  previewScale = 1
+  previewScale = 1,
+  layoutVersion = ''
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [connectionLines, setConnectionLines] = useState<ConnectionLine[]>([]);
@@ -90,142 +94,51 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
     return { svgRect, unscaledW, scale: safeScale, toLocal };
   };
 
-  // Calculate connection path around session perimeter
-  const calculateConnectionPath = (chatElement: HTMLElement, sessionElement: HTMLElement) => {
+  // Route the chat-to-session line through free space only (see connectionRouting.ts):
+  // out of the chat input, along the channel beside the session grid, then
+  // along the top margin or a gap between rows, and into the selected session.
+  const routeToSession = (sessionElement: HTMLElement) => {
     const metrics = getLocalMetrics();
-    if (!metrics) return '';
-    const { toLocal, unscaledW } = metrics;
+    if (!metrics) return null;
+    const { toLocal } = metrics;
 
-    const chatRect = toLocal(chatElement.getBoundingClientRect());
-    const sessionRect = toLocal(sessionElement.getBoundingClientRect());
-    const mainContentElement = document.querySelector('.main-content') as HTMLElement;
-    
-    if (!mainContentElement) return '';
-    
-    const mainContentRect = toLocal(mainContentElement.getBoundingClientRect());
-    
-    // Get textbox element inside chat fieldset
-    const chatInput = document.getElementById('llmChatInput') as HTMLTextAreaElement;
-    if (!chatInput) return '';
-    
+    const chatFieldsetElement = document.getElementById('chatFieldset');
+    const chatInput = document.getElementById('llmChatInput') as HTMLTextAreaElement | null;
+    const mainContentElement = document.querySelector('.main-content') as HTMLElement | null;
+    if (!chatFieldsetElement || !chatInput || !mainContentElement) return null;
+
+    const chatRect = toLocal(chatFieldsetElement.getBoundingClientRect());
     const inputRect = toLocal(chatInput.getBoundingClientRect());
-    
-    // Check if we're in mobile responsive mode (width < 1100px)
-    const isMobileMode = window.innerWidth < 1100;
-    
-    if (isMobileMode) {
-      // Mobile mode: sessions are stacked vertically, route to center of left edge with same principle as desktop
-      const chatStartX = inputRect.right;
-      const chatStartY = inputRect.top + inputRect.height / 2;
-      const sessionLeftX = sessionRect.left;
-      const sessionCenterY = sessionRect.top + sessionRect.height / 2;
-      
-      // Calculate midpoint between chat and main content (exactly matching original logic)
-      const chatVisibleRight = chatRect.right;
-      const mainContentVisibleLeft = mainContentRect.left;
-      const midPointX = chatVisibleRight + (mainContentVisibleLeft - chatVisibleRight) / 2;
-      
-      // Route to midpoint, then to session Y level, then to left edge center
-      let mobilePath = `M ${chatStartX} ${chatStartY}`;
-      mobilePath += ` L ${midPointX} ${chatStartY}`;
-      mobilePath += ` L ${midPointX} ${sessionCenterY}`;
-      mobilePath += ` L ${sessionLeftX} ${sessionCenterY}`;
-      
-      return mobilePath;
-    }
-    
-    // Desktop mode: use original logic
-    // Start from right side of textbox inside chat fieldset
-    const chatStartX = inputRect.right;
-    const chatStartY = inputRect.top + inputRect.height / 2;
-    
-    // Calculate paths for both LEFT and RIGHT edges
-    const sessionCenterY = sessionRect.top + sessionRect.height / 2;
-    const sessionToRightScreenPadding = (unscaledW - sessionRect.right) / 2;
-    const sessionRightEndX = sessionRect.right + sessionToRightScreenPadding;
-    
-    // Calculate midpoint between chatbox and main content (exactly matching original)
-    const chatVisibleRight = chatRect.right;
-    const mainContentVisibleLeft = mainContentRect.left;
-    const midPointX = chatVisibleRight + (mainContentVisibleLeft - chatVisibleRight) / 2;
-    
-    // Calculate LEFT path
-    let leftPath = `M ${chatStartX} ${chatStartY}`;
-    leftPath += ` L ${midPointX} ${chatStartY}`;
-    leftPath += ` L ${midPointX} ${sessionCenterY}`;
-    leftPath += ` L ${sessionRect.left} ${sessionCenterY}`;
-    
-    // Calculate RIGHT path
-    let rightPath = `M ${chatStartX} ${chatStartY}`;
-    rightPath += ` L ${midPointX} ${chatStartY}`;
-    rightPath += ` L ${midPointX} ${mainContentRect.top}`;
-    rightPath += ` L ${unscaledW - sessionToRightScreenPadding} ${mainContentRect.top}`;
-    rightPath += ` L ${sessionRightEndX} ${sessionCenterY}`;
-    rightPath += ` L ${sessionRect.right} ${sessionCenterY}`;
-    
-    // Check if session's left edge is accessible
-    const leftEdgeOffset = sessionRect.left - mainContentRect.left;
-    const isLeftEdgeAccessible = leftEdgeOffset <= 10;
-    
-    // Choose path based on simple accessibility logic
-    return isLeftEdgeAccessible ? leftPath : rightPath;
-  };
+    const stageRect = toLocal(mainContentElement.getBoundingClientRect());
 
-  // Calculate coordinates for connection line elements
-  const calculateConnectionCoordinates = (chatElement: HTMLElement, sessionElement: HTMLElement) => {
-    const metrics = getLocalMetrics();
-    if (!metrics) return { startX: 0, startY: 0, endX: 0, endY: 0 };
-    const { toLocal, unscaledW } = metrics;
-
-    const sessionRect = toLocal(sessionElement.getBoundingClientRect());
-    const isMaximized = sessionElement?.classList.contains('maximized');
-    
-    // Get textbox element inside chat fieldset
-    const chatInput = document.getElementById('llmChatInput') as HTMLTextAreaElement;
-    if (!chatInput) return { startX: 0, startY: 0, endX: 0, endY: 0 };
-    
-    const inputRect = toLocal(chatInput.getBoundingClientRect());
-    
-    // Check if we're in mobile responsive mode (width < 1100px)
-    const isMobileMode = window.innerWidth < 1100;
-    
-    // Calculate start position (from chat input)
-    const startX = inputRect.right;
-    const startY = inputRect.top + inputRect.height / 2;
-    
-    // Calculate end position (to session)
-    let endX, endY;
-    
-    if (isMaximized) {
-      endX = sessionRect.left + sessionRect.width / 2;
-      endY = sessionRect.top + sessionRect.height / 2;
-    } else if (isMobileMode) {
-      endX = sessionRect.left;
-      endY = sessionRect.top + sessionRect.height / 2;
-    } else {
-      const sessionCenterY = sessionRect.top + sessionRect.height / 2;
-      const mainContentElement = document.querySelector('.main-content') as HTMLElement;
-      const mainContentRect = mainContentElement ? toLocal(mainContentElement.getBoundingClientRect()) : null;
-      
-      if (mainContentRect) {
-        const leftEdgeOffset = sessionRect.left - mainContentRect.left;
-        const isLeftEdgeAccessible = leftEdgeOffset <= 10;
-        
-        if (isLeftEdgeAccessible) {
-          endX = sessionRect.left;
-          endY = sessionCenterY;
-        } else {
-          const sessionToRightScreenPadding = (unscaledW - sessionRect.right) / 2;
-          endX = sessionRect.right + sessionToRightScreenPadding;
-          endY = sessionCenterY;
-        }
-      } else {
-        endX = sessionRect.left;
-        endY = sessionCenterY;
-      }
+    // Every visible session is an obstacle for the line, the selected one is the target.
+    const sessionElements = Array.from(document.querySelectorAll<HTMLElement>('.session-container'));
+    const sessions: Rect[] = [];
+    let targetIndex = -1;
+    for (const element of sessionElements) {
+      const rect = toLocal(element.getBoundingClientRect());
+      if (rect.width <= 0 || rect.height <= 0) continue; // hidden session
+      if (element === sessionElement) targetIndex = sessions.length;
+      sessions.push(rect);
     }
-    
-    return { startX, startY, endX, endY };
+    if (targetIndex === -1) return null;
+
+    const route = routeConnection({
+      start: { x: inputRect.right, y: inputRect.top + inputRect.height / 2 },
+      channelX: chatRect.right + (stageRect.left - chatRect.right) / 2,
+      stage: stageRect,
+      sessions,
+      targetIndex,
+    });
+    const first = route.points[0];
+    const last = route.points[route.points.length - 1];
+    return {
+      path: routeToPath(route.points),
+      startX: first.x,
+      startY: first.y,
+      endX: last.x,
+      endY: last.y,
+    };
   };
 
   const linesEqual = (a: ConnectionLine[], b: ConnectionLine[]) => {
@@ -272,18 +185,17 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
         const sessionElement = document.querySelector(`[data-session-id="${targetSession.id}"]`) as HTMLElement | null;
 
         if (sessionElement) {
-          const pathData = calculateConnectionPath(chatFieldsetElement, sessionElement);
-          const coords = calculateConnectionCoordinates(chatFieldsetElement, sessionElement);
+          const routed = routeToSession(sessionElement);
 
-          if (pathData) {
+          if (routed) {
             nextLines.push({
               id: `connection-${targetSession.id}`,
-              path: pathData,
+              path: routed.path,
               userAssist: userAssistActive,
-              startX: coords.startX,
-              startY: coords.startY,
-              endX: coords.endX,
-              endY: coords.endY
+              startX: routed.startX,
+              startY: routed.startY,
+              endX: routed.endX,
+              endY: routed.endY
             });
           }
         }
@@ -351,7 +263,7 @@ const ConnectionOverlay: React.FC<ConnectionOverlayProps> = ({
       cancelAnimationFrame(raf);
       clearTimeout(timer);
     };
-  }, [selectedSessionId, userAssistActive, sessions, settingsOpen, isExpanded, previewScale]);
+  }, [selectedSessionId, userAssistActive, sessions, settingsOpen, isExpanded, previewScale, layoutVersion]);
 
   // Update connection lines when maximize state changes in mobile mode
   useEffect(() => {

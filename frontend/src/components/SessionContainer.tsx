@@ -42,6 +42,8 @@ interface SessionContainerProps {
   inProgressTask?: Task;
   selectedFps?: number;
   userAssistTaskId?: string;
+  /** Width of this session in grid columns (>1 only for a widened last row). */
+  gridSpan?: number;
 }
 
 const SessionContainer: React.FC<SessionContainerProps> = ({
@@ -56,7 +58,8 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
   onNetworkUpdate,
   inProgressTask,
   selectedFps = 5, // Default to 5 FPS if not provided
-  userAssistTaskId
+  userAssistTaskId,
+  gridSpan
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -287,7 +290,9 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
       className={`session-container ${isSelected ? 'selected' : ''} ${isUserAssistSelected ? 'user-assist-active' : ''} ${session.maximized ? 'maximized' : ''}`}
       style={{
         borderColor: isUserAssistSelected ? '#FFC107' : (isSelected ? '#4CAF50' : undefined),
-        boxShadow: isUserAssistSelected ? '0 0 0 2px rgba(255, 193, 7, 0.5)' : undefined
+        boxShadow: isUserAssistSelected ? '0 0 0 2px rgba(255, 193, 7, 0.5)' : undefined,
+        // Set by the workspace grid; a widened session covers several columns.
+        gridColumn: gridSpan && gridSpan > 1 ? `span ${gridSpan}` : undefined
       }}
       data-session-id={session.id}
       onClick={handleSessionClick}

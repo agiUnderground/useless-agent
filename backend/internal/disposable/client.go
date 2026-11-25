@@ -4,6 +4,7 @@ package disposable
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,11 +15,16 @@ import (
 	"time"
 )
 
+// DefaultTokenFile is where docker-controller keeps the shared token it
+// generates. Both services mount it as a volume in docker-compose.yml.
+const DefaultTokenFile = "/run/uagent-controller/token"
+
 // Client is an authenticated HTTP client for the docker-controller.
 type Client struct {
-	baseURL string
-	token   string
-	http    *http.Client
+	baseURL   string
+	token     string
+	tokenFile string
+	http      *http.Client
 }
 
 // Container describes a freshly created disposable container.
@@ -41,18 +47,39 @@ type StatusError struct {
 
 func (e *StatusError) Error() string { return e.Msg }
 
-// FromEnv builds a client from CONTROLLER_URL and CONTROLLER_TOKEN.
+// FromEnv builds a client from CONTROLLER_URL and CONTROLLER_TOKEN. When no
+// token is set in the environment it is read from CONTROLLER_TOKEN_FILE
+// (default DefaultTokenFile), where docker-controller publishes the token it
+// generates, so nothing has to be configured by hand.
 func FromEnv() *Client {
 	return &Client{
-		baseURL: strings.TrimRight(strings.TrimSpace(os.Getenv("CONTROLLER_URL")), "/"),
-		token:   strings.TrimSpace(os.Getenv("CONTROLLER_TOKEN")),
-		http:    &http.Client{Timeout: 60 * time.Second},
+		baseURL:   strings.TrimRight(strings.TrimSpace(os.Getenv("CONTROLLER_URL")), "/"),
+		token:     strings.TrimSpace(os.Getenv("CONTROLLER_TOKEN")),
+		tokenFile: strings.TrimSpace(os.Getenv("CONTROLLER_TOKEN_FILE")),
+		http:      &http.Client{Timeout: 60 * time.Second},
 	}
 }
 
-// Configured reports whether the sidecar's address and token are set.
+// Configured reports whether the sidecar's address and a token are available.
 func (c *Client) Configured() bool {
-	return c != nil && c.baseURL != "" && c.token != ""
+	return c != nil && c.baseURL != "" && c.secret() != ""
+}
+
+// secret returns the shared token. The file is read on each call: it is tiny,
+// and the controller may only have created it after this process started.
+func (c *Client) secret() string {
+	if c.token != "" {
+		return c.token
+	}
+	path := c.tokenFile
+	if path == "" {
+		path = DefaultTokenFile
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }
 
 // Health verifies that the sidecar is up and can reach Docker. It is what
@@ -75,12 +102,22 @@ func (c *Client) Health(ctx context.Context) error {
 	return nil
 }
 
+// MaxConfigBytes is the largest config.json that can be seeded into a copy.
+const MaxConfigBytes = 1 << 20
+
 // Create starts a new disposable container. owner is recorded as a label.
-func (c *Client) Create(ctx context.Context, owner string) (*Container, error) {
+// seedConfig, when not empty, becomes /data/config.json of the new container.
+func (c *Client) Create(ctx context.Context, owner string, seedConfig []byte) (*Container, error) {
 	if !c.Configured() {
 		return nil, ErrNotConfigured
 	}
-	body, err := json.Marshal(map[string]string{"owner": owner})
+	if len(seedConfig) > MaxConfigBytes {
+		return nil, fmt.Errorf("config.json is too large to copy (%d bytes)", len(seedConfig))
+	}
+	body, err := json.Marshal(map[string]string{
+		"owner":  owner,
+		"config": base64.StdEncoding.EncodeToString(seedConfig),
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +148,7 @@ func (c *Client) call(ctx context.Context, method, path string, body []byte, out
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Authorization", "Bearer "+c.secret())
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

@@ -548,3 +548,28 @@
   letter-spacing: 0.08em;
   line-height: 1.7;
 }
+
+/* Row whose container is being destroyed: visible, but out of service */
+.inventory-card.is-destroying {
+  opacity: 0.5;
+  pointer-events: none;
+  user-select: none;
+  cursor: default;
+}
+
+.inventory-destroying {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--shell-text-muted, #6c6c75);
+  white-space: nowrap;
+}
+
+.inventory-error-banner {
+  margin-bottom: 16px;
+}

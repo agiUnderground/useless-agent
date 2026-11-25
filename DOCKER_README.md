@@ -105,41 +105,59 @@ When the app runs with Docker Compose, the **Inventory** page gets a second butt
 **"+ Disposable container"**. It starts a fresh copy of the `backend` container in
 about a second and adds it to the inventory as a highlighted row with a `TEMP` badge.
 Click **Connect** to use it in a workspace like any other server. Click **Destroy**
-to remove the container, its data volume and the inventory entry together.
+to remove the container, its data volume and the inventory entry together (the row
+turns grey and stops responding while that is in progress).
 
 The copy is cheap because it reuses the backend image's layers (copy-on-write) and
 gets the same image, environment variables, command and entrypoint as the `backend`
-service. It does **not** get the backend's volumes or published ports:
+service. It also starts with a copy of the backend's `config.json`, so all
+configured providers, API keys and the default model are available inside it.
 
-- `/data` is a private, empty volume per disposable container, so it has its own
-  database, users and settings. LLM credentials come from the copied environment.
+It does **not** get the backend's volumes or published ports:
+
+- `/data` is a private volume per disposable container holding that copied
+  `config.json` and nothing else, so it has its own database, users and settings.
 - It is reached by its Docker IP on the compose network, so this works from a browser
   on the Docker host (Linux). Remote browsers cannot reach those IPs.
 
-### Enabling it
+### Setup
 
-The button is disabled unless the `docker-controller` service can reach Docker.
-To turn it on, add two values to a `.env` file next to `docker-compose.yml`:
+There is nothing to configure. The `docker-controller` service generates the shared
+secret it uses with the backend on first start and keeps it in the `controller-token`
+volume. The button is enabled automatically when the controller can reach Docker,
+and disabled otherwise (for example when the backend runs outside Compose).
+
+Optional settings, all in `.env`:
+
+| Variable | Purpose |
+|---|---|
+| `DISPOSABLE_MAX_CONTAINERS` | Cap on disposables at once (default `8`) |
+| `CONTROLLER_TOKEN` | Use your own shared secret instead of the generated one |
+| `CONTROLLER_UID`, `CONTROLLER_GID`, `DOCKER_GID` | Run the controller as another user than the socket's owner |
+
+### Where the containers are
+
+Disposables are created directly through the Docker API, not as Compose services, so
+`docker compose ps` does not list them. Use:
 
 ```bash
-echo "CONTROLLER_TOKEN=$(openssl rand -hex 32)" >> .env
-echo "DOCKER_GID=$(getent group docker | cut -d: -f3)" >> .env
-docker compose up --build -d
+docker ps --filter label=uagent.disposable=true
 ```
 
-- `CONTROLLER_TOKEN` is the shared secret between the backend and the controller.
-  Leave it empty to keep the feature off.
-- `DOCKER_GID` is the id of the group that owns `/var/run/docker.sock`
-  (`stat -c %g /var/run/docker.sock`). The controller runs as an unprivileged user
-  that is only a member of that group.
-- `DISPOSABLE_MAX_CONTAINERS` (optional, default `8`) caps how many disposables may
-  exist at once.
+They are named `uagent-disp-<id>`. Containers whose inventory entry was lost (for
+example a deleted user account) can be removed with:
+
+```bash
+docker ps -q --filter label=uagent.disposable=true | xargs -r docker rm -f
+```
+
+### Security
 
 Only the `docker-controller` service mounts the Docker socket. It exposes just two
 operations (create a copy of `backend`, destroy one by id); callers cannot pass an
-image, command or mounts. Note that access to the Docker socket is still equivalent
-to root on the host, so treat that service as privileged even though it runs as a
-normal user.
+image, command or mounts, only the `config.json` to start with. It runs with a
+read-only filesystem and all capabilities dropped. Note that access to the Docker
+socket is still equivalent to root on the host, so treat that service as privileged.
 
 ## Example Usage
 
