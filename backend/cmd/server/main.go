@@ -83,6 +83,7 @@ func main() {
 	mux.HandleFunc("/api/inventory/disposable", httpHandlers.DisposableCreateHandler)
 	mux.HandleFunc("/api/inventory/", httpHandlers.InventoryByIDHandler)
 	mux.HandleFunc("/api/capabilities", httpHandlers.CapabilitiesHandler)
+	mux.HandleFunc("/api/recordings", httpHandlers.RecordingsHandler)
 
 	bindAddr := net.JoinHostPort(*config.BindIP, strconv.Itoa(*config.BindPORT))
 	log.Println("Server running on http://" + bindAddr)

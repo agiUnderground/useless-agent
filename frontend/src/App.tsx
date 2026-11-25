@@ -388,6 +388,17 @@ const App: React.FC = () => {
     [auth]
   );
 
+  // Saves a finished session recording to the backend artifacts directory.
+  const handleSaveRecording = useCallback(
+    (payload: { sessionId: string; sessionIp: string; startedAt: number; blob: Blob }) => {
+      if (!auth) {
+        return Promise.reject(new Error('Not authenticated'));
+      }
+      return api.uploadRecording(auth.token, payload);
+    },
+    [auth]
+  );
+
   // Inventory CRUD
   const handleAddServer = async (payload: { name: string; ip: string; description: string }) => {
     if (!auth) return;
@@ -704,6 +715,7 @@ const App: React.FC = () => {
                     }
                     onZoomOut={() => setIsExpanded(false)}
                     onPersistState={handlePersistWorkspaceState}
+                    onSaveRecording={handleSaveRecording}
                   />
                 </div>
                 {!isExpanded && (

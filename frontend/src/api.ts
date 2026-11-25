@@ -65,6 +65,22 @@ export interface Capabilities {
   disposableContainersReason?: string;
 }
 
+export interface RecordingInfo {
+  name: string;
+  path: string;
+  size: number;
+  startedAt: string;
+  updatedAt: string;
+}
+
+export interface RecordingUpload {
+  sessionId: string;
+  sessionIp: string;
+  /** Epoch milliseconds when the recording started. */
+  startedAt: number;
+  blob: Blob;
+}
+
 const AUTH_STORAGE_KEY = 'ua_auth';
 
 export function loadStoredAuth(): AuthData | null {
@@ -202,5 +218,44 @@ export const api = {
    */
   createDisposableContainer(token: string) {
     return apiFetch<InventoryServer>('/api/inventory/disposable', token, { method: 'POST' });
+  },
+  /**
+   * Uploads a finished session recording. The backend stores it under
+   * data/artifacts/session-recording using the recording start time in the name.
+   */
+  async uploadRecording(token: string, payload: RecordingUpload): Promise<RecordingInfo> {
+    const ext = payload.blob.type.includes('mp4') ? 'mp4' : 'webm';
+    const stamp = new Date(payload.startedAt).toISOString().replace(/[:.]/g, '-');
+    const form = new FormData();
+    form.append('file', payload.blob, `session-recording-${stamp}.${ext}`);
+    form.append('sessionId', payload.sessionId);
+    form.append('sessionIp', payload.sessionIp);
+    form.append('startedAt', new Date(payload.startedAt).toISOString());
+
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const res = await fetch(`${CONFIG.BACKEND_URL}/api/recordings`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: form,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      let msg = text;
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed?.error) msg = parsed.error;
+      } catch {
+        // plain text error
+      }
+      throw new Error(msg || `HTTP ${res.status}`);
+    }
+    return res.json() as Promise<RecordingInfo>;
+  },
+  listRecordings(token: string) {
+    return apiFetch<{ recordings: RecordingInfo[] }>('/api/recordings', token, { method: 'GET' });
   },
 };

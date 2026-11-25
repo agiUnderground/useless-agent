@@ -230,6 +230,87 @@
   color: #6f6f6f;
 }
 
+/* Session recording toggle: "Rec" + a fat dot, on the right side of the header */
+.rec-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  height: 18px;
+  padding: 0 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #8a8a8a;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.rec-btn:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: var(--border-color);
+  color: #cfcfcf;
+}
+
+.rec-btn:focus {
+  outline: none;
+}
+
+.rec-btn:focus-visible {
+  border-color: #FFC107;
+}
+
+/* Fat dot, vertically centered on the text line */
+.rec-dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 50%;
+  background-color: #8a8a8a;
+  transition: background-color 0.2s ease;
+}
+
+.rec-btn.recording {
+  color: #F44336;
+  border-color: rgba(244, 67, 54, 0.4);
+  background-color: rgba(244, 67, 54, 0.08);
+}
+
+.rec-btn.recording .rec-dot {
+  background-color: #F44336;
+  animation: recDotPulse 1.2s ease-in-out infinite;
+}
+
+.rec-time {
+  color: #F44336;
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+  text-align: left;
+}
+
+.rec-btn.saved {
+  color: #4CAF50;
+}
+
+.rec-btn.saved .rec-dot {
+  background-color: #4CAF50;
+}
+
+@keyframes recDotPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.65);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(244, 67, 54, 0);
+    transform: scale(1.18);
+  }
+}
+
 .session-close {
   background: none;
   border: none;

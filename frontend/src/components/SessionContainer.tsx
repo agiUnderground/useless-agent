@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CONFIG } from '../config';
+import { createSessionRecorder, formatRecordingTime } from '../recording';
+import type { SessionRecorder } from '../recording';
 import './SessionContainer.css';
 
 interface Session {
@@ -44,6 +46,13 @@ interface SessionContainerProps {
   userAssistTaskId?: string;
   /** Width of this session in grid columns (>1 only for a widened last row). */
   gridSpan?: number;
+  /** Persists a finished session recording on the backend. */
+  onSaveRecording?: (payload: {
+    sessionId: string;
+    sessionIp: string;
+    startedAt: number;
+    blob: Blob;
+  }) => Promise<unknown>;
 }
 
 const SessionContainer: React.FC<SessionContainerProps> = ({
@@ -59,14 +68,94 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
   inProgressTask,
   selectedFps = 5, // Default to 5 FPS if not provided
   userAssistTaskId,
-  gridSpan
+  gridSpan,
+  onSaveRecording
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [showImage, setShowImage] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingElapsedMs, setRecordingElapsedMs] = useState(0);
+  const [recordingSaved, setRecordingSaved] = useState(false);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
   const sessionRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const placeholderRef = useRef<HTMLDivElement>(null);
+  const recorderRef = useRef<SessionRecorder | null>(null);
+  const recordingStartedAtRef = useRef(0);
+  const onSaveRecordingRef = useRef(onSaveRecording);
+
+  useEffect(() => {
+    onSaveRecordingRef.current = onSaveRecording;
+  }, [onSaveRecording]);
+
+  // Flush a stopped recording and upload it to the backend.
+  const finalizeRecording = useCallback(
+    async (recorder: SessionRecorder) => {
+      let blob: Blob;
+      try {
+        blob = await recorder.stop();
+      } catch (error) {
+        console.error('Failed to finalize session recording:', error);
+        return;
+      }
+      if (!blob.size) {
+        return;
+      }
+
+      const save = onSaveRecordingRef.current;
+      if (!save) {
+        console.warn('Session recording discarded: no save handler available');
+        return;
+      }
+
+      try {
+        await save({
+          sessionId: session.id,
+          sessionIp: session.ip,
+          startedAt: recorder.startedAt,
+          blob
+        });
+        if (!recorderRef.current) {
+          setRecordingSaved(true);
+          window.setTimeout(() => setRecordingSaved(false), 2500);
+        }
+      } catch (error) {
+        console.error('Failed to save session recording:', error);
+        setRecordingError('Recording could not be saved');
+      }
+    },
+    [session.id, session.ip]
+  );
+
+  // Keep a stable ref so unmount cleanup can finish an in-flight recording.
+  const finalizeRecordingRef = useRef(finalizeRecording);
+  useEffect(() => {
+    finalizeRecordingRef.current = finalizeRecording;
+  }, [finalizeRecording]);
+
+  // Closing the session (or unmounting) while recording still saves the video.
+  useEffect(() => {
+    return () => {
+      const recorder = recorderRef.current;
+      if (recorder) {
+        recorderRef.current = null;
+        void finalizeRecordingRef.current(recorder);
+      }
+    };
+  }, []);
+
+  // Elapsed-time ticker for the recording indicator.
+  useEffect(() => {
+    if (!isRecording) {
+      setRecordingElapsedMs(0);
+      return;
+    }
+    const update = () => setRecordingElapsedMs(Date.now() - recordingStartedAtRef.current);
+    update();
+    const id = window.setInterval(update, 250);
+    return () => window.clearInterval(id);
+  }, [isRecording]);
 
   // Handle session click
   const handleSessionClick = () => {
@@ -126,6 +215,46 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
     // Find in-progress task for this session
     if (inProgressTask) {
       onActivateUserAssist(inProgressTask.id, e);
+    }
+  };
+
+  // Start/stop recording the already-streamed session frames.
+  const handleRecordClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (recorderRef.current) {
+      const recorder = recorderRef.current;
+      recorderRef.current = null;
+      setIsRecording(false);
+      setRecordingError(null);
+      void finalizeRecording(recorder);
+      return;
+    }
+
+    const image = imgRef.current;
+    if (!session.isConnected || !image || !image.naturalWidth) {
+      setRecordingError('No frames to record yet');
+      return;
+    }
+
+    const recorder = createSessionRecorder(image, selectedFps);
+    if (!recorder) {
+      setRecordingError('Recording is not supported by this browser');
+      return;
+    }
+
+    setRecordingError(null);
+    setRecordingSaved(false);
+    recorderRef.current = recorder;
+    recordingStartedAtRef.current = recorder.startedAt;
+    setIsRecording(true);
+  };
+
+  // Every screenshot the stream delivers is pushed into the encoder.
+  const handleImageLoad = () => {
+    const recorder = recorderRef.current;
+    if (recorder && imgRef.current) {
+      recorder.drawFrame(imgRef.current);
     }
   };
 
@@ -302,6 +431,23 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
       <div className="session-header">
         <span className={`connection-status ${session.isConnected ? 'connected' : 'disconnected'}`}></span>
         <span>Session: {session.ip}</span>
+        <button
+          type="button"
+          className={`rec-btn ${isRecording ? 'recording' : ''} ${recordingSaved ? 'saved' : ''}`}
+          title={
+            recordingError ||
+            (isRecording
+              ? `Stop recording (${formatRecordingTime(recordingElapsedMs)})`
+              : 'Start recording this session')
+          }
+          onClick={handleRecordClick}
+        >
+          <span className="rec-label">Rec</span>
+          <span className="rec-dot" aria-hidden="true" />
+          {isRecording && (
+            <span className="rec-time">{formatRecordingTime(recordingElapsedMs)}</span>
+          )}
+        </button>
         <button className="session-close" onClick={handleCloseClick}>×</button>
       </div>
 
@@ -324,6 +470,7 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
             alt={`Video stream from ${session.ip}`}
             draggable={false}
             onDoubleClick={handleFullscreen}
+            onLoad={handleImageLoad}
           />
           
           {/* Image size container */}

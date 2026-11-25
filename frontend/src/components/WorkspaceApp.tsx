@@ -77,6 +77,13 @@ export interface WorkspaceAppProps {
     thinkingLevel: string;
   }) => void;
   onZoomOut: () => void;
+  /** Saves a finished session recording on the backend. */
+  onSaveRecording?: (payload: {
+    sessionId: string;
+    sessionIp: string;
+    startedAt: number;
+    blob: Blob;
+  }) => Promise<unknown>;
   onPersistState: (
     workspaceId: string,
     payload: {
@@ -110,6 +117,7 @@ const WorkspaceApp: React.FC<WorkspaceAppProps> = ({
   initialModelSelection = null,
   onModelSelectionChange,
   onZoomOut,
+  onSaveRecording,
   onPersistState,
 }) => {
   const [sessions, setSessions] = useState<Session[]>(() =>
@@ -2024,6 +2032,7 @@ const WorkspaceApp: React.FC<WorkspaceAppProps> = ({
               inProgressTask={getInProgressTaskForSelectedSession()}
               selectedFps={selectedFps}
               gridSpan={sessionGrid.spans[sessionIndex]}
+              onSaveRecording={onSaveRecording}
             />
           );
         })}
