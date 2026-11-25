@@ -80,6 +80,22 @@ type InventoryServer struct {
 	Description string `json:"description"`
 	CreatedAt   int64  `json:"createdAt"`
 	UpdatedAt   int64  `json:"updatedAt"`
+	// IsDisposable marks a row backed by a temporary Docker container that is
+	// destroyed together with the row.
+	IsDisposable bool   `json:"isDisposable"`
+	ContainerID  string `json:"containerId,omitempty"`
+}
+
+// inventoryColumns lists the inventory_servers columns in scan order.
+const inventoryColumns = `id, name, ip, description, created_at, updated_at, is_disposable, container_id`
+
+func scanInventory(row interface{ Scan(dest ...any) error }) (*InventoryServer, error) {
+	var s InventoryServer
+	err := row.Scan(&s.ID, &s.Name, &s.IP, &s.Description, &s.CreatedAt, &s.UpdatedAt, &s.IsDisposable, &s.ContainerID)
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
 }
 
 var (
@@ -198,6 +214,8 @@ func InitDB(dbPath string) error {
 		description TEXT NOT NULL DEFAULT '',
 		created_at INTEGER NOT NULL,
 		updated_at INTEGER NOT NULL,
+		is_disposable INTEGER NOT NULL DEFAULT 0,
+		container_id TEXT NOT NULL DEFAULT '',
 		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 	);
 	`
@@ -212,6 +230,8 @@ func InitDB(dbPath string) error {
 		`ALTER TABLE workspaces ADD COLUMN fps INTEGER NOT NULL DEFAULT 5;`,
 		`ALTER TABLE workspaces ADD COLUMN token_usage INTEGER NOT NULL DEFAULT 0;`,
 		`ALTER TABLE workspaces ADD COLUMN network_usage INTEGER NOT NULL DEFAULT 0;`,
+		`ALTER TABLE inventory_servers ADD COLUMN is_disposable INTEGER NOT NULL DEFAULT 0;`,
+		`ALTER TABLE inventory_servers ADD COLUMN container_id TEXT NOT NULL DEFAULT '';`,
 	}
 	for _, m := range migrations {
 		_, _ = conn.Exec(m) // ignore "duplicate column name" errors
@@ -648,7 +668,7 @@ func ListInventory(userID string) ([]InventoryServer, error) {
 		return nil, err
 	}
 	rows, err := conn.Query(`
-		SELECT id, name, ip, description, created_at, updated_at
+		SELECT `+inventoryColumns+`
 		FROM inventory_servers
 		WHERE user_id = ?
 		ORDER BY created_at DESC
@@ -660,13 +680,13 @@ func ListInventory(userID string) ([]InventoryServer, error) {
 
 	servers := make([]InventoryServer, 0)
 	for rows.Next() {
-		var s InventoryServer
-		if err := rows.Scan(&s.ID, &s.Name, &s.IP, &s.Description, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		s, err := scanInventory(rows)
+		if err != nil {
 			return nil, err
 		}
-		servers = append(servers, s)
+		servers = append(servers, *s)
 	}
-	return servers, nil
+	return servers, rows.Err()
 }
 
 // CreateInventoryServer adds a server to the user's inventory.
@@ -694,9 +714,56 @@ func CreateInventoryServer(userID, name, ip, description string) (*InventoryServ
 		UpdatedAt:   now,
 	}
 	if _, err := conn.Exec(`
-		INSERT INTO inventory_servers (id, user_id, name, ip, description, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO inventory_servers (id, user_id, name, ip, description, created_at, updated_at, is_disposable, container_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, 0, '')
 	`, s.ID, userID, s.Name, s.IP, s.Description, s.CreatedAt, s.UpdatedAt); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// CreateDisposableInventoryServer adds an inventory row backed by a disposable
+// Docker container. The container must already exist; containerID is what is
+// destroyed when the row is deleted.
+func CreateDisposableInventoryServer(userID, name, ip, description, containerID string) (*InventoryServer, error) {
+	conn, err := getDB()
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().UnixMilli()
+	s := &InventoryServer{
+		ID:           newID("dsp"),
+		Name:         strings.TrimSpace(name),
+		IP:           strings.TrimSpace(ip),
+		Description:  strings.TrimSpace(description),
+		CreatedAt:    now,
+		UpdatedAt:    now,
+		IsDisposable: true,
+		ContainerID:  strings.TrimSpace(containerID),
+	}
+	if _, err := conn.Exec(`
+		INSERT INTO inventory_servers (id, user_id, name, ip, description, created_at, updated_at, is_disposable, container_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+	`, s.ID, userID, s.Name, s.IP, s.Description, s.CreatedAt, s.UpdatedAt, s.ContainerID); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// GetInventoryServer returns one inventory server owned by userID.
+func GetInventoryServer(userID, id string) (*InventoryServer, error) {
+	conn, err := getDB()
+	if err != nil {
+		return nil, err
+	}
+	s, err := scanInventory(conn.QueryRow(`
+		SELECT `+inventoryColumns+`
+		FROM inventory_servers WHERE id = ? AND user_id = ?
+	`, id, userID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -730,15 +797,14 @@ func UpdateInventoryServer(userID, id, name, ip, description string) (*Inventory
 	if n == 0 {
 		return nil, ErrNotFound
 	}
-	var s InventoryServer
-	err = conn.QueryRow(`
-		SELECT id, name, ip, description, created_at, updated_at
+	s, err := scanInventory(conn.QueryRow(`
+		SELECT `+inventoryColumns+`
 		FROM inventory_servers WHERE id = ? AND user_id = ?
-	`, id, userID).Scan(&s.ID, &s.Name, &s.IP, &s.Description, &s.CreatedAt, &s.UpdatedAt)
+	`, id, userID))
 	if err != nil {
 		return nil, err
 	}
-	return &s, nil
+	return s, nil
 }
 
 // DeleteInventoryServer deletes an inventory server owned by userID.

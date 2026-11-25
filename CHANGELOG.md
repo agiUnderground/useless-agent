@@ -1,5 +1,11 @@
 # Changelog
 
+### Unreleased
+
+#### Features
+* Added disposable Docker containers to the Inventory view ("+ Disposable container", Docker Compose only): starts a copy-on-write copy of the `backend` service in about a second and lists it as a highlighted `TEMP` row that can be connected in any workspace; **Destroy** removes the container, its data volume and the inventory entry. Backed by a new, unprivileged `docker-controller` sidecar that is the only service with access to the Docker socket (`CONTROLLER_TOKEN`, `DOCKER_GID`, `DISPOSABLE_MAX_CONTAINERS` in `.env`). See `DOCKER_README.md`.
+
+
 ### v0.3.1
 
 #### Changes

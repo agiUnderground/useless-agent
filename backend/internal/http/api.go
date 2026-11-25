@@ -1,15 +1,24 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
 
 	"useless-agent/internal/db"
+	"useless-agent/internal/disposable"
 )
 
 const authCookieName = "ua_session"
+
+// disposables is the docker-controller client; nil or unconfigured means the
+// feature is disabled for this deployment.
+var disposables = disposable.FromEnv()
+
+// SetDisposableClient overrides the docker-controller client (used by tests).
+func SetDisposableClient(c *disposable.Client) { disposables = c }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
@@ -367,8 +376,22 @@ func InventoryByIDHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	existing, err := db.GetInventoryServer(user.ID, id)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			writeJSONError(w, http.StatusNotFound, "Server not found")
+			return
+		}
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	switch r.Method {
 	case http.MethodPatch:
+		if existing.IsDisposable {
+			writeJSONError(w, http.StatusBadRequest, "Disposable containers cannot be edited. Destroy it and create a new one.")
+			return
+		}
 		var req struct {
 			Name        string `json:"name"`
 			IP          string `json:"ip"`
@@ -390,6 +413,14 @@ func InventoryByIDHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, srv)
 
 	case http.MethodDelete:
+		if existing.IsDisposable && existing.ContainerID != "" {
+			// Destroy the container first. If that fails the row is kept so the
+			// user can retry instead of leaking a running container.
+			if err := destroyDisposable(r, existing.ContainerID); err != nil {
+				writeJSONError(w, http.StatusBadGateway, "Could not destroy container: "+err.Error())
+				return
+			}
+		}
 		if err := db.DeleteInventoryServer(user.ID, id); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeJSONError(w, http.StatusNotFound, "Server not found")
@@ -403,4 +434,81 @@ func InventoryByIDHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
 	}
+}
+
+// destroyDisposable removes a disposable container. A container that is
+// already gone counts as success.
+func destroyDisposable(r *http.Request, containerID string) error {
+	if !disposables.Configured() {
+		return disposable.ErrNotConfigured
+	}
+	err := disposables.Delete(r.Context(), containerID)
+	var se *disposable.StatusError
+	if errors.As(err, &se) && se.Code == http.StatusNotFound {
+		return nil
+	}
+	return err
+}
+
+// DisposableCreateHandler handles POST /api/inventory/disposable: it creates a
+// disposable Docker container and adds it to the user's inventory.
+func DisposableCreateHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	user, _, ok := requireAuth(w, r)
+	if !ok {
+		return
+	}
+	if !disposables.Configured() {
+		writeJSONError(w, http.StatusNotImplemented, "Disposable containers are not available in this deployment")
+		return
+	}
+
+	c, err := disposables.Create(r.Context(), user.ID)
+	if err != nil {
+		writeJSONError(w, http.StatusBadGateway, "Could not create container: "+err.Error())
+		return
+	}
+
+	name := strings.TrimPrefix(c.Name, "uagent-disp-")
+	srv, err := db.CreateDisposableInventoryServer(
+		user.ID,
+		"disposable-"+name,
+		c.IP,
+		"Temporary container "+c.Name+". Destroyed together with this entry.",
+		c.ID,
+	)
+	if err != nil {
+		// Do not leak a running container when the row cannot be stored.
+		_ = disposables.Delete(context.Background(), c.ID)
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, srv)
+}
+
+// CapabilitiesHandler handles GET /api/capabilities and tells the frontend
+// which optional features this deployment supports.
+func CapabilitiesHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	if _, _, ok := requireAuth(w, r); !ok {
+		return
+	}
+	enabled, reason := false, ""
+	if !disposables.Configured() {
+		reason = "Disposable containers are only available when started with docker compose and a configured controller."
+	} else if err := disposables.Health(r.Context()); err != nil {
+		reason = "Container controller is unavailable: " + err.Error()
+	} else {
+		enabled = true
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"disposableContainers":       enabled,
+		"disposableContainersReason": reason,
+	})
 }

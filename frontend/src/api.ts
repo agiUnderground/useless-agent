@@ -54,6 +54,15 @@ export interface InventoryServer {
   description: string;
   createdAt: number;
   updatedAt: number;
+  /** Row backed by a temporary Docker container (see createDisposableContainer). */
+  isDisposable?: boolean;
+  /** Docker container id of a disposable row; destroyed with the row. */
+  containerId?: string;
+}
+
+export interface Capabilities {
+  disposableContainers: boolean;
+  disposableContainersReason?: string;
 }
 
 const AUTH_STORAGE_KEY = 'ua_auth';
@@ -182,5 +191,16 @@ export const api = {
     return apiFetch<{ result: string }>(`/api/inventory/${encodeURIComponent(id)}`, token, {
       method: 'DELETE',
     });
+  },
+  /** Which optional features this deployment supports. */
+  getCapabilities(token: string) {
+    return apiFetch<Capabilities>('/api/capabilities', token, { method: 'GET' });
+  },
+  /**
+   * Starts a disposable copy of the backend container and returns the new
+   * inventory row pointing at its IP. Deleting that row destroys it.
+   */
+  createDisposableContainer(token: string) {
+    return apiFetch<InventoryServer>('/api/inventory/disposable', token, { method: 'POST' });
   },
 };

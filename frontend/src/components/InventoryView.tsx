@@ -1,23 +1,78 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { InventoryServer } from '../api';
+import { CONFIG } from '../config';
 import './InventoryView.css';
 
 interface InventoryViewProps {
   servers: InventoryServer[];
+  /** True only when the backend can create disposable containers (docker compose). */
+  disposableAvailable: boolean;
+  onCreateDisposable: () => Promise<void>;
   onAddServer: (payload: { name: string; ip: string; description: string }) => Promise<void>;
   onUpdateServer: (id: string, payload: { name: string; ip: string; description: string }) => Promise<void>;
   onDeleteServer: (id: string) => Promise<void>;
   onConnectServer: (ip: string) => void;
 }
 
+const READY_PROBE_INTERVAL_MS = 1500;
+const READY_PROBE_MAX_ATTEMPTS = 60;
+
+/**
+ * A freshly created disposable container needs a few seconds before its
+ * backend answers. Poll /ping so the UI can show "Starting…" instead of a
+ * connection error. After a while we stop waiting and let the user try.
+ */
+const useContainerReady = (ip: string | null): boolean => {
+  const [ready, setReady] = useState(ip === null);
+
+  useEffect(() => {
+    if (ip === null) {
+      setReady(true);
+      return;
+    }
+    let cancelled = false;
+    let timer: number | undefined;
+    setReady(false);
+
+    const probe = async (attempt: number) => {
+      try {
+        const res = await fetch(CONFIG.getHttpUrl(ip, '/ping'), { method: 'GET' });
+        if (res.ok) {
+          if (!cancelled) setReady(true);
+          return;
+        }
+      } catch {
+        // Not up yet.
+      }
+      if (cancelled) return;
+      if (attempt >= READY_PROBE_MAX_ATTEMPTS) {
+        setReady(true);
+        return;
+      }
+      timer = window.setTimeout(() => probe(attempt + 1), READY_PROBE_INTERVAL_MS);
+    };
+    probe(0);
+
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [ip]);
+
+  return ready;
+};
+
 const InventoryView: React.FC<InventoryViewProps> = ({
   servers,
+  disposableAvailable,
+  onCreateDisposable,
   onAddServer,
   onUpdateServer,
   onDeleteServer,
   onConnectServer,
 }) => {
   const [filter, setFilter] = useState('');
+  const [creatingDisposable, setCreatingDisposable] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -85,6 +140,19 @@ const InventoryView: React.FC<InventoryViewProps> = ({
     }
   };
 
+  const handleCreateDisposable = async () => {
+    if (!disposableAvailable || creatingDisposable) return;
+    setCreatingDisposable(true);
+    setError(null);
+    try {
+      await onCreateDisposable();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create container');
+    } finally {
+      setCreatingDisposable(false);
+    }
+  };
+
   const filtered = servers.filter((s) => {
     const q = filter.trim().toLowerCase();
     if (!q) return true;
@@ -111,22 +179,47 @@ const InventoryView: React.FC<InventoryViewProps> = ({
             </p>
           </div>
 
-          <button
-            type="button"
-            className={`inventory-primary-btn ${showForm && !editingId ? 'is-cancel' : ''}`}
-            onClick={openCreateForm}
-          >
-            {showForm && !editingId ? (
-              <span>Cancel</span>
-            ) : (
-              <>
-                <svg viewBox="0 0 16 16" fill="none" width="13" height="13" aria-hidden="true">
-                  <path d="M8 3.25v9.5M3.25 8h9.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+          <div className="inventory-header-actions">
+            <button
+              type="button"
+              className="inventory-secondary-btn inventory-disposable-btn"
+              onClick={handleCreateDisposable}
+              disabled={!disposableAvailable || creatingDisposable}
+              title={
+                disposableAvailable
+                  ? 'Start a disposable copy of the backend container and add it to the inventory'
+                  : 'Only available when the app runs in docker compose with a configured container controller'
+              }
+            >
+              {creatingDisposable ? (
+                <span className="inventory-spinner" aria-hidden="true" />
+              ) : (
+                <svg viewBox="0 0 16 16" fill="none" width="14" height="14" aria-hidden="true">
+                  <path d="M2.25 7.25h1.6M5.05 7.25h1.6M7.85 7.25h1.6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                  <path d="M3.1 8.6v1.9c0 .7.55 1.25 1.25 1.25h6.3c.95 0 1.8-.55 2.2-1.4l.85-1.7c.13-.26-.06-.57-.36-.57H4.2c-.6 0-1.1.25-1.1.52Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+                  <path d="M5.6 5.2v1.5M7.4 4.6v2.1M9.2 5.5v1.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
                 </svg>
-                <span>Add Server</span>
-              </>
-            )}
-          </button>
+              )}
+              <span>{creatingDisposable ? 'Creating…' : '+ Disposable container'}</span>
+            </button>
+
+            <button
+              type="button"
+              className={`inventory-primary-btn ${showForm && !editingId ? 'is-cancel' : ''}`}
+              onClick={openCreateForm}
+            >
+              {showForm && !editingId ? (
+                <span>Cancel</span>
+              ) : (
+                <>
+                  <svg viewBox="0 0 16 16" fill="none" width="13" height="13" aria-hidden="true">
+                    <path d="M8 3.25v9.5M3.25 8h9.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                  </svg>
+                  <span>Add Server</span>
+                </>
+              )}
+            </button>
+          </div>
         </header>
 
         {showForm && (
@@ -242,54 +335,97 @@ const InventoryView: React.FC<InventoryViewProps> = ({
         ) : (
           <div className="inventory-list">
             {filtered.map((srv) => (
-              <div key={srv.id} className="inventory-card">
-                <div className="inventory-card-icon" aria-hidden="true">
-                  <svg viewBox="0 0 16 16" fill="none" width="15" height="15">
-                    <rect x="2" y="2.5" width="12" height="4.5" rx="1.1" stroke="currentColor" strokeWidth="1.35" />
-                    <rect x="2" y="9" width="12" height="4.5" rx="1.1" stroke="currentColor" strokeWidth="1.35" />
-                    <circle cx="4.5" cy="4.75" r="0.75" fill="currentColor" />
-                    <circle cx="4.5" cy="11.25" r="0.75" fill="currentColor" />
-                  </svg>
-                </div>
-
-                <div className="inventory-card-main">
-                  <div className="inventory-card-title-row">
-                    <span className="inventory-card-name">{srv.name}</span>
-                    <span className="inventory-card-ip">{srv.ip}</span>
-                  </div>
-                  {srv.description && (
-                    <div className="inventory-card-desc">{srv.description}</div>
-                  )}
-                </div>
-
-                <div className="inventory-card-actions">
-                  <button
-                    type="button"
-                    className="inventory-action-btn connect"
-                    onClick={() => onConnectServer(srv.ip)}
-                    title="Connect in active workspace"
-                  >
-                    Connect
-                  </button>
-                  <button
-                    type="button"
-                    className="inventory-action-btn"
-                    onClick={() => startEdit(srv)}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="inventory-action-btn danger"
-                    onClick={() => onDeleteServer(srv.id)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
+              <DisposableAwareRow
+                key={srv.id}
+                srv={srv}
+                onConnectServer={onConnectServer}
+                onEdit={startEdit}
+                onDeleteServer={onDeleteServer}
+              />
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+};
+
+interface RowProps {
+  srv: InventoryServer;
+  onConnectServer: (ip: string) => void;
+  onEdit: (srv: InventoryServer) => void;
+  onDeleteServer: (id: string) => Promise<void>;
+}
+
+const ServerIcon: React.FC = () => (
+  <svg viewBox="0 0 16 16" fill="none" width="15" height="15" aria-hidden="true">
+    <rect x="2" y="2.5" width="12" height="4.5" rx="1.1" stroke="currentColor" strokeWidth="1.35" />
+    <rect x="2" y="9" width="12" height="4.5" rx="1.1" stroke="currentColor" strokeWidth="1.35" />
+    <circle cx="4.5" cy="4.75" r="0.75" fill="currentColor" />
+    <circle cx="4.5" cy="11.25" r="0.75" fill="currentColor" />
+  </svg>
+);
+
+const ContainerIcon: React.FC = () => (
+  <svg viewBox="0 0 16 16" fill="none" width="15" height="15" aria-hidden="true">
+    <path d="M2.6 5.6v4.9c0 .75.6 1.35 1.35 1.35h6.1c1 0 1.9-.55 2.35-1.45l.9-1.8c.14-.28-.07-.6-.38-.6H3.75c-.63 0-1.15.52-1.15 1.15Z" stroke="currentColor" strokeWidth="1.25" strokeLinejoin="round" />
+    <path d="M5.3 3.2v1.8M7.2 2.5v2.5M9.1 3.5v1.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+    <circle cx="6" cy="8.1" r="0.7" fill="currentColor" />
+    <circle cx="9.2" cy="8.1" r="0.7" fill="currentColor" />
+  </svg>
+);
+
+/** One inventory line. Disposable rows are tinted and cannot be edited. */
+const DisposableAwareRow: React.FC<RowProps> = ({ srv, onConnectServer, onEdit, onDeleteServer }) => {
+  const isDisposable = !!srv.isDisposable;
+  const ready = useContainerReady(isDisposable ? srv.ip : null);
+
+  return (
+    <div className={`inventory-card${isDisposable ? ' is-disposable' : ''}`}>
+      <div className="inventory-card-icon" aria-hidden="true">
+        {isDisposable ? <ContainerIcon /> : <ServerIcon />}
+      </div>
+
+      <div className="inventory-card-main">
+        <div className="inventory-card-title-row">
+          <span className="inventory-card-name">{srv.name}</span>
+          {isDisposable && (
+            <span className="inventory-badge" title="Temporary Docker container, destroyed with this entry">
+              TEMP
+            </span>
+          )}
+          <span className="inventory-card-ip">{srv.ip}</span>
+        </div>
+        {isDisposable && !ready ? (
+          <div className="inventory-card-desc">Starting container…</div>
+        ) : (
+          srv.description && <div className="inventory-card-desc">{srv.description}</div>
+        )}
+      </div>
+
+      <div className="inventory-card-actions">
+        <button
+          type="button"
+          className="inventory-action-btn connect"
+          onClick={() => onConnectServer(srv.ip)}
+          disabled={isDisposable && !ready}
+          title="Connect in active workspace"
+        >
+          {isDisposable && !ready ? 'Starting…' : 'Connect'}
+        </button>
+        {!isDisposable && (
+          <button type="button" className="inventory-action-btn" onClick={() => onEdit(srv)}>
+            Edit
+          </button>
+        )}
+        <button
+          type="button"
+          className="inventory-action-btn danger"
+          onClick={() => onDeleteServer(srv.id)}
+          title={isDisposable ? 'Destroy the container and remove this entry' : 'Remove from inventory'}
+        >
+          {isDisposable ? 'Destroy' : 'Delete'}
+        </button>
       </div>
     </div>
   );

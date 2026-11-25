@@ -12,11 +12,41 @@ services:
       - CONFIG_PATH=/data/config.json
       - ARTIFACTS_DIR=/data/artifacts
       - DISPLAY=:2
+      # Disposable containers: an empty CONTROLLER_TOKEN disables the feature.
+      - CONTROLLER_URL=http://docker-controller:8090
+      - CONTROLLER_TOKEN=${CONTROLLER_TOKEN:-}
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
       - ./data:/data
     ports:
       - "8080:8080"
+    depends_on:
+      - docker-controller
+
+  # Only this service can talk to Docker. It offers exactly two operations:
+  # start a disposable copy of the `backend` container, and destroy one.
+  # Requires in .env: CONTROLLER_TOKEN=<random secret> and DOCKER_GID=<id of
+  # the group that owns /var/run/docker.sock>. Without them the feature is off.
+  docker-controller:
+    build:
+      context: ./docker-controller
+      dockerfile: Dockerfile
+    environment:
+      - CONTROLLER_TOKEN=${CONTROLLER_TOKEN:-}
+      - SOURCE_SERVICE=backend
+      - MAX_CONTAINERS=${DISPOSABLE_MAX_CONTAINERS:-8}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Unprivileged: a normal user that is only a member of the socket's group.
+    user: "65534:65534"
+    group_add:
+      - "${DOCKER_GID:-65534}"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
 
   frontend:
     build:

@@ -99,6 +99,48 @@ docker exec useless-agent-server hostname -I
 3. Click "Connect" to establish a connection
 4. Start giving tasks to the agent through the LLM Chat interface
 
+## Disposable Containers (Inventory)
+
+When the app runs with Docker Compose, the **Inventory** page gets a second button,
+**"+ Disposable container"**. It starts a fresh copy of the `backend` container in
+about a second and adds it to the inventory as a highlighted row with a `TEMP` badge.
+Click **Connect** to use it in a workspace like any other server. Click **Destroy**
+to remove the container, its data volume and the inventory entry together.
+
+The copy is cheap because it reuses the backend image's layers (copy-on-write) and
+gets the same image, environment variables, command and entrypoint as the `backend`
+service. It does **not** get the backend's volumes or published ports:
+
+- `/data` is a private, empty volume per disposable container, so it has its own
+  database, users and settings. LLM credentials come from the copied environment.
+- It is reached by its Docker IP on the compose network, so this works from a browser
+  on the Docker host (Linux). Remote browsers cannot reach those IPs.
+
+### Enabling it
+
+The button is disabled unless the `docker-controller` service can reach Docker.
+To turn it on, add two values to a `.env` file next to `docker-compose.yml`:
+
+```bash
+echo "CONTROLLER_TOKEN=$(openssl rand -hex 32)" >> .env
+echo "DOCKER_GID=$(getent group docker | cut -d: -f3)" >> .env
+docker compose up --build -d
+```
+
+- `CONTROLLER_TOKEN` is the shared secret between the backend and the controller.
+  Leave it empty to keep the feature off.
+- `DOCKER_GID` is the id of the group that owns `/var/run/docker.sock`
+  (`stat -c %g /var/run/docker.sock`). The controller runs as an unprivileged user
+  that is only a member of that group.
+- `DISPOSABLE_MAX_CONTAINERS` (optional, default `8`) caps how many disposables may
+  exist at once.
+
+Only the `docker-controller` service mounts the Docker socket. It exposes just two
+operations (create a copy of `backend`, destroy one by id); callers cannot pass an
+image, command or mounts. Note that access to the Docker socket is still equivalent
+to root on the host, so treat that service as privileged even though it runs as a
+normal user.
+
 ## Example Usage
 
 ### Using DeepSeek

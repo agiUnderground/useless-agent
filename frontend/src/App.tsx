@@ -26,6 +26,7 @@ const App: React.FC = () => {
   const [workspaces, setWorkspaces] = useState<WorkspaceData[]>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
   const [inventory, setInventory] = useState<InventoryServer[]>([]);
+  const [disposableAvailable, setDisposableAvailable] = useState<boolean>(false);
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [settingsOpenByWorkspace, setSettingsOpenByWorkspace] = useState<Record<string, boolean>>({});
   const [settingsTabsByWorkspace, setSettingsTabsByWorkspace] = useState<Record<string, Record<string, string>>>({});
@@ -100,12 +101,24 @@ const App: React.FC = () => {
       setWorkspaces([]);
       setActiveWorkspaceId(null);
       setInventory([]);
+      setDisposableAvailable(false);
       setIsExpanded(false);
       return;
     }
 
     let cancelled = false;
     const token = auth.token;
+
+    // The disposable-container button is only offered when the backend runs
+    // inside docker compose with a working container controller.
+    api
+      .getCapabilities(token)
+      .then((caps) => {
+        if (!cancelled) setDisposableAvailable(!!caps.disposableContainers);
+      })
+      .catch(() => {
+        if (!cancelled) setDisposableAvailable(false);
+      });
 
     Promise.all([api.listWorkspaces(token), api.listInventory(token)])
       .then(async ([wsRes, invRes]) => {
@@ -379,6 +392,12 @@ const App: React.FC = () => {
   const handleAddServer = async (payload: { name: string; ip: string; description: string }) => {
     if (!auth) return;
     const created = await api.createInventoryServer(auth.token, payload);
+    setInventory((prev) => [created, ...prev]);
+  };
+
+  const handleCreateDisposable = async () => {
+    if (!auth) return;
+    const created = await api.createDisposableContainer(auth.token);
     setInventory((prev) => [created, ...prev]);
   };
 
@@ -704,6 +723,8 @@ const App: React.FC = () => {
       {activeNav === 'inventory' && (
         <InventoryView
           servers={inventory}
+          disposableAvailable={disposableAvailable}
+          onCreateDisposable={handleCreateDisposable}
           onAddServer={handleAddServer}
           onUpdateServer={handleUpdateServer}
           onDeleteServer={handleDeleteServer}
